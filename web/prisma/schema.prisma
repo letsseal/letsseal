@@ -1,0 +1,141 @@
+// docsigner data model — multi-tenant document signing.
+//
+// Dev uses SQLite (zero-install). For prod, change provider to "postgresql"
+// and DATABASE_URL — no model changes required.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A business. Everything is scoped to an Organization for tenant isolation.
+// branding + signing cert are per-org so sealed docs read as *that* business.
+model Organization {
+  id          String   @id @default(cuid())
+  slug        String   @unique // maps to ca/out/orgs/<slug>/signing.p12
+  name        String
+  logoUrl     String?
+  brandColor  String   @default("#111827")
+  fromEmail   String?
+  domain      String? // custom domain for signing links
+  createdAt   DateTime @default(now())
+
+  users     User[]
+  templates Template[]
+  envelopes Envelope[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id])
+  email     String
+  name      String?
+  role      String   @default("member") // owner | admin | member
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, email])
+}
+
+// An uploaded PDF plus its reusable field layout.
+model Template {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id])
+  name      String
+  pdfPath   String // path/key of the original uploaded PDF
+  pageCount Int
+  fields    Field[] // template-level field definitions
+  envelopes Envelope[]
+  createdAt DateTime @default(now())
+}
+
+// A send-out: one document routed to one or more signers.
+model Envelope {
+  id         String   @id @default(cuid())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id])
+  templateId String?
+  template   Template? @relation(fields: [templateId], references: [id])
+  title      String
+  status     String   @default("draft") // draft|sent|completed|voided
+  pdfPath    String // working copy being filled in
+  createdAt  DateTime @default(now())
+  completedAt DateTime?
+
+  signers Signer[]
+  fields  Field[]
+  audit   AuditEvent[]
+  sealed  SealedDocument?
+}
+
+// A person who must sign. email is OPTIONAL — supports in-person & no-email.
+model Signer {
+  id         String   @id @default(cuid())
+  envelopeId String
+  envelope   Envelope @relation(fields: [envelopeId], references: [id])
+  name       String
+  email      String? // null => in-person / kiosk signer
+  kind       String   @default("remote") // remote | in_person | kiosk
+  order      Int      @default(1) // routing order
+  token      String   @unique // tokenized signing-link secret
+  status     String   @default("pending") // pending|viewed|signed|declined
+  // identity binding for no-email signers:
+  accessCode String? // shared code / SMS OTP
+  idPhotoPath String? // captured ID or photo of signer
+  signedAt   DateTime?
+
+  fields Field[]
+}
+
+// A field placed on the PDF: signature box, date, text, etc.
+model Field {
+  id         String   @id @default(cuid())
+  templateId String?
+  template   Template? @relation(fields: [templateId], references: [id])
+  envelopeId String?
+  envelope   Envelope? @relation(fields: [envelopeId], references: [id])
+  signerId   String?
+  signer     Signer?   @relation(fields: [signerId], references: [id])
+  type       String // signature|initials|date|text|checkbox
+  page       Int
+  x          Float // normalized 0..1 coordinates so it scales with render
+  y          Float
+  w          Float
+  h          Float
+  value      String? // filled value / signature image ref
+  required   Boolean  @default(true)
+}
+
+// Tamper-evident audit trail. Each event hashes the prior state.
+model AuditEvent {
+  id         String   @id @default(cuid())
+  envelopeId String
+  envelope   Envelope @relation(fields: [envelopeId], references: [id])
+  actor      String // signer id, user id, or "system"
+  action     String // created|viewed|field_filled|signed|sealed|verified
+  ip         String?
+  userAgent  String?
+  prevHash   String? // hash chain: sha256(prevHash + this event)
+  hash       String
+  createdAt  DateTime @default(now())
+}
+
+// The final sealed PDF — the source of truth for the verification portal.
+model SealedDocument {
+  id         String   @id @default(cuid())
+  envelopeId String   @unique
+  envelope   Envelope @relation(fields: [envelopeId], references: [id])
+  pdfPath    String
+  sha256     String   @unique // what the /verify portal matches against
+  certCN     String
+  sealedAt   DateTime @default(now())
+  // OpenTimestamps Bitcoin anchor (decentralized proof of existence + date).
+  otsProof   String? // base64 .ots proof
+  anchorState String  @default("none") // none | pending | confirmed
+  btcBlock   Int? // Bitcoin block height once confirmed
+}

@@ -1,0 +1,32 @@
+# === SECURITY: never commit signing keys or the CA ===
+ca/out/
+*.key
+*.p12
+*.pfx
+*.srl
+
+# python
+signing-service/.venv/
+__pycache__/
+*.pyc
+
+# node / next
+web/node_modules/
+web/.next/
+web/out/
+web/.env*
+!web/.env.example
+
+# dev db + uploads
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+storage/
+uploads/
+
+# misc
+.DS_Store
+.env
+.env.local
+/tmp/
