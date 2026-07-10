@@ -26,10 +26,10 @@ def make_pdf() -> bytes:
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", size=16)
-    pdf.cell(text="docsigner - test agreement")
+    pdf.cell(text="Let's Seal - test agreement")
     pdf.ln(20)
     pdf.set_font("helvetica", size=11)
-    pdf.multi_cell(0, 8, "This document was sealed by the docsigner signing service "
+    pdf.multi_cell(0, 8, "This document was sealed by the Let's Seal signing service "
                          "using the organization's own-CA signing certificate.")
     return bytes(pdf.output())
 

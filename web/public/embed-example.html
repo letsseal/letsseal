@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Let's Seal embed — example</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #172033; }
+    h1 { font-size: 22px; } h2 { font-size: 15px; margin-top: 34px; }
+    pre { background: #f2f4f6; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+    .demo { margin: 12px 0 24px; }
+  </style>
+</head>
+<body>
+  <h1>Embed “verify this document” on your site</h1>
+  <p>One script tag. The widget renders in a shadow DOM (no CSS clashes) and calls the
+     public, keyless verification API. Show a badge for a specific document, or let visitors
+     drop a PDF to check.</p>
+
+  <h2>1 · Badge for a specific document (by SHA-256)</h2>
+  <pre>&lt;div data-letsseal-verify data-hash="&lt;sha256&gt;"&gt;&lt;/div&gt;
+&lt;script src="https://app.letsseal.org/embed.js" async&gt;&lt;/script&gt;</pre>
+  <div class="demo">
+    <!-- Replace the hash with a real sealed-document digest. -->
+    <div data-letsseal-verify data-hash="REPLACE_WITH_SHA256"></div>
+  </div>
+
+  <h2>2 · Drop-a-PDF checker</h2>
+  <pre>&lt;div data-letsseal-verify&gt;&lt;/div&gt;
+&lt;script src="https://app.letsseal.org/embed.js" async&gt;&lt;/script&gt;</pre>
+  <div class="demo">
+    <div data-letsseal-verify></div>
+  </div>
+
+  <p style="color:#5b6472;font-size:13px">The widget always links to the full proof page and explains how to
+     verify independently (the Bitcoin anchor + the certificate chain in the PDF) — so trust never rests on
+     us or on the site hosting the widget.</p>
+
+  <script src="/embed.js" async></script>
+</body>
+</html>

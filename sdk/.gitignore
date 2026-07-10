@@ -1,0 +1,16 @@
+# Down-converted spec (throwaway; openapi.json is the source of truth)
+.openapi-3.0.json
+
+# openapi-generator-cli version cache
+node_modules/
+.openapi-generator-cli/
+
+# TS hero SDK build output
+ts/dist/
+ts/node_modules/
+
+# Python build artifacts
+python/build/
+python/dist/
+python/*.egg-info/
+**/__pycache__/

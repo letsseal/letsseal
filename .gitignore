@@ -10,6 +10,10 @@ signing-service/.venv/
 __pycache__/
 *.pyc
 
+# rust
+target/
+cli-rs/target/
+
 # node / next
 web/node_modules/
 web/.next/

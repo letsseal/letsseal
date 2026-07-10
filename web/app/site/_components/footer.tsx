@@ -1,0 +1,66 @@
+import Link from "next/link";
+
+const COLS = [
+  {
+    h: "Project",
+    links: [
+      { label: "Mission", href: "/site/mission" },
+      { label: "How it works", href: "/site/how-it-works" },
+      { label: "Open", href: "/site/open" },
+      { label: "Transparency", href: "/site/open#stats" },
+    ],
+  },
+  {
+    h: "Build",
+    links: [
+      { label: "Get started", href: "/site/getting-started" },
+      { label: "Developers", href: "/site/developers" },
+      { label: "Docs", href: "/site/docs" },
+      { label: "GitHub", href: "https://github.com/letsseal" },
+    ],
+  },
+  {
+    h: "Use",
+    links: [
+      { label: "Verify a document", href: "/verify" },
+      { label: "The hosted app", href: "https://app.letsseal.org" },
+      { label: "Self-host", href: "/site/open" },
+    ],
+  },
+];
+
+export function SiteFooter() {
+  return (
+    <footer className="bg-stone-100/70">
+      <div className="mx-auto max-w-4xl px-6 py-14">
+        <div className="grid gap-10 sm:grid-cols-[2fr_1fr_1fr_1fr]">
+          <div>
+            <div className="text-[19px] font-semibold tracking-tight text-stone-900">Let&rsquo;s Seal</div>
+            <p className="mt-3 max-w-[280px] text-[14px] leading-relaxed text-stone-500">
+              Free, open infrastructure for document authenticity. A public-benefit project — secured by nobody,
+              verifiable by anyone.
+            </p>
+          </div>
+          {COLS.map((c) => (
+            <div key={c.h}>
+              <div className="mb-3 text-[11.5px] font-semibold uppercase tracking-wider text-stone-400">{c.h}</div>
+              <ul className="space-y-2">
+                {c.links.map((l) => (
+                  <li key={l.label}>
+                    <Link href={l.href} className="text-[14px] text-stone-600 hover:text-stone-900">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mt-12 flex flex-wrap justify-between gap-3 border-t border-stone-200 pt-6 text-[13px] text-stone-400">
+          <span>© 2026 Let&rsquo;s Seal · Open source (MIT) · a public-benefit project</span>
+          <span>Composes PAdES + OpenTimestamps + an open verification convention.</span>
+        </div>
+      </div>
+    </footer>
+  );
+}

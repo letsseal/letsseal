@@ -4,16 +4,23 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
 import { appendAudit } from "@/lib/audit";
+import { apiUser, requireOrg } from "@/lib/auth-helpers";
+import { overContentLength, tooLarge } from "@/lib/limits";
 
 export async function POST(req: NextRequest) {
+  const userId = await apiUser();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  if (overContentLength(req)) return NextResponse.json({ error: "file too large" }, { status: 413 });
   const form = await req.formData();
   const orgSlug = String(form.get("orgSlug") ?? "");
   const title = String(form.get("title") ?? "Untitled");
   const file = form.get("file");
 
-  const org = await db.organization.findUnique({ where: { slug: orgSlug } });
+  const org = await requireOrg(userId, orgSlug);
   if (!org) return NextResponse.json({ error: "unknown org" }, { status: 404 });
   if (!(file instanceof File)) return NextResponse.json({ error: "no file" }, { status: 400 });
+  if (tooLarge(file)) return NextResponse.json({ error: "file too large" }, { status: 413 });
 
   const bytes = Buffer.from(await file.arrayBuffer());
   let pageCount = 1;

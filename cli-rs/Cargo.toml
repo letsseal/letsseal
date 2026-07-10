@@ -1,0 +1,22 @@
+[package]
+name = "sealbot"
+version = "0.1.0"
+edition = "2021"
+description = "sealbot — the certbot for document authenticity: scriptable sealing, verification, and Bitcoin anchoring against any Let's Seal-compatible service."
+license = "MIT"
+
+[[bin]]
+name = "sealbot"
+path = "src/main.rs"
+
+[dependencies]
+ureq = { version = "2.10", features = ["json"] }
+serde_json = "1"
+sha2 = "0.10"
+base64 = "0.22"
+hex = "0.4"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true

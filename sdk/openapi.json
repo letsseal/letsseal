@@ -1,0 +1,868 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Let's Seal signing service",
+    "description": "The Let's Seal signing service is the keyed core of an open, self-hostable\nalternative to pay-to-play document-authenticity trust lists — *the \"Let's\nEncrypt for documents.\"*\n\nIt **composes open standards** rather than inventing new ones:\n\n* **PAdES / X.509** for the cryptographic seal (via pyHanko + an on-prem CA)\n* **OpenTimestamps** for a free Bitcoin anchor proving a file existed by a date\n* **SHA-256** everywhere; hash-only endpoints so a file never has to leave the caller\n\n**Trust is self-anchored.** This CA is deliberately *not* in OS/Adobe trust\nstores; a proof is verified via the certificate chain + the public portal + the\nblockchain, not via automatic vendor trust. That is the point, not a limitation.\n\n⚠️ **Runs localhost/private only — it holds signing keys.** The public, rate-limited\nsurface lives in the app tier in front of it.\n",
+    "contact": {
+      "name": "Let's Seal",
+      "url": "https://letsseal.org/"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8081",
+      "description": "Local keyed service"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "util"
+        ],
+        "summary": "Liveness check",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/org": {
+      "post": {
+        "tags": [
+          "ca"
+        ],
+        "summary": "Issue a business signing certificate",
+        "description": "Issue a signing certificate for a new business (runs the CA script).",
+        "operationId": "issueOrgCert",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/qr": {
+      "post": {
+        "tags": [
+          "util"
+        ],
+        "summary": "Render a proof QR (PNG)",
+        "description": "Render a QR code (PNG) for a proof URL — used to stamp sealed PDFs.",
+        "operationId": "renderQr",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "PNG image.",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cert/sign": {
+      "post": {
+        "tags": [
+          "ca"
+        ],
+        "summary": "Sign a client CSR under a profile",
+        "description": "CA-as-code: sign a client-supplied CSR under a signing profile.\n\nThe client generates and keeps the private key; we only sign the CSR. Trust\nis self-anchored (our CA isn't in OS/vendor trust stores) — verify via the\nchain + the portal, not automatic OS trust. Profiles: document | code | data.",
+        "operationId": "signCsr",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertSignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertSignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seal": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Seal a PDF",
+        "description": "Seal an uploaded completed PDF with the org's signing cert.",
+        "operationId": "seal",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_seal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The sealed PDF. `X-Letsseal-Sha256` and `X-Letsseal-Cert-CN` headers carry the digest and signer.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify a sealed PDF",
+        "description": "Verify an uploaded PDF against our CA — powers the public portal.",
+        "operationId": "verify",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/anchor": {
+      "post": {
+        "tags": [
+          "anchoring"
+        ],
+        "summary": "Anchor a file on Bitcoin",
+        "description": "Anchor sha256(pdf) on a decentralized ledger. Returns the proof.",
+        "operationId": "anchorFile",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_anchorFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/anchor/hash": {
+      "post": {
+        "tags": [
+          "anchoring"
+        ],
+        "summary": "Anchor a bare digest on Bitcoin",
+        "description": "Anchor a bare SHA-256 digest on a decentralized ledger (no file upload).",
+        "operationId": "anchorHash",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnchorHashRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/anchor/upgrade": {
+      "post": {
+        "tags": [
+          "anchoring"
+        ],
+        "summary": "Upgrade a pending anchor",
+        "description": "Given an existing .ots proof (base64), try to upgrade it to a confirmed\nBitcoin attestation. Returns the (possibly updated) proof + status.",
+        "operationId": "anchorUpgrade",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnchorUpgradeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnchorHashRequest": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "Lowercase 64-hex SHA-256 digest to anchor."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Anchor provider id (default `bitcoin`)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha256"
+        ],
+        "title": "AnchorHashRequest"
+      },
+      "AnchorResponse": {
+        "properties": {
+          "ots_b64": {
+            "type": "string",
+            "title": "Ots B64",
+            "description": "Base64 of the `.ots` proof; verifies with stock `ots verify`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnchorStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ots_b64",
+          "status"
+        ],
+        "title": "AnchorResponse"
+      },
+      "AnchorStatus": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "`pending` (in the calendar, confirming) or `confirmed`."
+          },
+          "file_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Sha256"
+          },
+          "bitcoin_block": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bitcoin Block",
+            "description": "Block height once confirmed."
+          },
+          "calendars": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calendars",
+            "description": "Calendars that accepted the timestamp."
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "AnchorStatus"
+      },
+      "AnchorUpgradeRequest": {
+        "properties": {
+          "ots_b64": {
+            "type": "string",
+            "title": "Ots B64",
+            "description": "Base64 of an existing `.ots` proof to upgrade."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Anchor provider id (default `bitcoin`)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ots_b64"
+        ],
+        "title": "AnchorUpgradeRequest"
+      },
+      "Body_anchorFile": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_anchorFile"
+      },
+      "Body_seal": {
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": "Document execution"
+          },
+          "timestamp": {
+            "type": "boolean",
+            "title": "Timestamp",
+            "default": true
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_slug",
+          "file"
+        ],
+        "title": "Body_seal"
+      },
+      "Body_verify": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_verify"
+      },
+      "CertSignRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "URL-safe id for the cert (a-z, 0-9, -).",
+            "examples": [
+              "ci-prod"
+            ]
+          },
+          "csr": {
+            "type": "string",
+            "title": "Csr",
+            "description": "PEM-encoded PKCS#10 CSR. The client keeps the private key."
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "description": "Signing profile.",
+            "default": "document",
+            "examples": [
+              "document",
+              "code",
+              "data"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "csr"
+        ],
+        "title": "CertSignRequest"
+      },
+      "CertSignResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile"
+          },
+          "certificate": {
+            "type": "string",
+            "title": "Certificate",
+            "description": "PEM signing certificate."
+          },
+          "chain": {
+            "type": "string",
+            "title": "Chain",
+            "description": "PEM chain (intermediate + root)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "profile",
+          "certificate",
+          "chain"
+        ],
+        "title": "CertSignResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "HealthResponse"
+      },
+      "OrgRequest": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "description": "URL-safe business slug (a-z, 0-9, -).",
+            "examples": [
+              "acme"
+            ]
+          },
+          "legal_name": {
+            "type": "string",
+            "title": "Legal Name",
+            "description": "Legal entity name to embed in the cert subject.",
+            "examples": [
+              "Acme Ltd"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "legal_name"
+        ],
+        "title": "OrgRequest"
+      },
+      "OrgResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "slug"
+        ],
+        "title": "OrgResponse"
+      },
+      "QrRequest": {
+        "properties": {
+          "data": {
+            "type": "string",
+            "title": "Data",
+            "description": "Payload to encode (typically a proof URL)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "QrRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerifyResponse": {
+        "properties": {
+          "sealed": {
+            "type": "boolean",
+            "title": "Sealed",
+            "description": "Whether a PAdES signature was found at all."
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "intact": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intact",
+            "description": "Bytes covered by the signature are unmodified."
+          },
+          "valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid",
+            "description": "Signature is cryptographically valid."
+          },
+          "trusted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trusted",
+            "description": "Chains to this CA's trust root."
+          },
+          "signer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer",
+            "description": "Human-friendly signer subject."
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why verification could not proceed (when unsealed)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sealed"
+        ],
+        "title": "VerifyResponse"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "sealing",
+      "description": "Apply and verify PAdES seals on PDFs."
+    },
+    {
+      "name": "anchoring",
+      "description": "Timestamp a file or digest on Bitcoin via OpenTimestamps."
+    },
+    {
+      "name": "ca",
+      "description": "CA-as-code: issue org and per-client signing certificates."
+    },
+    {
+      "name": "util",
+      "description": "Health and rendering helpers."
+    }
+  ]
+}

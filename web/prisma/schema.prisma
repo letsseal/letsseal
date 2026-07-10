@@ -1,4 +1,4 @@
-// docsigner data model — multi-tenant document signing.
+// Let's Seal data model — multi-tenant document signing.
 //
 // Dev uses SQLite (zero-install). For prod, change provider to "postgresql"
 // and DATABASE_URL — no model changes required.
@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -18,27 +18,153 @@ model Organization {
   id          String   @id @default(cuid())
   slug        String   @unique // maps to ca/out/orgs/<slug>/signing.p12
   name        String
-  logoUrl     String?
-  brandColor  String   @default("#111827")
+  logoUrl     String? // data URL or path to uploaded logo
+  brandColor  String   @default("#111827") // primary brand colour
+  accentColor String   @default("#2563eb") // secondary/accent
   fromEmail   String?
   domain      String? // custom domain for signing links
   createdAt   DateTime @default(now())
+  // Outbound-email abuse controls (all sending shares one SES account, so a bad
+  // actor here would hurt every project on it). sendingEnabled = per-org kill
+  // switch; sendingTrusted = manual/earned lift from the low new-org daily cap.
+  sendingEnabled Boolean @default(true)
+  sendingTrusted Boolean @default(false)
 
-  users     User[]
-  templates Template[]
-  envelopes Envelope[]
+  memberships Membership[]
+  templates   Template[]
+  envelopes   Envelope[]
+  apiKeys     ApiKey[]
+  sealedDocuments SealedDocument[]
+  credentials Credential[]
+  emailSends  EmailSend[]
 }
 
-model User {
+// One row per outbound email — powers the per-org rate limits (count rows in a
+// time window) and serves as a sending audit for reputation/complaint tracing.
+model EmailSend {
   id        String   @id @default(cuid())
   orgId     String
-  org       Organization @relation(fields: [orgId], references: [id])
-  email     String
-  name      String?
-  role      String   @default("member") // owner | admin | member
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  to        String
+  kind      String // invite | credential | completed | completed_sender
   createdAt DateTime @default(now())
 
-  @@unique([orgId, email])
+  @@index([orgId, createdAt])
+}
+
+// An issued credential — a branded, sealed, anchored document a business emits
+// to a named recipient (certificate, CPD, licence, insurance cert). This is
+// Tier 0: the ISSUER attests the document is genuine and unaltered; it makes no
+// claim about the recipient's identity. The seal + anchor live on a linked
+// SealedDocument (source="credential", same sha256); this row holds the
+// structured, human-readable metadata shown on the proof page.
+model Credential {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  recipientName  String
+  recipientEmail String? // if set, we email them their verification link
+  credType       String   @default("Certificate") // e.g. "Certificate of Completion", "CPD", "Licence"
+  title          String // the subject, e.g. "Advanced First Aid"
+  credentialCode String? // the issuer's own reference/number
+  description    String?
+  issuedOn       DateTime @default(now())
+  expiresOn      DateTime?
+  // Set after sealing (sealing changes the bytes/hash). The proof link baked
+  // into the PDF is keyed on this row's id instead, like envelopes.
+  sha256         String?  @unique // links to the sealed PDF → /d/<sha256>
+  // Revocation is issuer-attested mutable state (a licence lapses, a cert is
+  // withdrawn) — NOT cryptographic. Surfaced honestly as such on the proof.
+  revokedAt      DateTime?
+  revokedReason  String?
+  createdAt      DateTime @default(now())
+
+  @@index([orgId])
+}
+
+// A programmatic credential for the hosted API (/api/v1). The full secret
+// (`sk_live_…`) is shown to the user exactly once at creation; we only store its
+// SHA-256 hash. Scoped to one business — the key *is* the tenant identity for
+// API calls, so no org_slug is needed on hosted requests.
+model ApiKey {
+  id         String   @id @default(cuid())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name       String // human label, e.g. "CI pipeline"
+  prefix     String // shown for identification, e.g. "sk_live_a1b2c3d4"
+  lastFour   String // last 4 chars of the secret, for display
+  hash       String   @unique // sha256(full secret) — the only stored form
+  scopes     String   @default("seal,verify,anchor") // csv of allowed actions
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime? // soft-revoke; a revoked key is rejected
+
+  @@index([orgId])
+}
+
+// ---- Auth (Auth.js / NextAuth) ----
+
+model User {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String? // argon2 hash for credentials sign-in (null = OAuth-only)
+  createdAt     DateTime @default(now())
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships Membership[]
+}
+
+// A user's role in a business — this is what gives one person many businesses.
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  orgId     String
+  role      String   @default("owner") // owner | admin | member
+  createdAt DateTime @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 // An uploaded PDF plus its reusable field layout.
@@ -62,6 +188,8 @@ model Envelope {
   templateId String?
   template   Template? @relation(fields: [templateId], references: [id])
   title      String
+  message    String? // optional note to recipients, shown in the invite email
+  sequential Boolean  @default(false) // enforce signing order (route one at a time)
   status     String   @default("draft") // draft|sent|completed|voided
   pdfPath    String // working copy being filled in
   createdAt  DateTime @default(now())
@@ -81,9 +209,11 @@ model Signer {
   name       String
   email      String? // null => in-person / kiosk signer
   kind       String   @default("remote") // remote | in_person | kiosk
-  order      Int      @default(1) // routing order
+  role       String   @default("signer") // signer | in_person | cc | viewer
+  order      Int      @default(1) // routing order (for sequential signing)
   token      String   @unique // tokenized signing-link secret
   status     String   @default("pending") // pending|viewed|signed|declined
+  invitedAt  DateTime? // when this recipient's signing invite was sent (sequential routing)
   // identity binding for no-email signers:
   accessCode String? // shared code / SMS OTP
   idPhotoPath String? // captured ID or photo of signer
@@ -102,6 +232,7 @@ model Field {
   signerId   String?
   signer     Signer?   @relation(fields: [signerId], references: [id])
   type       String // signature|initials|date|text|checkbox
+  label      String? // custom prompt shown on the box, e.g. "Full legal name"
   page       Int
   x          Float // normalized 0..1 coordinates so it scales with render
   y          Float
@@ -125,17 +256,45 @@ model AuditEvent {
   createdAt  DateTime @default(now())
 }
 
+// A standalone Bitcoin timestamp for an arbitrary file's SHA-256 — the
+// "anchor anything" primitive. Not tied to a document/envelope: anyone can
+// timestamp a hash (dataset, release, evidence, backup) and get a proof page.
+model Anchor {
+  id          String   @id @default(cuid())
+  sha256      String   @unique
+  label       String? // optional filename/description supplied by the caller
+  otsProof    String? // base64 proof blob (for Bitcoin, the .ots proof)
+  anchorState String   @default("pending") // pending | confirmed
+  anchorProvider String @default("bitcoin") // which decentralized ledger anchored this
+  btcBlock    Int? // ledger reference (Bitcoin block height) once confirmed
+  createdAt   DateTime @default(now())
+}
+
 // The final sealed PDF — the source of truth for the verification portal.
 model SealedDocument {
   id         String   @id @default(cuid())
-  envelopeId String   @unique
-  envelope   Envelope @relation(fields: [envelopeId], references: [id])
+  // Envelope-sealed docs link an envelope; API-sealed (hosted) docs link an org
+  // directly and carry their own title. Exactly one of these is set.
+  envelopeId String?  @unique
+  envelope   Envelope? @relation(fields: [envelopeId], references: [id])
+  orgId      String?
+  org        Organization? @relation(fields: [orgId], references: [id])
+  source     String   @default("envelope") // envelope | api
+  title      String? // hosted docs only (envelopes carry their own title)
+  // Whether we retain the document BYTES. Default false = ephemeral: we deliver
+  // the sealed PDF (download/email) and keep only the proof (hash + .ots + this
+  // row). retain=true is the paid "Vault" convenience — we hold the bytes for
+  // later re-download. Verification/authenticity never depend on this; the proof
+  // is kept forever either way. When false, pdfPath may point at nothing.
+  retain     Boolean  @default(false)
   pdfPath    String
   sha256     String   @unique // what the /verify portal matches against
   certCN     String
   sealedAt   DateTime @default(now())
-  // OpenTimestamps Bitcoin anchor (decentralized proof of existence + date).
-  otsProof   String? // base64 .ots proof
+  // Decentralized anchor (proof of existence + date). Bitcoin via OpenTimestamps
+  // is the live provider; the field is provider-agnostic for future ledgers.
+  otsProof   String? // base64 proof blob (for Bitcoin, the .ots proof)
   anchorState String  @default("none") // none | pending | confirmed
-  btcBlock   Int? // Bitcoin block height once confirmed
+  anchorProvider String @default("bitcoin") // which decentralized ledger anchored this
+  btcBlock   Int? // ledger reference (Bitcoin block height) once confirmed
 }

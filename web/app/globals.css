@@ -46,83 +46,101 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Brand: deep ink + sealing-wax crimson. */
+  --color-ink: var(--ink);
+  --color-wax: var(--wax);
+  --color-wax-foreground: var(--wax-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
 }
 
-/* docsigner uses a fixed light theme — the UI is built around white "paper". */
+/* Let's Seal uses a fixed light theme — the UI is built around white "paper". */
 
 body {
-  background: #ffffff;
-  color: #171717;
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Warm-paper palette (taxura claude-ui-kit) + Trust Blue accent. */
+  --background: #faf9f5;              /* warm paper */
+  --foreground: #141413;             /* warm ink */
+  --card: #ffffff;
+  --card-foreground: #141413;
+  --popover: #ffffff;
+  --popover-foreground: #141413;
+  --primary: #2563eb;                /* Trust Blue — one accent everywhere (matches site) */
+  --primary-foreground: #ffffff;
+  --secondary: #f9f9f7;              /* subtle nested fill (surface-2) */
+  --secondary-foreground: #141413;
+  --muted: #f9f9f7;
+  --muted-foreground: #7b7974;       /* text-2 */
+  --accent: #f9f9f7;                 /* hover fill */
+  --accent-foreground: #141413;
+  --destructive: #b53333;
+  --border: rgba(31, 30, 29, 0.15);  /* hairline */
+  --input: rgba(30, 30, 29, 0.30);   /* input border */
+  --ring: #2563eb;                   /* focus = Trust Blue */
+  --chart-1: #2563eb;
+  --chart-2: #7b7974;
+  --chart-3: #97958d;
+  --chart-4: #b53333;
+  --chart-5: #2a9d5c;
+  --radius: 0.75rem;                 /* 12px — matches kit inputs */
+  /* Brand tokens */
+  --ink: #141413;                     /* warm ink — primary text */
+  --wax: #141413;                     /* seal renders monochrome in ink */
+  --wax-foreground: #ffffff;
+  --brand: #2563eb;                   /* Trust Blue — the seal + accent (locked) */
+  --brand-foreground: #ffffff;
+  --sidebar: #f9f9f7;
+  --sidebar-foreground: #141413;
+  --sidebar-primary: #141413;
+  --sidebar-primary-foreground: #faf9f5;
+  --sidebar-accent: rgba(37, 99, 235, 0.10);   /* accent-soft */
+  --sidebar-accent-foreground: #2563eb;
+  --sidebar-border: rgba(31, 30, 29, 0.15);
+  --sidebar-ring: #2563eb;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Warm dark paper — the light palette's counterpart. */
+  --background: #191816;
+  --foreground: #ecebe6;
+  --card: #221f1c;
+  --card-foreground: #ecebe6;
+  --popover: #221f1c;
+  --popover-foreground: #ecebe6;
+  --primary: #3b82f6;                 /* Trust Blue, lifted for dark contrast */
+  --primary-foreground: #ffffff;
+  --secondary: #2a2724;
+  --secondary-foreground: #ecebe6;
+  --muted: #2a2724;
+  --muted-foreground: #a5a199;
+  --accent: #2a2724;
+  --accent-foreground: #ecebe6;
+  --destructive: #e06666;
+  --border: rgba(255, 255, 255, 0.10);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #a5a199;
+  --chart-3: #79746c;
+  --chart-4: #e06666;
+  --chart-5: #4ade80;
+  /* Brand tokens flip for dark */
+  --ink: #ecebe6;
+  --wax: #ecebe6;
+  --brand: #3b82f6;
+  --sidebar: #201d1a;
+  --sidebar-foreground: #ecebe6;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(59, 130, 246, 0.14);
+  --sidebar-accent-foreground: #3b82f6;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-ring: #3b82f6;
 }
 
 @layer base {

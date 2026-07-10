@@ -7,6 +7,7 @@ import { recipientColor, FIELD_TYPES, type RecipientColor } from "@/lib/signers"
 export type FieldBox = {
   id?: string;
   type: string;
+  label?: string | null; 
   page: number; 
   x: number; 
   y: number;
@@ -15,6 +16,38 @@ export type FieldBox = {
   signerIndex?: number;
   value?: string | null;
 };
+
+const SNAP = 0.006;
+type Sib = { x: number; y: number; w: number; h: number };
+function snapToSiblings(x: number, y: number, w: number, h: number, sibs: Sib[]) {
+  const vGuides: number[] = [];
+  const hGuides: number[] = [];
+  const myX = [x, x + w / 2, x + w]; 
+  const offX = [0, w / 2, w];
+  let bestX: { d: number; nx: number; line: number } | null = null;
+  for (const s of sibs) {
+    for (const sx of [s.x, s.x + s.w / 2, s.x + s.w]) {
+      for (let k = 0; k < 3; k++) {
+        const d = Math.abs(myX[k] - sx);
+        if (d < SNAP && (!bestX || d < bestX.d)) bestX = { d, nx: sx - offX[k], line: sx };
+      }
+    }
+  }
+  let bestY: { d: number; ny: number; line: number } | null = null;
+  const myY = [y, y + h / 2, y + h];
+  const offY = [0, h / 2, h];
+  for (const s of sibs) {
+    for (const sy of [s.y, s.y + s.h / 2, s.y + s.h]) {
+      for (let k = 0; k < 3; k++) {
+        const d = Math.abs(myY[k] - sy);
+        if (d < SNAP && (!bestY || d < bestY.d)) bestY = { d, ny: sy - offY[k], line: sy };
+      }
+    }
+  }
+  if (bestX) { x = bestX.nx; vGuides.push(bestX.line); }
+  if (bestY) { y = bestY.ny; hGuides.push(bestY.line); }
+  return { x, y, vGuides, hGuides };
+}
 
 const FIELD_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   signature: PenLine,
@@ -30,6 +63,7 @@ type Props = {
   fileUrl: string;
   fields: FieldBox[];
   mode: "build" | "sign" | "view";
+  docId?: string; 
   armedType?: string | null;
   armedSignerIndex?: number;
   selectedId?: string | null;
@@ -50,6 +84,8 @@ type DragState = {
   startY: number;
   orig: { x: number; y: number; w: number; h: number };
   rect: DOMRect;
+  page: number;
+  sibs: Sib[]; 
 };
 
 export default function PdfCanvas(props: Props) {
@@ -59,6 +95,7 @@ export default function PdfCanvas(props: Props) {
   const [ghost, setGhost] = useState<{ page: number; cx: number; cy: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [guides, setGuides] = useState<{ page: number; v: number[]; h: number[] } | null>(null);
   const movedRef = useRef(false);
 
   useEffect(() => {
@@ -103,8 +140,11 @@ export default function PdfCanvas(props: Props) {
     const dx = (e.clientX - d.startX) / d.rect.width;
     const dy = (e.clientY - d.startY) / d.rect.height;
     if (d.kind === "move") {
-      const x = Math.min(Math.max(d.orig.x + dx, 0), 1 - d.orig.w);
-      const y = Math.min(Math.max(d.orig.y + dy, 0), 1 - d.orig.h);
+      let x = Math.min(Math.max(d.orig.x + dx, 0), 1 - d.orig.w);
+      let y = Math.min(Math.max(d.orig.y + dy, 0), 1 - d.orig.h);
+      const snap = snapToSiblings(x, y, d.orig.w, d.orig.h, d.sibs);
+      x = snap.x; y = snap.y;
+      setGuides(snap.vGuides.length || snap.hGuides.length ? { page: d.page, v: snap.vGuides, h: snap.hGuides } : null);
       props.onMove?.(d.id, x, y);
     } else {
       const w = Math.min(Math.max(d.orig.w + dx, 0.02), 1 - d.orig.x);
@@ -115,6 +155,7 @@ export default function PdfCanvas(props: Props) {
 
   const endDrag = useCallback(() => {
     dragRef.current = null;
+    setGuides(null);
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", endDrag);
     setTimeout(() => (movedRef.current = false), 0);
@@ -125,7 +166,8 @@ export default function PdfCanvas(props: Props) {
     e.stopPropagation();
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).closest("[data-pagewrap]")!.getBoundingClientRect();
-    dragRef.current = { id: f.id, kind, startX: e.clientX, startY: e.clientY, orig: { x: f.x, y: f.y, w: f.w, h: f.h }, rect };
+    const sibs = fields.filter((o) => o.page === f.page && o.id !== f.id).map((o) => ({ x: o.x, y: o.y, w: o.w, h: o.h }));
+    dragRef.current = { id: f.id, kind, startX: e.clientX, startY: e.clientY, orig: { x: f.x, y: f.y, w: f.w, h: f.h }, rect, page: f.page, sibs };
     movedRef.current = false;
     props.onSelect?.(f.id);
     window.addEventListener("pointermove", onPointerMove);
@@ -165,8 +207,27 @@ export default function PdfCanvas(props: Props) {
             mode === "build" && props.armedType ? "cursor-crosshair" : ""
           }`}
         >
+          {props.docId && p === 0 && (
+            <div className="pointer-events-none absolute top-2 left-3 z-10 text-[9px] font-mono tracking-tight text-neutral-400 select-none">
+              Let&apos;s Seal Envelope ID: {props.docId.toUpperCase()}
+            </div>
+          )}
+
           {mode === "build" && props.armedType && ghost?.page === p && armedColor && (
             <FieldGhost cx={ghost.cx} cy={ghost.cy} w={gw} h={gh} type={props.armedType} color={armedColor} />
+          )}
+
+          {guides?.page === p && (
+            <>
+              {guides.v.map((gx, i) => (
+                <div key={`v${i}`} className="pointer-events-none absolute top-0 bottom-0 z-20"
+                     style={{ left: `${gx * 100}%`, width: 1, background: "#ec4899" }} />
+              ))}
+              {guides.h.map((gy, i) => (
+                <div key={`h${i}`} className="pointer-events-none absolute left-0 right-0 z-20"
+                     style={{ top: `${gy * 100}%`, height: 1, background: "#ec4899" }} />
+              ))}
+            </>
           )}
 
           {fields.filter((f) => f.page === p).map((f, i) => {
@@ -271,7 +332,7 @@ function FieldTab({
         <span className="px-1 text-xs truncate" style={{ color: "#111827" }}>{f.value}</span>
       ) : (
         <span className="flex items-center gap-1 pl-3.5 pr-1 text-[10px] font-medium truncate" style={{ color: color.text }}>
-          <span className="truncate">{FIELD_LABEL[f.type]}</span>
+          <span className="truncate">{f.label || FIELD_LABEL[f.type]}</span>
         </span>
       )}
 

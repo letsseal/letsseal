@@ -22,6 +22,18 @@ export function recipientColor(index: number): RecipientColor {
   return RECIPIENT_COLORS[((index % RECIPIENT_COLORS.length) + RECIPIENT_COLORS.length) % RECIPIENT_COLORS.length];
 }
 
+export const RECIPIENT_ROLES = [
+  { id: "signer",    label: "Needs to Sign",     signs: true,  fields: true,  hint: "Signs the document" },
+  { id: "in_person", label: "In-Person Signer",  signs: true,  fields: true,  hint: "Signs on your device" },
+  { id: "cc",        label: "Receives a Copy",   signs: false, fields: false, hint: "Emailed the finished copy" },
+  { id: "viewer",    label: "Needs to View",     signs: false, fields: false, hint: "Gets a copy to review" },
+] as const;
+
+export type RoleId = (typeof RECIPIENT_ROLES)[number]["id"];
+export const roleMeta = (id: string) => RECIPIENT_ROLES.find((r) => r.id === id) ?? RECIPIENT_ROLES[0];
+export const SIGNING_ROLES = ["signer", "in_person"];
+export const isSigningRole = (role: string) => SIGNING_ROLES.includes(role);
+
 export const FIELD_TYPES = [
   { type: "signature", label: "Signature", size: [0.22, 0.06] as [number, number] },
   { type: "initials",  label: "Initials",  size: [0.09, 0.05] as [number, number] },

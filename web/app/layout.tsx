@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Dancing_Script, Great_Vibes, Caveat, Sacramento } from "next/font/google";
+import { Inter, Geist_Mono, Dancing_Script, Great_Vibes, Caveat, Sacramento } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
@@ -20,8 +20,8 @@ const sig4 = Sacramento({ variable: "--font-sig-4", subsets: ["latin"], weight: 
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "docsigner",
-  description: "Multi-business document signing with your own cryptographic seal.",
+  title: "Let's Seal",
+  description: "Seal and verify documents with your own cryptographic seal — the free, open alternative to pay-to-play AATL.",
 };
 
 export default function RootLayout({
@@ -32,9 +32,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${sig1.variable} ${sig2.variable} ${sig3.variable} ${sig4.variable} h-full antialiased`}
+      className={`${inter.variable} ${geistMono.variable} ${sig1.variable} ${sig2.variable} ${sig3.variable} ${sig4.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-50 text-foreground">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster richColors position="top-center" />
       </body>

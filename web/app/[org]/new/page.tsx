@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { requireUser, requireOrg } from "@/lib/auth-helpers";
 import Builder from "@/components/Builder";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ export default async function NewEnvelope({
 }) {
   const { org: slug } = await params;
   const { envelope } = await searchParams;
-  const org = await db.organization.findUnique({ where: { slug } });
+  const user = await requireUser();
+  const org = await requireOrg(user.id, slug);
   if (!org) notFound();
 
   return (

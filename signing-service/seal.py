@@ -37,8 +37,8 @@ def seal_pdf(
     p12_password: str,
     *,
     reason: str = "Document execution",
-    location: str = "docsigner",
-    field_name: str = "docsigner-seal",
+    location: str = "Let's Seal",
+    field_name: str = "letsseal-seal",
     tsa_url: str | None = DEFAULT_TSA_URL,
 ) -> SealResult:
     """Seal `pdf_bytes` with the org signing cert in `p12_path`."""

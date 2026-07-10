@@ -1,0 +1,40 @@
+name: "sealbot"
+description: "sealbot — anchor, seal, or verify build artifacts in CI against Let's Seal. Permanent, publicly verifiable proof of authenticity and date."
+branding:
+  icon: shield
+  color: blue
+inputs:
+  mode:
+    description: "anchor (hash-only, artifacts never upload) | seal (PDFs) | verify"
+    required: false
+    default: "anchor"
+  files:
+    description: "Files to process. Newline- or comma-separated; supports * and ** globs (e.g. dist/**/*.tar.gz)."
+    required: true
+  app:
+    description: "Your Let's Seal base URL, e.g. https://app.letsseal.org"
+    required: true
+  token:
+    description: "API key (sk_live_…) for the authenticated /api/v1 tier. Required for 'seal'; optional for 'anchor'."
+    required: false
+    default: ""
+  org:
+    description: "Business slug — required for 'seal' (usually derived from the key; reserved for future use)."
+    required: false
+    default: ""
+  output-dir:
+    description: "Where to write sealed PDFs (mode=seal). Defaults to alongside each source file."
+    required: false
+    default: ""
+  fail-on-tamper:
+    description: "For mode=verify: fail the job if any file is unsealed or altered."
+    required: false
+    default: "true"
+outputs:
+  manifest-path:
+    description: "Path to the JSON manifest of results (files, hashes, proof URLs)."
+  count:
+    description: "Number of files processed."
+runs:
+  using: "node20"
+  main: "index.mjs"

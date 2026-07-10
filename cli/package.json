@@ -1,0 +1,14 @@
+{
+  "name": "sealbot",
+  "version": "0.1.0",
+  "description": "sealbot — the certbot for document authenticity: scriptable sealing, verification, and Bitcoin anchoring against any Let's Seal-compatible service.",
+  "type": "module",
+  "bin": {
+    "sealbot": "./sealbot.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["sealbot", "pdf", "signing", "seal", "opentimestamps", "bitcoin", "timestamp", "notary", "pades", "verify"],
+  "license": "MIT"
+}

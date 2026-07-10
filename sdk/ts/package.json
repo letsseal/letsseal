@@ -1,0 +1,25 @@
+{
+  "name": "@letsseal/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Let's Seal signing service: PAdES sealing, verification, and free Bitcoin anchoring. Isomorphic, zero-dependency.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["letsseal", "pades", "pdf-signing", "opentimestamps", "bitcoin", "notary", "e-signature"],
+  "license": "MIT",
+  "homepage": "https://letsseal.org",
+  "engines": { "node": ">=18" },
+  "devDependencies": { "typescript": "^5.4.0" }
+}
