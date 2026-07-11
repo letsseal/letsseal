@@ -250,7 +250,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           <div className="flex items-center gap-2 text-sm font-medium">
             <Anchor className="h-4 w-4 text-brand" /> Independent timestamp
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Trustless proof it existed by a certain date — no authority required.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Independent proof it existed by a certain date — no authority required.</p>
           {anchored ? (
             <div className="mt-3 divide-y">
               <Row label="Status">

@@ -24,6 +24,7 @@ const COLS = [
     h: "Use",
     links: [
       { label: "Verify a document", href: "/verify" },
+      { label: "The badge", href: "/site/badge" },
       { label: "The hosted app", href: "https://app.letsseal.org" },
       { label: "Self-host", href: "/site/open" },
     ],

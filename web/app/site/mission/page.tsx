@@ -74,7 +74,7 @@ export default function MissionPage() {
             <div className="max-w-md">
               <H2>See how it holds up</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                No trust required — that&rsquo;s the point. Read exactly how a seal is made and how anyone can check it.
+                Proof, not trust — that&rsquo;s the point. Read exactly how a seal is made and how anyone can check it.
               </p>
             </div>
             <div className="flex flex-col gap-3">

@@ -39,7 +39,7 @@ export default function HowItWorksPage() {
     <>
       <PageHead
         eyebrow="How it works"
-        title="No trust required. That's the whole point."
+        title="Proof, not trust."
         lede="A seal is proof carried by the document itself — a signature over every byte, anchored to Bitcoin. Here's exactly how it's made, and how anyone can check it for free."
       />
 
