@@ -1,11 +1,14 @@
 import { PageHead, Container, H2, serif, Card, CodeBlock, LinkArrow } from "../_components/ui";
 import { Check } from "lucide-react";
+import { getNetworkStats } from "@/lib/stats";
 
 export const metadata = {
   title: "Open — Let's Seal",
   description:
-    "Open source, open standards, open ledger. How Let's Seal stays permanent and independent — and exactly what anonymous usage stats we keep, and how to turn them off.",
+    "Open source, open standards, open ledger. How Let's Seal stays permanent and independent — with live, honest usage counts.",
 };
+
+export const revalidate = 300;
 
 const OPEN = [
   {
@@ -26,14 +29,14 @@ const OPEN = [
   },
 ];
 
-const STATS = [
-  { n: "1.24M", l: "Documents sealed" },
-  { n: "4.8M", l: "Verifications" },
-  { n: "340", l: "Self-hosted instances" },
-  { n: "62", l: "Countries" },
-];
-
-export default function OpenPage() {
+export default async function OpenPage() {
+  const stats = await getNetworkStats();
+  const STATS = [
+    { n: stats.documentsSealed.toLocaleString(), l: "Documents sealed" },
+    { n: stats.organizations.toLocaleString(), l: "Businesses issuing" },
+    { n: stats.standaloneTimestamps.toLocaleString(), l: "Standalone timestamps" },
+    { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "—", l: "Latest Bitcoin anchor" },
+  ];
   return (
     <>
       <PageHead
@@ -84,11 +87,12 @@ cp .env.example .env   # add your CA + config
       <section id="stats" className="scroll-mt-20 border-b border-stone-200">
         <Container className="py-14 sm:py-20">
           <span className="text-xs font-semibold uppercase tracking-[0.13em] text-stone-400">Transparency</span>
-          <H2 className="mt-3.5">By the numbers — and how we count</H2>
+          <H2 className="mt-3.5">By the numbers — live, and honestly counted</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            To run this well and show it&rsquo;s used, we keep a small set of anonymous, aggregate counts — even across
-            self-hosted instances. It is deliberately impossible for these stats to identify anyone or reveal any
-            document.
+            These are live counts of the public proof records on this network — the same records anyone can already
+            see at a <code className="rounded bg-stone-100 px-1 py-0.5 text-[13px]">/d/&lt;hash&gt;</code> proof page.
+            No separate telemetry, no phone-home. For a young network the numbers are small — and that&rsquo;s the
+            honest point: they grow as the network does.
           </p>
 
           <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
@@ -102,36 +106,30 @@ cp .env.example .env   # add your CA + config
 
           <div className="mt-12 grid gap-5 lg:grid-cols-2">
             <Card>
-              <div className="text-[13px] font-semibold text-blue-700">What we count</div>
+              <div className="text-[13px] font-semibold text-blue-700">What the numbers are</div>
               <ul className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-stone-600">
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Number of documents sealed and verified</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Number of active instances and rough region</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Version numbers, to know what&rsquo;s in use</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> A live count of sealed documents on record</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Businesses issuing under the shared root</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Standalone timestamps and the latest Bitcoin anchor</li>
               </ul>
             </Card>
             <Card>
-              <div className="text-[13px] font-semibold text-stone-500">What we never touch</div>
+              <div className="text-[13px] font-semibold text-stone-500">What they are not</div>
               <ul className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-stone-600">
-                <li>No document contents, filenames, or hashes</li>
+                <li>No document contents or filenames — only the count</li>
                 <li>No names, emails, accounts, or IP addresses</li>
-                <li>No content that could identify a person or organisation</li>
+                <li>Not aggregated from anyone else&rsquo;s server</li>
               </ul>
             </Card>
           </div>
 
           <div className="mt-8 rounded-2xl border border-stone-200 bg-stone-50 p-6">
-            <div className="text-[15px] font-semibold text-stone-900">On by default, off with one flag</div>
+            <div className="text-[15px] font-semibold text-stone-900">No phone-home to turn off</div>
             <p className="mt-2 text-[14.5px] leading-relaxed text-stone-600">
-              Stats are on by default because they&rsquo;re counts only — never personal data — and they genuinely help
-              us keep the project healthy. If you&rsquo;d rather send nothing, opt out completely:
+              These counts come from this network&rsquo;s own public proof records — nothing is collected from you to
+              produce them. A self-hosted instance counts its own records locally and reports nothing back to us;
+              there is no telemetry to disable because there is none to begin with.
             </p>
-            <div className="mt-4">
-              <CodeBlock>
-                <span className="text-stone-500"># in your .env</span>
-                {"\n"}
-                LETSSEAL_TELEMETRY=off
-              </CodeBlock>
-            </div>
           </div>
         </Container>
       </section>

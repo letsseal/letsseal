@@ -159,6 +159,7 @@ export default function Verify() {
           <span>Let&apos;s Seal — free, open document authenticity. Secured by nobody, verifiable by anyone.</span>
           <nav className="flex gap-4">
             <a href="https://letsseal.org" className="hover:text-ink">About</a>
+            <a href="https://letsseal.org/trust" className="hover:text-ink">Root of trust</a>
             <a href="https://app.letsseal.org" className="hover:text-ink">Seal a document</a>
             <a href="https://github.com/letsseal" className="hover:text-ink">Open source</a>
           </nav>

@@ -6,6 +6,7 @@ const COLS = [
     links: [
       { label: "Mission", href: "/site/mission" },
       { label: "How it works", href: "/site/how-it-works" },
+      { label: "Root of trust", href: "/site/trust" },
       { label: "Open", href: "/site/open" },
       { label: "Transparency", href: "/site/open#stats" },
     ],
