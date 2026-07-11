@@ -1,0 +1,50 @@
+# Fully-pinned dependency lock for the signing service (the key-holding process).
+# Generated from the known-good running venv via 'pip freeze'. deploy.sh installs
+# from this so transitive deps can't drift under the CA/signing service.
+# Regenerate: ssh prod-server '/opt/letsseal/signing-service/.venv/bin/pip freeze' > requirements.lock
+annotated-types==0.7.0
+anyio==4.14.1
+appdirs==1.4.4
+asn1crypto==1.5.1
+cached-property==2.0.1
+certifi==2026.6.17
+cffi==2.1.0
+charset-normalizer==3.4.9
+click==8.4.2
+cryptography==49.0.0
+fastapi==0.115.6
+gitdb==4.0.12
+GitPython==3.1.50
+h11==0.16.0
+httptools==0.8.0
+idna==3.18
+opentimestamps==0.4.5
+opentimestamps-client==0.7.2
+oscrypto==1.3.0
+pillow==12.3.0
+pycparser==3.0
+pycryptodomex==3.23.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+pyHanko==0.25.1
+pyhanko-certvalidator==0.26.8
+PySocks==1.7.1
+python-barcode==0.15.1
+python-bitcoinlib==0.12.2
+python-dotenv==1.2.2
+python-multipart==0.0.20
+python-pkcs11==0.7.0
+PyYAML==6.0.3
+qrcode==8.2
+requests==2.34.2
+smmap==5.0.3
+starlette==0.41.3
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+tzlocal==5.4.4
+uritools==6.1.2
+urllib3==2.7.0
+uvicorn==0.34.0
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==16.1
