@@ -29,7 +29,13 @@ OUT="$HERE/out"
 DAYS_ROOT=7300      # 20y
 DAYS_INT=3650       # 10y
 DAYS_ORG=1825       # 5y
-P12_PASS="${LETSSEAL_P12_PASS:-changeit}"   # override in real use
+# The p12 wraps an org's signing key — never ship a default password. Fail closed
+# if LETSSEAL_P12_PASS isn't set rather than silently using a guessable default.
+if [[ -z "${LETSSEAL_P12_PASS:-}" ]]; then
+  echo "ERROR: LETSSEAL_P12_PASS must be set (it protects the org signing keys). Refusing to use a default." >&2
+  exit 1
+fi
+P12_PASS="$LETSSEAL_P12_PASS"
 
 init_ca() {
   mkdir -p "$OUT"
@@ -122,7 +128,7 @@ issue_cert() {
     -inkey "$dir/signing.key" -in "$dir/signing.crt" \
     -certfile "$OUT/chain.pem" -passout "pass:$P12_PASS"
   rm -f "$dir/signing.csr"
-  echo "==> Wrote $dir/signing.p12  (password: \$LETSSEAL_P12_PASS, default 'changeit')"
+  echo "==> Wrote $dir/signing.p12  (password: \$LETSSEAL_P12_PASS)"
 }
 
 # A business is just a 'document' cert stored under orgs/.

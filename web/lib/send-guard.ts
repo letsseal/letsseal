@@ -4,6 +4,7 @@ const NEW_ORG_DAILY = 20;
 const TRUSTED_DAILY = 200; 
 const BURST_PER_MIN = 30; 
 const TRUST_AGE_DAYS = 7; 
+const ACCOUNT_DAILY = 300; 
 
 export type SendKind = "invite" | "credential" | "completed" | "completed_sender";
 
@@ -39,6 +40,20 @@ export async function canSend(orgId: string): Promise<{ ok: boolean; reason?: st
   if (burst >= BURST_PER_MIN) return { ok: false, reason: "sending too fast — try again in a minute" };
   const cap = dailyCap(org);
   if (today >= cap) return { ok: false, reason: `daily email limit reached (${cap}) — contact us to raise it` };
+
+  // Per-ACCOUNT ceiling: the per-org cap alone lets one user spin up N orgs to get
+  // N×cap arbitrary-recipient sends through the shared (account-wide-reputation)
+  // SES identity. Sum gated sends across every org this account owns and fail closed.
+  const owner = await db.membership.findFirst({ where: { orgId, role: "owner" }, select: { userId: true } });
+  if (owner) {
+    const ownedOrgs = await db.membership.findMany({
+      where: { userId: owner.userId, role: "owner" }, select: { orgId: true },
+    });
+    const acctToday = await db.emailSend.count({
+      where: { orgId: { in: ownedOrgs.map((m) => m.orgId) }, kind: { in: GATED }, createdAt: { gte: new Date(now - 86_400_000) } },
+    });
+    if (acctToday >= ACCOUNT_DAILY) return { ok: false, reason: "account-wide daily email limit reached — contact us to raise it" };
+  }
   return { ok: true };
 }
 

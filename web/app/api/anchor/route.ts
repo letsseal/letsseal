@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { anchorHash } from "@/lib/signing";
 import { clientIp } from "@/lib/ip";
+import { overContentLength, tooLarge } from "@/lib/limits";
 
 const HITS = new Map<string, { n: number; resetAt: number }>();
 const LIMIT = 20, WINDOW_MS = 60 * 60 * 1000;
@@ -29,9 +30,11 @@ export async function POST(req: NextRequest) {
     sha256 = String(body.sha256 ?? "").trim().toLowerCase();
     label = body.label ? String(body.label).slice(0, 200) : null;
   } else {
+    if (overContentLength(req)) return NextResponse.json({ error: "file too large" }, { status: 413 });
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "no file or sha256" }, { status: 400 });
+    if (tooLarge(file)) return NextResponse.json({ error: "file too large" }, { status: 413 });
     const bytes = Buffer.from(await file.arrayBuffer()); 
     sha256 = createHash("sha256").update(bytes).digest("hex");
     label = file.name ? file.name.slice(0, 200) : null;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiUser, requireOrg } from "@/lib/auth-helpers";
+import { orgNameProblem } from "@/lib/org-name";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const MAX_LOGO_BYTES = 400_000; 
@@ -18,7 +19,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
 
   if (body.name !== undefined) {
     const name = String(body.name).trim();
-    if (name.length < 2) return NextResponse.json({ error: "Name is too short" }, { status: 400 });
+    const nameProblem = orgNameProblem(name);
+    if (nameProblem) return NextResponse.json({ error: nameProblem }, { status: 400 });
     data.name = name;
   }
   for (const key of ["brandColor", "accentColor"] as const) {
@@ -36,10 +38,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
     const logo = body.logoUrl;
     if (logo === null || logo === "") {
       data.logoUrl = null;
-    } else if (typeof logo === "string" && logo.startsWith("data:image/") && logo.length <= MAX_LOGO_BYTES) {
+    } else if (
+      typeof logo === "string" && logo.startsWith("data:image/") &&
+      // Reject SVG — it can carry <script>/onload and would execute wherever the
+      // logo is rendered. Only raster image types are allowed.
+      !/^data:image\/svg/i.test(logo) && logo.length <= MAX_LOGO_BYTES
+    ) {
       data.logoUrl = logo;
     } else {
-      return NextResponse.json({ error: "Logo must be an image under 400KB" }, { status: 400 });
+      return NextResponse.json({ error: "Logo must be a PNG/JPG/GIF/WebP image under 400KB (SVG not allowed)" }, { status: 400 });
     }
   }
 

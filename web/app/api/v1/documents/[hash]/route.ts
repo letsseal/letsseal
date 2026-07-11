@@ -50,7 +50,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
       kind: "document",
       sealed: true,
       issuer: doc.org?.name ?? doc.envelope?.org.name ?? null,
-      title: doc.title ?? doc.envelope?.title ?? null,
+      // The document title is deliberately private for contracts/hosted docs —
+      // the HTML proof page hides it from non-issuers (page.tsx gateContent). This
+      // keyless twin must match: only issued credentials expose their title.
+      title: doc.source === "credential" ? (doc.title ?? doc.envelope?.title ?? null) : null,
       certCN: doc.certCN,
       sealedAt: doc.sealedAt.toISOString(),
       anchor: anchorInfo,

@@ -60,6 +60,10 @@ export type VerifyResult = {
   coverage?: string;        // ENTIRE_FILE | ENTIRE_REVISION | ...
   valid?: boolean;
   trusted?: boolean;
+  // Authoritative pass/fail verdict from the service: valid AND intact AND
+  // trusted. A valid signature from an unrecognized (self-signed) cert is NOT
+  // authentic — never render a green verdict from sealed/intact alone.
+  authentic?: boolean;
   signer?: string;
   signed_at?: string;
   reason?: string;

@@ -39,14 +39,29 @@ export default function Signer({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [adopted, setAdopted] = useState<string | null>(null); 
+  const [needsCode, setNeedsCode] = useState(false); 
+  const [unlocking, setUnlocking] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const res = await fetch(`/api/sign/${token}`);
-      if (!res.ok) { setError("This signing link is invalid or has expired."); return; }
-      setData(await res.json());
-    })();
-  }, [token]);
+  async function load(code?: string) {
+    const qs = code ? `?code=${encodeURIComponent(code)}` : "";
+    const res = await fetch(`/api/sign/${token}${qs}`);
+    if (!res.ok) { setError("This signing link is invalid or has expired."); return false; }
+    const body = await res.json();
+    if (body.needsAccessCode) { setNeedsCode(true); setData(null); return false; }
+    setNeedsCode(false);
+    setData(body);
+    return true;
+  }
+
+  useEffect(() => { void load(); }, [token]);
+
+  async function unlock() {
+    if (!accessCode.trim()) { toast.error("Enter your access code."); return; }
+    setUnlocking(true);
+    const ok = await load(accessCode.trim());
+    setUnlocking(false);
+    if (!ok && !error) toast.error("That access code didn't match. Check it and try again.");
+  }
 
   // Map each recipient to a stable color index (same scheme as the builder).
   const signerIndex = useMemo(() => {
@@ -58,6 +73,24 @@ export default function Signer({ token }: { token: string }) {
   }, [data]);
 
   if (error) return <Centered><p className="text-muted-foreground">{error}</p></Centered>;
+  if (needsCode) return (
+    <Centered>
+      <div className="w-full max-w-sm text-center">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+          <ShieldCheck className="h-7 w-7 text-primary" />
+        </span>
+        <h1 className="mt-5 text-xl font-semibold">Enter your access code</h1>
+        <p className="mt-2 text-sm text-muted-foreground">This document is protected. Enter the access code the sender gave you to view and sign it.</p>
+        <form className="mt-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); void unlock(); }}>
+          <Input autoFocus placeholder="Access code" value={accessCode}
+                 onChange={(e) => setAccessCode(e.target.value)} className="h-11" />
+          <Button type="submit" disabled={unlocking} className="h-11 gap-2">
+            {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Unlock"}
+          </Button>
+        </form>
+      </div>
+    </Centered>
+  );
   if (!data) return <Centered><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></Centered>;
   if (data.signer.status === "signed" && !done)
     return <Centered><p className="text-muted-foreground">You have already signed this document. Thank you.</p></Centered>;
@@ -142,7 +175,7 @@ export default function Signer({ token }: { token: string }) {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 sm:p-8">
-        <PdfCanvas fileUrl={`/api/file/${data.envelope.id}?token=${token}`} fields={previewFields}
+        <PdfCanvas fileUrl={`/api/file/${data.envelope.id}?token=${token}${accessCode ? `&code=${encodeURIComponent(accessCode)}` : ""}`} fields={previewFields}
                    mode="sign" docId={data.envelope.id} activeSignerIndex={myIdx} pointerFieldId={nextField?.id ?? undefined}
                    onFieldClick={activate} />
       </main>
@@ -186,8 +219,6 @@ function SignatureDialog({
   const [uploaded, setUploaded] = useState<string | null>(null);
   const FONT = SIGNATURE_FONTS[fontIdx].css;
 
-  // Trim transparent margins off an uploaded signature (e.g. a macOS Preview
-  // PNG) and normalise it to a clean transparent PNG the seal can stamp.
   async function ingestImage(file: File) {
     if (!file.type.startsWith("image/")) { toast.error("Please choose an image file (PNG or JPG)."); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error("Image is too large (max 5MB)."); return; }
@@ -202,10 +233,6 @@ function SignatureDialog({
     const canvas = canvasRef.current;
     if (!canvas) return;
     let pad: SignaturePad | null = null;
-    // Init after the dialog has laid out (rAF), and size the backing buffer to
-    // the real display size × devicePixelRatio, scaling the context to match —
-    // otherwise on HiDPI screens the pointer coords don't map to the buffer and
-    // nothing appears to draw.
     const raf = requestAnimationFrame(() => {
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
       const cssW = canvas.getBoundingClientRect().width || 448;
@@ -220,8 +247,6 @@ function SignatureDialog({
   }, [tab]);
 
   async function typedToDataUrl(): Promise<string> {
-    // Read the real resolved font family from the live preview element, so the
-    // canvas render matches exactly what the signer picked.
     const fam = previewRef.current
       ? getComputedStyle(previewRef.current).fontFamily
       : FONT;

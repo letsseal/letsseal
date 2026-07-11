@@ -2,16 +2,23 @@ import { NextRequest } from "next/server";
 import { readFile, fileExists } from "@/lib/storage";
 import { db } from "@/lib/db";
 import { apiUser, userOwnsEnvelope } from "@/lib/auth-helpers";
+import { ctEqual } from "@/lib/ct";
 
 const isId = (s: string) => /^[a-zA-Z0-9_-]{1,64}$/.test(s);
 
-async function mayRead(req: NextRequest, envelopeId: string): Promise<boolean> {
+async function mayRead(req: NextRequest, envelopeId: string, variant: string | null): Promise<boolean> {
   const token = req.nextUrl.searchParams.get("token");
   if (token) {
     const signer = await db.signer.findFirst({
-      where: { token, envelopeId }, select: { id: true },
+      where: { token, envelopeId }, select: { id: true, accessCode: true },
     });
-    if (signer) return true;
+    if (signer) {
+      if (variant !== "sealed" && signer.accessCode) {
+        const supplied = req.nextUrl.searchParams.get("code") ?? req.headers.get("x-access-code");
+        return ctEqual(signer.accessCode, supplied);
+      }
+      return true;
+    }
   }
   const userId = await apiUser();
   if (userId && (await userOwnsEnvelope(userId, envelopeId))) return true;
@@ -37,7 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   // Document bytes (working draft or sealed final) require authorisation.
-  if (!(await mayRead(req, id))) return new Response("not found", { status: 404 });
+  if (!(await mayRead(req, id, variant))) return new Response("not found", { status: 404 });
 
   const v = variant === "sealed" ? "sealed" : "working";
   const key = `envelopes/${id}/${v}.pdf`;

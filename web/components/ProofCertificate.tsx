@@ -158,6 +158,15 @@ export function ProofCertificate({ data, variant = "document", gate }: {
   const sealed = data.crypto.sealed;
   const onRecordOnly = data.crypto.onRecordOnly === true;
   const intact = data.crypto.intact !== false;
+  const valid = data.crypto.valid !== false;
+  const trusted = data.crypto.trusted === true;
+  // "Authentic" REQUIRES the seal to chain to the Let's Seal CA. A cryptographically
+  // valid signature from an unrecognized (e.g. self-signed) certificate is a forgery
+  // vector — NOT an authentic document — so the verdict gates on `trusted`, never on
+  // sealed+intact alone. onRecordOnly docs were sealed by us (provenance implies trust),
+  // so their live re-check isn't available and the record itself vouches for them.
+  const authentic = sealed && intact && valid && trusted;
+  const sealOk = onRecordOnly ? sealed : authentic;
   const anchored = data.anchor && data.anchor.state !== "none";
   const confirmed = data.anchor?.state === "confirmed";
   const isTimestamp = variant === "timestamp";
@@ -167,14 +176,17 @@ export function ProofCertificate({ data, variant = "document", gate }: {
     <div className="space-y-4">
       <div className="rounded-2xl border bg-card p-6">
         <div className="flex items-center gap-4">
-          <SealMark className="h-14 w-14 shrink-0" color={(isTimestamp ? anchorOk : sealed && intact) ? "var(--brand)" : "#a1a1aa"} />
+          <SealMark className="h-14 w-14 shrink-0" color={(isTimestamp ? anchorOk : sealOk) ? "var(--brand)" : "#a1a1aa"} />
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight">
               {isTimestamp
                 ? (confirmed ? "Independent timestamp recorded" : "Timestamp pending")
                 : onRecordOnly
                   ? "Sealed & timestamped"
-                  : (sealed && intact ? "Authentic & unaltered" : sealed ? "Tampered since sealing" : "Not a sealed document")}
+                  : authentic ? "Authentic & unaltered"
+                    : !sealed ? "Not a sealed document"
+                      : !trusted ? "Unrecognized seal — not from Let's Seal"
+                        : "Tampered since sealing"}
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {isTimestamp
@@ -183,11 +195,13 @@ export function ProofCertificate({ data, variant = "document", gate }: {
                     : "This file's fingerprint is being recorded as an independent timestamp — confirming (~a few hours).")
                 : onRecordOnly
                   ? "On record as sealed by the issuer and anchored. Upload the file to confirm it hasn't been altered."
-                  : sealed && intact
-                    ? "This document carries a valid cryptographic seal and has not been modified."
-                    : sealed
-                      ? "The seal is present but the contents changed after sealing — do not trust this copy."
-                      : "No Let's Seal signature was found in this file."}
+                  : authentic
+                    ? "This document carries a valid Let's Seal seal and has not been modified."
+                    : !sealed
+                      ? "No signature was found in this file."
+                      : !trusted
+                        ? "This file is signed, but not by a Let's Seal certificate — its seal is not recognized and must not be trusted as issued through Let's Seal."
+                        : "The seal is present but the contents changed after sealing — do not trust this copy."}
               {isTimestamp && data.title && <> · <span className="font-medium">{data.title}</span></>}
             </p>
           </div>
@@ -200,10 +214,10 @@ export function ProofCertificate({ data, variant = "document", gate }: {
         {!isTimestamp && (
         <div className="rounded-2xl border bg-card p-5">
           <div className="flex items-center gap-2 text-sm font-medium">
-            {sealed && intact ? <ShieldCheck className="h-4 w-4 text-brand" /> : <ShieldAlert className="h-4 w-4 text-muted-foreground" />}
+            {sealOk ? <ShieldCheck className="h-4 w-4 text-brand" /> : <ShieldAlert className="h-4 w-4 text-muted-foreground" />}
             Cryptographic seal
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Proves who sealed it, and that it is byte-for-byte intact.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Shows the sealing certificate and that the file is byte-for-byte intact.</p>
           <div className="mt-3 divide-y">
             <Row label="Issuer">{data.crypto.signer?.split(",")[0]?.replace(/^Common Name:\s*/, "") ?? data.issuer ?? "—"}</Row>
             <Row label="Sealed">
@@ -218,12 +232,17 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             </Row>
             {!onRecordOnly && (
               <Row label="Chain of trust">
-                <span className={data.crypto.trusted ? "text-emerald-600" : "text-amber-600"}>
-                  {data.crypto.trusted ? "Trusted" : "Self-anchored"}
+                <span className={trusted ? "text-emerald-600" : "text-red-600"}>
+                  {trusted ? "Chains to Let's Seal CA" : "Not issued by Let's Seal"}
                 </span>
               </Row>
             )}
           </div>
+          {!onRecordOnly && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              The issuer name is claimed by the sealing certificate — it is <b>not</b> identity-verified by Let&apos;s Seal.
+            </p>
+          )}
         </div>
         )}
 

@@ -107,6 +107,8 @@ TAGS = [
     {"name": "util", "description": "Health and rendering helpers."},
 ]
 
+_PROD = os.environ.get("LETSSEAL_ENV", "").lower() in ("production", "prod")
+
 app = FastAPI(
     title="Let's Seal signing service",
     version="0.1.0",
@@ -115,6 +117,9 @@ app = FastAPI(
     license_info={"name": "MIT", "url": "https://opensource.org/licenses/MIT"},
     contact={"name": "Let's Seal", "url": "https://letsseal.org"},
     servers=[{"url": "http://127.0.0.1:8081", "description": "Local keyed service"}],
+    docs_url=None if _PROD else "/docs",
+    redoc_url=None if _PROD else "/redoc",
+    openapi_url=None if _PROD else "/openapi.json",
 )
 
 
@@ -160,6 +165,7 @@ class VerifyResponse(BaseModel):
     coverage: Optional[str] = Field(None, description="Signature coverage level: ENTIRE_FILE (good) | ENTIRE_REVISION | CONTENTS_ONLY | ...")
     valid: Optional[bool] = Field(None, description="Signature is cryptographically valid.")
     trusted: Optional[bool] = Field(None, description="Chains to this CA's trust root.")
+    authentic: Optional[bool] = Field(None, description="AUTHORITATIVE pass/fail verdict: valid AND intact AND trusted. A valid signature from an unrecognized (self-signed) cert is NOT authentic. Render verdicts from this, not sealed/intact alone.")
     signer: Optional[str] = Field(None, description="Human-friendly signer subject.")
     signed_at: Optional[str] = None
     reason: Optional[str] = Field(None, description="Why verification could not proceed (when unsealed).")
@@ -421,14 +427,16 @@ def _verify_bytes(pdf_bytes: bytes) -> dict:
     coverage = getattr(status.coverage, "name", str(status.coverage))
     whole_document = coverage == "ENTIRE_FILE"
     covered_intact = bool(status.intact)
+    intact = covered_intact and whole_document
     return {
         "sealed": True,
-        "intact": covered_intact and whole_document,
+        "intact": intact,
         "covered_intact": covered_intact,
         "whole_document": whole_document,
         "coverage": coverage,
         "valid": status.valid,
         "trusted": status.trusted,
+        "authentic": bool(status.valid) and intact and bool(status.trusted),
         "signer": status.signing_cert.subject.human_friendly,
         "signed_at": str(getattr(status, "signer_reported_dt", None)),
     }

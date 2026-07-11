@@ -2,11 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmail } from "@/lib/mailer";
+import { clientIp } from "@/lib/ip";
 
 const lastSent = new Map<string, number>();
 const COOLDOWN_MS = 60_000;
 
+const IP_HITS = new Map<string, { n: number; resetAt: number }>();
+const IP_LIMIT = 10, IP_WINDOW_MS = 60 * 60 * 1000;
+function ipLimited(ip: string): boolean {
+  const now = Date.now();
+  const rec = IP_HITS.get(ip);
+  if (!rec || now > rec.resetAt) { IP_HITS.set(ip, { n: 1, resetAt: now + IP_WINDOW_MS }); return false; }
+  rec.n += 1;
+  return rec.n > IP_LIMIT;
+}
+
 export async function POST(req: NextRequest) {
+  if (ipLimited(clientIp(req))) return NextResponse.json({ ok: true });
+
   const { email } = await req.json().catch(() => ({}));
   const e = String(email ?? "").toLowerCase().trim();
   if (!e || !e.includes("@")) return NextResponse.json({ ok: true });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiUser } from "@/lib/auth-helpers";
 import { issueOrgCert } from "@/lib/signing";
+import { orgNameProblem } from "@/lib/org-name";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const cleanHex = (v: unknown) => (typeof v === "string" && HEX.test(v) ? v : undefined);
@@ -21,12 +22,17 @@ export async function POST(req: NextRequest) {
 
   const { name, brandColor, accentColor } = await req.json();
   const trimmed = String(name ?? "").trim();
-  if (trimmed.length < 2) return NextResponse.json({ error: "Name is too short" }, { status: 400 });
+  const nameProblem = orgNameProblem(trimmed);
+  if (nameProblem) return NextResponse.json({ error: nameProblem }, { status: 400 });
   const brand = cleanHex(brandColor);
   const accent = cleanHex(accentColor);
 
   const base = slugify(trimmed);
   if (!base) return NextResponse.json({ error: "Name must contain letters or numbers" }, { status: 400 });
+
+  const owned = await db.membership.count({ where: { userId, role: "owner" } });
+  if (owned >= 10)
+    return NextResponse.json({ error: "You've reached the limit of businesses per account — contact us to raise it." }, { status: 429 });
 
   let slug = base;
   for (let n = 2; await db.organization.findUnique({ where: { slug } }); n++) {

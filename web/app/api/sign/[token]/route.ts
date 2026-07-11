@@ -9,6 +9,10 @@ import { sendEnvelopeCompleted, sendEnvelopeCompletedSender } from "@/lib/mailer
 import { recordSend } from "@/lib/send-guard";
 import { advanceSequence } from "@/lib/envelope-routing";
 import { clientIp } from "@/lib/ip";
+import { ctEqual } from "@/lib/ct";
+
+const suppliedCode = (req: NextRequest) =>
+  req.nextUrl.searchParams.get("code") ?? req.headers.get("x-access-code");
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -17,6 +21,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     include: { envelope: { include: { org: true, fields: { include: { signer: true } } } } },
   });
   if (!signer) return NextResponse.json({ error: "invalid link" }, { status: 404 });
+
+  if (signer.accessCode && !ctEqual(signer.accessCode, suppliedCode(req))) {
+    return NextResponse.json({
+      signer: { id: signer.id, name: signer.name, kind: signer.kind, status: signer.status, hasAccessCode: true },
+      needsAccessCode: true,
+    });
+  }
 
   if (signer.status === "pending") {
     const ip = clientIp(req);
@@ -35,15 +46,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       org: { name: signer.envelope.org.name, brandColor: signer.envelope.org.brandColor },
       fields: signer.envelope.fields.map((f) => ({
         id: f.id, type: f.type, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h,
-        value: f.value, signerId: f.signerId, signerName: f.signer?.name ?? null,
+        value: (f.signerId === signer.id || f.signerId === null) ? f.value : null,
+        signerId: f.signerId, signerName: f.signer?.name ?? null,
         mine: f.signerId === signer.id,
       })),
     },
   });
 }
 
+const MAX_SIGN_JSON_BYTES = 2_000_000; 
+const MAX_FIELD_VALUE = 200_000; 
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const len = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(len) && len > MAX_SIGN_JSON_BYTES)
+    return NextResponse.json({ error: "payload too large" }, { status: 413 });
   const { values, accessCode } = (await req.json()) as {
     values: Record<string, string>; accessCode?: string;
   };
@@ -54,8 +72,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (!signer) return NextResponse.json({ error: "invalid link" }, { status: 404 });
   if (signer.status === "signed")
     return NextResponse.json({ error: "already signed" }, { status: 409 });
-  if (signer.accessCode && signer.accessCode !== accessCode)
+  if (signer.accessCode && !ctEqual(signer.accessCode, accessCode))
     return NextResponse.json({ error: "bad access code" }, { status: 403 });
+
+  if (signer.envelope.sequential) {
+    const ahead = await db.signer.count({
+      where: {
+        envelopeId: signer.envelope.id,
+        role: { in: ["signer", "in_person"] },
+        status: { notIn: ["signed", "declined"] },
+        order: { lt: signer.order },
+      },
+    });
+    if (ahead > 0) return NextResponse.json({ error: "It's not your turn to sign yet." }, { status: 409 });
+  }
 
   const ip = clientIp(req);
   const ua = req.headers.get("user-agent") ?? "";
@@ -63,7 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   for (const [fieldId, value] of Object.entries(values ?? {})) {
     const field = await db.field.findUnique({ where: { id: fieldId } });
     if (!field || field.signerId !== signer.id) continue;
-    await db.field.update({ where: { id: fieldId }, data: { value } });
+    await db.field.update({ where: { id: fieldId }, data: { value: String(value ?? "").slice(0, MAX_FIELD_VALUE) } });
     await appendAudit(signer.envelope.id, signer.id, "field_filled", { ip, userAgent: ua, details: field.type });
   }
   await db.signer.update({ where: { id: signer.id }, data: { status: "signed", signedAt: new Date() } });
