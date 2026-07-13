@@ -107,10 +107,19 @@ Given a file (and, for the anchor, its `.ots`):
 
 ## 7. Reference implementation
 
-The Let's Seal signing + verification service ([`signing-service/`], MIT) is the
-reference implementation of §2–§5. The verification method in §5 is intentionally small:
-a standard PAdES/X.509 validator plus the stock OpenTimestamps client is enough to verify
-a SEAL proof end-to-end.
+- **Verifier:** [`spec/verify.py`](spec/verify.py) — a standalone reference verifier. It
+  pins the published root, validates the PAdES chain and full-file coverage, and runs
+  `ots verify` for the anchor. No Let's Seal server involved. Run it:
+
+  ```
+  python spec/verify.py sealed.pdf sealed.pdf.ots
+  ```
+
+- **Sealer + service:** the Let's Seal signing + verification service ([`signing-service/`],
+  MIT) implements §2–§5 end-to-end.
+
+The verification method in §5 is intentionally small — a standard PAdES/X.509 validator
+plus the stock OpenTimestamps client is enough to verify a SEAL proof.
 
 ## 8. Versioning
 

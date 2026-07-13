@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { XowxWordmark } from "./xowx-wordmark";
 
 const COLS = [
   {
@@ -43,6 +44,10 @@ export function SiteFooter() {
               Free, open infrastructure for document authenticity. A public-benefit project — secured by nobody,
               verifiable by anyone.
             </p>
+            <a href="https://xowx.org" className="group mt-8 inline-flex flex-col gap-2">
+              <span className="text-[10.5px] font-medium uppercase tracking-wider text-stone-400">A project of</span>
+              <XowxWordmark className="text-[19px] text-stone-600 transition-colors group-hover:text-stone-900" />
+            </a>
           </div>
           {COLS.map((c) => (
             <div key={c.h}>

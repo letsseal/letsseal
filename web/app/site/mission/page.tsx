@@ -1,4 +1,5 @@
 import { PageHead, Container, H2, serif, LinkArrow } from "../_components/ui";
+import { XowxWordmark } from "../_components/xowx-wordmark";
 
 export const metadata = {
   title: "Mission — Let's Seal",
@@ -69,6 +70,28 @@ export default function MissionPage() {
       </section>
 
       <section className="border-b border-stone-200">
+        <Container className="py-14 sm:py-20">
+          <div className="grid items-center gap-10 sm:grid-cols-[1.5fr_1fr]">
+            <div>
+              <H2>Run by a foundation, not a startup.</H2>
+              <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed text-stone-600">
+                Let&rsquo;s Seal is stewarded by Experimental Open Works — a home for free, public-benefit
+                infrastructure, the way ISRG runs Let&rsquo;s Encrypt. No investors, no exit, no plan to enclose it
+                later. It&rsquo;s built to outlive us.
+              </p>
+              <div className="mt-5">
+                <LinkArrow href="https://xowx.org">Experimental Open Works</LinkArrow>
+              </div>
+            </div>
+            <a href="https://xowx.org" className="group justify-self-start sm:justify-self-center">
+              <span className="mb-3 block text-[10.5px] font-medium uppercase tracking-wider text-stone-400">A project of</span>
+              <XowxWordmark className="text-[30px] text-stone-700 transition-colors group-hover:text-stone-900" />
+            </a>
+          </div>
+        </Container>
+      </section>
+
+      <section className="bg-stone-100/60">
         <Container className="py-14 sm:py-18">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="max-w-md">

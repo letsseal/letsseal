@@ -132,8 +132,9 @@ export default function StandardPage() {
                 <li><LinkArrow href="https://verify.letsseal.org">Verify a document</LinkArrow></li>
               </ul>
               <p className="mt-5 text-[13px] leading-relaxed text-stone-500">
-                Reference implementation: the MIT-licensed Let&rsquo;s Seal signing &amp; verification service. The
-                verification method above is deliberately small — a standard validator plus <code>ots verify</code>.
+                Reference implementation: a standalone verifier (<code>spec/verify.py</code>) and the MIT signing
+                service. Verifying a SEAL proof needs a standard PAdES validator plus <code>ots verify</code> — that
+                is the entire dependency list.
               </p>
             </Card>
           </div>
