@@ -18,6 +18,7 @@ export type ProofData = {
   };
   anchor?: { state: string; btcBlock: number | null; blockHash?: string | null; blockTime?: string | null } | null;
   otsUrl?: string | null;
+  sigUrl?: string | null;
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -306,6 +307,18 @@ export function ProofCertificate({ data, variant = "document", gate }: {
       <div className="rounded-2xl border bg-muted/40 p-5">
         <div className="flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-muted-foreground" /> {isTimestamp ? "File" : "Document"} fingerprint (SHA-256)</div>
         <code className="mt-2 block break-all font-mono text-xs text-muted-foreground">{data.sha256}</code>
+        {data.sigUrl && (
+          <div className="mt-3">
+            <a href={data.sigUrl}
+               className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+              <Download className="h-3.5 w-3.5" /> Download .sig signature
+            </a>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Save it beside your file and verify anywhere, with no Let&apos;s Seal server:{" "}
+              <code className="rounded bg-background px-1 py-0.5 font-mono">openssl cms -verify -inform DER -in file.sig -content file -CAfile letsseal-root.crt</code>
+            </p>
+          </div>
+        )}
         {anchored && (
           <p className="mt-3 text-xs text-muted-foreground">
             Don&apos;t trust us — verify it yourself. Download the <b>.ots proof</b> and run{" "}

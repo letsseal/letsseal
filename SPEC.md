@@ -21,21 +21,33 @@ A SEAL proof has two independent parts and one convention:
 
 | Letter | Part | Standard used | Proves |
 |--------|------|---------------|--------|
-| **S**ealed · **E**vidence | A PAdES signature embedded in the document, chaining to a published root CA. | PAdES (ETSI EN 319 142), X.509, SHA-256 | **Integrity + issuer** — the file is byte-for-byte what was sealed, and which certificate sealed it. |
+| **S**ealed · **E**vidence | An AdES signature chaining to a published root CA — **PAdES** embedded in the file for PDFs, **detached CAdES/CMS** (a `file.sig` sidecar) for any other artifact. | PAdES / CAdES (ETSI EN 319 142 / 319 122), X.509, SHA-256 | **Integrity + issuer** — the file is byte-for-byte what was sealed, and which certificate sealed it. |
 | **A**nchored · **L**edger | An OpenTimestamps proof (`.ots`) over the SHA-256 of the sealed file. | OpenTimestamps, Bitcoin | **Time** — the file existed by a given public-ledger block, with no authority to trust. |
 | — | The canonical proof permalink `/d/<sha256>` and its machine-readable twin. | HTTP + JSON | **Convention** — one stable way to reference and fetch a proof. |
 
-The proof is **self-contained**: the seal travels inside the PDF and the anchor is a
-small sidecar file. Neither requires a database, an account, or Let's Seal being
-online to verify.
+The proof is **self-contained**: the seal travels inside the PDF (or beside any other
+file as a `.sig`) and the anchor is a small `.ots` sidecar. Neither requires a
+database, an account, or Let's Seal being online to verify.
 
 ---
 
 ## 2. The seal (integrity + issuer)
 
-- The document MUST carry a PAdES signature covering the **entire file**. A signature
-  that covers only part of the file (i.e. content was appended after signing via an
-  incremental update) is **not** conformant and MUST be reported as altered.
+- A conforming artifact MUST carry an AdES signature over its bytes, in one of two
+  delivery forms:
+  - **PDF — PAdES**, embedded in the file, covering the **entire file**. A signature
+    that covers only part of the file (content appended after signing via an
+    incremental update) is **not** conformant and MUST be reported as altered.
+  - **Any other file — detached CAdES/CMS**, a `file.sig` sidecar signing the file's
+    SHA-256. The signer's certificate chain is embedded in the signature, so it is
+    self-contained. It verifies with stock tooling and no Let's Seal server:
+
+    ```
+    openssl cms -verify -inform DER -in file.sig -content file -CAfile letsseal-root.crt
+    ```
+- The signing certificate MUST chain to a **published SEAL root**. The root is not in
+  any OS or Adobe trust store *by design* — trust is pinned to the published root, not
+  granted by a vendor trust list.
 - The signing certificate MUST chain to a **published SEAL root**. The root is not in
   any OS or Adobe trust store *by design* — trust is pinned to the published root, not
   granted by a vendor trust list.

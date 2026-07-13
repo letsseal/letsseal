@@ -2,23 +2,26 @@
 """
 SEAL reference verifier — Sealed Evidence, Anchored to a Ledger.
 
-Verifies a sealed PDF against the PUBLISHED Let's Seal root and its OpenTimestamps
+Verifies a sealed file against the PUBLISHED Let's Seal root and its OpenTimestamps
 anchor, with no Let's Seal server involved. Reference for the SEAL standard:
 https://letsseal.org/standard
 
-  seal    the embedded PAdES signature is valid, chains to the pinned root, and
-          covers the entire file            ->  integrity + issuer
+  seal    an AdES signature valid, chaining to the pinned root, covering the whole
+          file. PDFs carry it embedded (PAdES); any other file uses a detached
+          sidecar (CAdES/CMS, `file.sig`).   ->  integrity + issuer
   anchor  `ots verify` confirms the file's SHA-256 on the Bitcoin ledger  ->  time
 
-Requires: pyhanko (pip install pyhanko); for the anchor, the `ots` client
-(pip install opentimestamps-client).
+Requires: pyhanko (pip install pyhanko); for detached (.sig) seals, `openssl`; for
+the anchor, the `ots` client (pip install opentimestamps-client).
 
 Usage:  python verify.py sealed.pdf [sealed.pdf.ots]
+        python verify.py file file.sig [file.ots]
 """
 import sys
 import os
 import hashlib
 import subprocess
+import tempfile
 from io import BytesIO
 
 from asn1crypto import pem, x509
@@ -83,6 +86,56 @@ def verify_seal(pdf_bytes):
     }
 
 
+def _detached_signer(sig_path):
+    """Best-effort signer name from a detached CMS (the embedded leaf cert)."""
+    try:
+        from asn1crypto import cms
+        sd = cms.ContentInfo.load(open(sig_path, "rb").read())["content"]
+        certs = [c.chosen for c in sd["certificates"]]
+
+        def is_ca(c):
+            bc = c.basic_constraints_value
+            return bool(bc and bc["ca"].native)
+
+        leaf = next((c for c in certs if not is_ca(c)), certs[0])
+        return leaf.subject.human_friendly
+    except Exception:
+        return ""
+
+
+def verify_detached(file_path, sig_path, timeout=30):
+    """Verify a detached CAdES/CMS seal (file.sig) over `file_path` against the
+    published root, with stock openssl. The signer's chain is embedded in the
+    sig, so pinning the root is enough. Two checks mirror the PAdES path: the
+    signature alone (valid) and the chain to the root (trusted)."""
+    with tempfile.NamedTemporaryFile("wb", suffix=".pem", delete=False) as rf:
+        rf.write(ROOT_CA_PEM)
+        root = rf.name
+
+    def _openssl(*extra):
+        try:
+            r = subprocess.run(
+                ["openssl", "cms", "-verify", "-inform", "DER", "-in", sig_path,
+                 "-content", file_path, "-no_check_time", "-out", os.devnull, *extra],
+                capture_output=True, text=True, timeout=timeout,
+            )
+            return r.returncode == 0 and "verification successful" in (r.stdout + r.stderr).lower()
+        except Exception:
+            return None
+
+    try:
+        valid = _openssl("-noverify")
+        trusted = _openssl("-CAfile", root)
+    finally:
+        os.unlink(root)
+
+    if valid is None or trusted is None:
+        return {"sealed": True, "detached": True, "valid": False, "trusted": False,
+                "entire_file": False, "signer": "(openssl unavailable)"}
+    return {"sealed": True, "detached": True, "valid": bool(valid), "trusted": bool(trusted),
+            "entire_file": bool(valid), "signer": _detached_signer(sig_path)}
+
+
 def verify_anchor(pdf_path, ots_path):
     try:
         r = subprocess.run(
@@ -105,24 +158,39 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(2)
-    pdf_path = sys.argv[1]
-    ots_path = sys.argv[2] if len(sys.argv) > 2 else pdf_path + ".ots"
-    pdf_bytes = open(pdf_path, "rb").read()
+    args = sys.argv[1:]
+    file_path = args[0]
+    sig_path = next((a for a in args[1:] if a.endswith(".sig")), None)
+    ots_path = next((a for a in args[1:] if a.endswith(".ots")), None)
+    file_bytes = open(file_path, "rb").read()
+    is_pdf = file_bytes[:5] == b"%PDF-"
+    if sig_path is None and not is_pdf and os.path.exists(file_path + ".sig"):
+        sig_path = file_path + ".sig"
+    if ots_path is None and os.path.exists(file_path + ".ots"):
+        ots_path = file_path + ".ots"
 
-    print(f"file     {pdf_path}")
-    print(f"sha256   {hashlib.sha256(pdf_bytes).hexdigest()}")
+    print(f"file     {file_path}")
+    print(f"sha256   {hashlib.sha256(file_bytes).hexdigest()}")
 
-    s = verify_seal(pdf_bytes)
-    if not s["sealed"]:
-        print("\nRESULT   NOT A SEAL — no signature found.")
+    if is_pdf:
+        s = verify_seal(file_bytes)
+        if not s["sealed"]:
+            print("\nRESULT   NOT A SEAL — no signature found.")
+            sys.exit(1)
+        kind = s["coverage"]
+    elif sig_path:
+        s = verify_detached(file_path, sig_path)
+        kind = "detached CMS"
+    else:
+        print("\nRESULT   NOT A SEAL — no PAdES signature and no .sig sidecar.")
         sys.exit(1)
 
     authentic = s["valid"] and s["trusted"] and s["entire_file"]
     print(f"issuer   {s['signer']}")
-    print(f"seal     valid={s['valid']}  trusted={s['trusted']}  entire_file={s['entire_file']}  ({s['coverage']})")
+    print(f"seal     valid={s['valid']}  trusted={s['trusted']}  entire_file={s['entire_file']}  ({kind})")
 
-    if os.path.exists(ots_path):
-        anchor = verify_anchor(pdf_path, ots_path)
+    if ots_path and os.path.exists(ots_path):
+        anchor = verify_anchor(file_path, ots_path)
         print(f"anchor   {anchor}")
     else:
         anchor = None

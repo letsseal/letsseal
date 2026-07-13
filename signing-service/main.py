@@ -345,6 +345,61 @@ async def seal(
     return Response(content=res.pdf, media_type="application/pdf", headers=headers)
 
 
+class SealDetachedRequest(BaseModel):
+    sha256: str = Field(..., description="Lowercase hex SHA-256 of the file to seal.")
+    org_slug: str = Field(..., description="Issuing business slug (must have a signing cert).")
+
+
+@app.post("/seal/detached", operation_id="sealDetached", tags=["sealing"],
+          summary="Detached CAdES/CMS seal over a file digest",
+          dependencies=[Depends(require_auth)])
+async def seal_detached(payload: SealDetachedRequest):
+    """Seal ANY file: a detached CMS signature over its SHA-256, chaining to the
+    root. Digest-only — the file never leaves the caller. Pair with `/anchor/hash`
+    for the Bitcoin timestamp; together they are the full SEAL for a non-PDF."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    sha = str(payload.sha256).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise HTTPException(400, "sha256 (64 hex) required")
+    slug = str(payload.org_slug)
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", slug):
+        raise HTTPException(400, "invalid org_slug")
+    p12 = _org_p12(slug)
+    from detached import sign_detached_digest, _detached_signer
+    import base64 as _b64
+    try:
+        sig_b64 = await run_in_threadpool(sign_detached_digest, sha, p12, P12_PASS)
+    except Exception:
+        logger.exception("detached seal failed for org %s", slug)
+        raise HTTPException(500, "detached seal failed")
+    cert_cn = _detached_signer(_b64.b64decode(sig_b64))
+    return JSONResponse({"sha256": sha, "sig_b64": sig_b64, "cert_cn": cert_cn})
+
+
+@app.post("/verify/detached", operation_id="verifyDetached", tags=["sealing"],
+          summary="Verify a detached CAdES/CMS seal", dependencies=[Depends(require_auth)])
+async def verify_detached_ep(request: Request, file: UploadFile = File(...), sig: UploadFile = File(...)):
+    """Verify a detached seal: the file's bytes + its `.sig`, against our root.
+    Powers the public portal for any non-PDF artifact."""
+    file_bytes = await _read_capped(file, request)
+    sig_bytes = await sig.read()
+    if len(sig_bytes) > 1_000_000:
+        raise HTTPException(413, "signature too large")
+    sha = hashlib.sha256(file_bytes).hexdigest()
+    from detached import verify_detached_bytes
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        result = await run_in_threadpool(verify_detached_bytes, file_bytes, sig_bytes, root)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("detached verify failed")
+        return JSONResponse({"sealed": True, "detached": True, "valid": False,
+                             "trusted": False, "sha256": sha, "reason": "verification error"},
+                            status_code=200)
+
+
 @app.post("/verify", operation_id="verify", tags=["sealing"],
           summary="Verify a sealed PDF", response_model=VerifyResponse,
           dependencies=[Depends(require_auth)])

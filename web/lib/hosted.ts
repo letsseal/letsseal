@@ -1,11 +1,24 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
+import { uniqueProofCode } from "@/lib/proofcode";
 
 export const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 export const proofUrl = (ref: string) => `${appUrl()}/d/${ref}`;
+
+// Mint a proof code unique across BOTH proof-bearing tables (sealed docs and
+// standalone anchors share the /v/<code> namespace).
+async function mintProofCode(): Promise<string> {
+  return uniqueProofCode(async (code) => {
+    const [doc, anch] = await Promise.all([
+      db.sealedDocument.findUnique({ where: { proofCode: code }, select: { id: true } }),
+      db.anchor.findUnique({ where: { proofCode: code }, select: { id: true } }),
+    ]);
+    return !!doc || !!anch;
+  });
+}
 
 export type HostedSeal = {
   pdf: Buffer;
@@ -13,6 +26,7 @@ export type HostedSeal = {
   certCN: string;
   anchorState: string; // none | pending | confirmed
   proofUrl: string;
+  proofCode: string | null;
 };
 
 // Seal a PDF for a business and persist it. When `anchor` is set, also anchor
@@ -68,15 +82,80 @@ export async function hostedSeal(
       id: docId,
       org: { connect: { id: org.id } },
       source: "api",
+      sealType: "pades",
       title: opts.title ?? null,
       pdfPath,
       sha256: sealed.sha256,
+      proofCode: await mintProofCode(),
       certCN: sealed.certCN,
       otsProof,
       anchorState,
     },
-    select: { id: true },
+    select: { id: true, proofCode: true },
   });
 
-  return { pdf: sealed.pdf, sha256: sealed.sha256, certCN: sealed.certCN, anchorState, proofUrl: proofUrl(rec.id) };
+  return {
+    pdf: sealed.pdf, sha256: sealed.sha256, certCN: sealed.certCN,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedDetachedSeal = {
+  sha256: string;
+  sig: string; // base64 detached CMS
+  certCN: string;
+  anchorState: string; // none | pending | confirmed
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// Seal ANY file for a business: a detached CAdES/CMS signature over its SHA-256,
+// anchored to Bitcoin, persisted as a permanent verifiable proof. Digest-only —
+// the file bytes never reach us; `sha256` is the caller's locally-computed hash.
+// There is no PDF to stamp or store, so this is pure proof: hash + .sig + anchor.
+export async function hostedSealDetached(
+  org: { id: string; slug: string; name: string },
+  sha256: string,
+  opts: { title?: string | null; anchor?: boolean } = {},
+): Promise<HostedDetachedSeal> {
+  const sha = sha256.trim().toLowerCase();
+  const { sig_b64, cert_cn } = await sealDetached(org.slug, sha);
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sha);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none"; // sealed but not anchored; caller can retry anchoring
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sha },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "detached",
+      title: opts.title ?? null,
+      pdfPath: null,
+      detachedSig: sig_b64,
+      sha256: sha,
+      proofCode: await mintProofCode(),
+      certCN: cert_cn || org.name,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  return {
+    sha256: sha, sig: sig_b64, certCN: cert_cn || org.name,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
 }

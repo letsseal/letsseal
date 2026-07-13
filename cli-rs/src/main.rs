@@ -10,7 +10,8 @@
 //   sealbot verify <file>               check a sealed PDF, or refresh an .ots
 //   sealbot watch  <dir>                notarise a folder continuously
 // Advanced (keyed signing — the signing service + a token):
-//   sealbot seal   <file.pdf> --org <slug>   seal a PDF with your CA
+//   sealbot seal   <file> --org <slug>   seal any file with your CA
+//     (PDF → embedded PAdES; anything else → detached CAdES <file>.sig sidecar)
 //   sealbot issue  --id <id> --cn "<subject>"  get a signing cert
 
 use base64::Engine;
@@ -97,6 +98,26 @@ fn post_multipart(url: &str, fields: &[(&str, &str)], filename: &str, bytes: &[u
     }
 }
 
+// Multipart POST with several file parts (used by detached verify: file + sig).
+fn post_multipart_files(url: &str, files: &[(&str, &str, &[u8])], auth: bool) -> Result<ureq::Response, String> {
+    let boundary = "----letssealFormBoundary8x2f9q";
+    let mut body: Vec<u8> = Vec::new();
+    for (field, filename, bytes) in files {
+        body.extend_from_slice(format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+        ).as_bytes());
+        body.extend_from_slice(bytes);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    let ct = format!("multipart/form-data; boundary={boundary}");
+    match req_post(url, auth).set("Content-Type", &ct).send_bytes(&body) {
+        Ok(resp) => Ok(resp),
+        Err(ureq::Error::Status(code, resp)) => Err(format!("{code} {}", resp.into_string().unwrap_or_default())),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn get_bytes(url: &str) -> Result<Vec<u8>, String> {
     match ureq::get(url).call() {
         Ok(resp) => {
@@ -174,6 +195,21 @@ fn upgrade_ots(ots_path: &str) -> Result<serde_json::Value, String> {
     Ok(r.get("status").cloned().unwrap_or_default())
 }
 
+fn is_pdf(bytes: &[u8]) -> bool {
+    bytes.len() >= 5 && &bytes[..5] == b"%PDF-"
+}
+
+// Surface a sibling anchor's Bitcoin status too, if a <file>.ots exists.
+fn show_sibling_anchor(file: &str) {
+    let sib = format!("{file}.ots");
+    if Path::new(&sib).exists() {
+        if let Ok(status) = upgrade_ots(&sib) {
+            let blk = status.get("bitcoin_block").and_then(|x| x.as_i64()).map(|b| format!(" (block {b})")).unwrap_or_default();
+            println!("  anchor  {}{}", s(&status, "state"), blk);
+        }
+    }
+}
+
 fn verify(file: &str) {
     // An .ots argument → refresh its Bitcoin confirmation status (was `upgrade`).
     if file.ends_with(".ots") {
@@ -184,8 +220,38 @@ fn verify(file: &str) {
         return;
     }
 
-    // Otherwise a sealed PDF → check the seal + integrity against the CA.
     let bytes = read(file);
+    let sig_path = format!("{file}.sig");
+    let has_sig = Path::new(&sig_path).exists();
+
+    // A detached seal lives beside the file as <file>.sig. Verify it (file + sig)
+    // when the .sig is present, or when the file isn't a PDF (so it can't carry an
+    // embedded seal) — that's the only way it could be sealed.
+    if has_sig || !is_pdf(&bytes) {
+        if !has_sig {
+            die(&format!("no seal: {file} is not a PDF and {sig_path} was not found"));
+        }
+        let sig = read(&sig_path);
+        let fname = basename(file);
+        let sname = basename(&sig_path);
+        let resp = post_multipart_files(
+            &format!("{}/verify/detached", api()),
+            &[("file", &fname, &bytes), ("sig", &sname, &sig)],
+            true,
+        ).unwrap_or_else(|e| die(&format!("verify failed: {e}")));
+        let r: serde_json::Value = resp.into_json().unwrap_or_else(|_| die("bad response"));
+        let valid = r.get("valid").and_then(|x| x.as_bool()).unwrap_or(false);
+        let trusted = r.get("trusted").and_then(|x| x.as_bool()).unwrap_or(false);
+        println!("{} {file}", if valid && trusted { "verified " } else { "TAMPERED " });
+        println!("  signer  {}", s(&r, "signer").split(',').next().unwrap_or(""));
+        println!("  valid   {valid}   trusted {trusted}   (detached seal)");
+        println!("  sha256  {}", s(&r, "sha256"));
+        show_sibling_anchor(file);
+        if !(valid && trusted) { exit(2); }
+        return;
+    }
+
+    // Otherwise a sealed PDF → check the embedded seal + integrity against the CA.
     let resp = post_multipart(&format!("{}/verify", api()), &[], &basename(file), &bytes, true)
         .unwrap_or_else(|e| die(&format!("verify failed: {e}")));
     let r: serde_json::Value = resp.into_json().unwrap_or_else(|_| die("bad response"));
@@ -201,14 +267,7 @@ fn verify(file: &str) {
         println!("  intact  {intact}   valid {valid}   trusted {}", r.get("trusted").and_then(|x| x.as_bool()).unwrap_or(false));
         println!("  sha256  {}", s(&r, "sha256"));
     }
-    // Surface a sibling anchor's Bitcoin status too, if one exists.
-    let sib = format!("{file}.ots");
-    if Path::new(&sib).exists() {
-        if let Ok(status) = upgrade_ots(&sib) {
-            let blk = status.get("bitcoin_block").and_then(|x| x.as_i64()).map(|b| format!(" (block {b})")).unwrap_or_default();
-            println!("  anchor  {}{}", s(&status, "state"), blk);
-        }
-    }
+    show_sibling_anchor(file);
     if !sealed || !(intact && valid) { exit(2); }
 }
 
@@ -221,7 +280,7 @@ fn upgrade(file: &str) {
 // ---- watch: turn a directory into an always-on notary ----
 
 fn is_derived(name: &str) -> bool {
-    name.ends_with(".ots") || name.to_lowercase().ends_with(".sealed.pdf")
+    name.ends_with(".ots") || name.ends_with(".sig") || name.to_lowercase().ends_with(".sealed.pdf")
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -243,15 +302,24 @@ fn process_one(path: &Path, mode: &str, org: &str) -> Result<(String, String, St
 
     match mode {
         "seal" => {
-            if !full.to_lowercase().ends_with(".pdf") { return Err("not a PDF".into()); }
-            let resp = post_multipart(&format!("{}/seal", api()), &[("org_slug", org), ("timestamp", "false")], &basename(&full), &bytes, true)?;
-            let sha = resp.header("x-letsseal-sha256").unwrap_or("").to_string();
-            let mut out_bytes = Vec::new();
-            resp.into_reader().read_to_end(&mut out_bytes).ok();
-            let stem = full.strip_suffix(".pdf").or_else(|| full.strip_suffix(".PDF")).unwrap_or(&full);
-            let out = format!("{stem}.sealed.pdf");
-            std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
-            Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
+            // PDFs get an embedded PAdES seal; anything else a detached .sig sidecar.
+            if is_pdf(&bytes) {
+                let resp = post_multipart(&format!("{}/seal", api()), &[("org_slug", org), ("timestamp", "false")], &basename(&full), &bytes, true)?;
+                let sha = resp.header("x-letsseal-sha256").unwrap_or("").to_string();
+                let mut out_bytes = Vec::new();
+                resp.into_reader().read_to_end(&mut out_bytes).ok();
+                let stem = full.strip_suffix(".pdf").or_else(|| full.strip_suffix(".PDF")).unwrap_or(&full);
+                let out = format!("{stem}.sealed.pdf");
+                std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
+                Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
+            } else {
+                let r = post_json(&format!("{}/seal/detached", api()),
+                    serde_json::json!({ "sha256": digest, "org_slug": org }), true)?;
+                let sig = b64_decode(&s(&r, "sig_b64")).ok_or("bad signature from server")?;
+                let out = format!("{full}.sig");
+                std::fs::write(&out, sig).map_err(|e| e.to_string())?;
+                Ok((digest, "sealed".into(), out))
+            }
         }
         "publish" => {
             let r = app_anchor(&digest, &basename(&full))?;
@@ -352,8 +420,29 @@ fn watch(dir: &str) {
 // ---- Advanced (keyed) commands ----
 
 fn seal(file: &str) {
-    let org = flag("org").unwrap_or_else(|| die("usage: sealbot seal <file.pdf> --org <slug>"));
+    let org = flag("org").unwrap_or_else(|| die("usage: sealbot seal <file> --org <slug>"));
     let bytes = read(file);
+
+    // Any non-PDF gets a detached CAdES seal beside it (<file>.sig): the file has
+    // no slot for an embedded signature, so the seal is a self-contained sidecar.
+    // Digest-only — only the SHA-256 leaves this machine, never the file.
+    if !is_pdf(&bytes) {
+        let digest = sha256_hex(&bytes);
+        let r = post_json(&format!("{}/seal/detached", api()),
+            serde_json::json!({ "sha256": digest, "org_slug": org }), true)
+            .unwrap_or_else(|e| die(&format!("seal failed: {e}")));
+        let sig = b64_decode(&s(&r, "sig_b64")).unwrap_or_else(|| die("bad signature from server"));
+        let out = format!("{file}.sig");
+        std::fs::write(&out, sig).unwrap_or_else(|_| die("cannot write .sig"));
+        println!("sealed   {file}  (detached)");
+        println!("  by     {}", s(&r, "cert_cn"));
+        println!("  sha256 {digest}  (file itself was NOT uploaded)");
+        println!("  sig    {out}");
+        println!("  verify openssl cms -verify -inform DER -in {out} -content {file} -CAfile letsseal-root.crt");
+        return;
+    }
+
+    // A PDF gets the seal embedded in place (PAdES).
     let resp = post_multipart(&format!("{}/seal", api()), &[("org_slug", org.as_str()), ("timestamp", "false")], &basename(file), &bytes, true)
         .unwrap_or_else(|e| die(&format!("seal failed: {e}")));
     let cn = resp.header("x-letsseal-cert-cn").unwrap_or("").to_string();
@@ -396,12 +485,13 @@ sealbot — timestamp any file on Bitcoin and prove it existed, unaltered.
 
   sealbot anchor <file> [--publish]      hash locally -> writes <file>.ots
                                           (--publish also registers a public proof page)
-  sealbot verify <file>                  check a sealed PDF, or refresh an .ots's status
+  sealbot verify <file>                  check a sealed file (PDF or <file>+.sig), or refresh an .ots
   sealbot watch  <dir> [--mode anchor|publish|seal] [--interval <sec>] [--once]
                                           notarise a folder continuously, idempotently
 
 Advanced — keyed signing (needs the signing service + a bearer token):
-  sealbot seal   <file.pdf> --org <slug>     seal a PDF with your CA
+  sealbot seal   <file> --org <slug>         seal any file with your CA
+                                             (PDF -> embedded; else -> detached <file>.sig)
   sealbot issue  --id <id> --cn \"<subject>\" [--profile document|code|data]
 
   --api <url>   | SEALBOT_API    signing service (default http://127.0.0.1:8081)
@@ -433,7 +523,7 @@ fn main() {
         "anchor" => { if arg.is_empty() { die("usage: sealbot anchor <file> [--publish]"); } anchor(arg, false); }
         "verify" => { if arg.is_empty() { die("usage: sealbot verify <file>   (a sealed PDF, or an .ots proof)"); } verify(arg); }
         "watch" => { if arg.is_empty() { die("usage: sealbot watch <dir> [--mode anchor|publish|seal] [--once]"); } watch(arg); }
-        "seal" => { if arg.is_empty() { die("usage: sealbot seal <file.pdf> --org <slug>"); } seal(arg); }
+        "seal" => { if arg.is_empty() { die("usage: sealbot seal <file> --org <slug>"); } seal(arg); }
         "issue" => issue(),
         // Deprecated aliases — still run, with a one-line notice.
         "notarize" => { if arg.is_empty() { die("usage: sealbot anchor <file> --publish"); } notarize(arg); }

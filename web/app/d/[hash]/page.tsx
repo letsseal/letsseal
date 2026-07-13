@@ -45,11 +45,14 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
 
   if (!rec) return <NotAProof reason="No sealed document or timestamp on record matches this reference." sha={hash} />;
   const sha256 = rec.sha256;
+  const detached = rec.sealType === "detached";
 
   let crypto: ProofData["crypto"] = { sealed: true, onRecordOnly: true };
-  const key = rec.pdfPath; 
-  const docOnFile = await fileExists(key);
-  if (docOnFile) {
+  const key = detached ? null : rec.pdfPath; 
+  const docOnFile = key ? await fileExists(key) : false;
+  if (detached) {
+    crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN };
+  } else if (docOnFile && key) {
     try {
       const v = await verifyPdf(await readFile(key));
       crypto = { sealed: v.sealed, intact: v.intact, valid: v.valid, trusted: v.trusted, signer: v.signer, signed_at: v.signed_at, onRecordOnly: false };
@@ -101,6 +104,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     crypto,
     anchor: { state: anchorState, btcBlock, blockHash: block?.hash ?? null, blockTime: block?.time ?? null },
     otsUrl: rec.otsProof ? (rec.envelopeId ? `/api/file/${rec.envelopeId}?variant=ots` : `/api/anchor/${sha256}`) : null,
+    sigUrl: detached ? `/api/seal/${sha256}/sig` : null,
     trail: viewerIsIssuer ? trail : null,
     credential: cred ? {
       recipientName: cred.recipientName,
@@ -138,10 +142,11 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         )}
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Document proof</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{detached ? "File proof" : "Document proof"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            A permanent record that this document is sealed and timestamped. The subject and signer details stay
-            private — unlock them by uploading the file.
+            {detached
+              ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
+              : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}
           </p>
         </div>
         <ProofCertificate data={data} gate={gate} />

@@ -32,7 +32,7 @@ export default function MissionPage() {
       <PageHead
         eyebrow="Why Let's Seal exists"
         title={<>Authenticity is infrastructure.<br />It shouldn&rsquo;t be for rent.</>}
-        lede="Today, proving a document is genuine means paying to join a private trust list — a members-only club that rents you credibility by the year, and makes verification depend on one vendor and one PDF reader. That isn't trust. It's a tollbooth on something the world needs freely."
+        lede="Today, proving a file is genuine means paying to join a private trust list: a members-only club that rents you credibility by the year and makes verification depend on one vendor and one PDF reader. That isn't trust. It's a tollbooth on something the world needs freely."
       />
 
       <section className="border-b border-stone-200">

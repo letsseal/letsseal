@@ -18,21 +18,20 @@ export default async function SiteHome() {
       <section className="border-b border-stone-200">
         <Container className="py-[clamp(46px,7vw,88px)]">
           <Eyebrow>A public-benefit project</Eyebrow>
-          <h1 className={`${serif} mt-5 max-w-[15ch] text-[clamp(38px,6.4vw,64px)] font-medium leading-[1.04] tracking-[-.02em]`}>
-            Proof that a document is real should belong to everyone.
+          <h1 className={`${serif} mt-5 max-w-[15ch] text-[clamp(46px,7.2vw,74px)] font-medium leading-[1.01] tracking-[-.02em]`}>
+            Seal anything.
           </h1>
-          <p className="mt-6 max-w-[600px] text-[clamp(17px,1.8vw,20px)] leading-relaxed text-stone-600">
-            Let&rsquo;s Seal is a free, open, and decentralised way to seal a document and prove it hasn&rsquo;t changed.
-            There&rsquo;s no company in the middle to trust, to pay, or to shut it down — the proof stands on its own, and
-            anyone can check it.
+          <p className="mt-6 max-w-[620px] text-[clamp(17px,1.8vw,20px)] leading-relaxed text-stone-600">
+            A free, open standard for proving any file is unaltered and existed by a certain date. Verifiable by anyone,
+            forever, without asking permission. No account, no company in the middle: the proof stands on its own.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Btn href="/site/mission">Read the mission</Btn>
-            <LinkArrow href="/site/docs">Documentation</LinkArrow>
+            <Btn href="https://app.letsseal.org">Seal your first file</Btn>
+            <LinkArrow href="/site/standard">Read the standard</LinkArrow>
             <LinkArrow href="/site/open">Self-host it</LinkArrow>
           </div>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
-            {["Free to seal & verify, forever", "Open source, MIT", "No company to trust"].map((t) => (
+            {["Free forever", "Open source (MIT)", "Verify with no account"].map((t) => (
               <span key={t} className="inline-flex items-center gap-2 text-[13.5px] font-medium text-stone-600">
                 <Check className="h-4 w-4 text-blue-600" /> {t}
               </span>
@@ -48,8 +47,8 @@ export default async function SiteHome() {
               <Eyebrow>Getting started</Eyebrow>
               <H2 className="mt-3.5">Start sealing in minutes</H2>
               <p className="mt-4 text-[15.5px] leading-relaxed text-stone-600">
-                Let&rsquo;s Seal is free, open infrastructure for proving a document is genuine. Use the hosted app, the
-                command line, or run the whole thing yourself — everything below works today, for free.
+                Let&rsquo;s Seal is free, open infrastructure for proving any file is genuine. Use the hosted app, the
+                command line, or run the whole thing yourself. Everything below works today, for free.
               </p>
               <div className="mt-6">
                 <LinkArrow href="/site/getting-started">Full getting-started guide</LinkArrow>
@@ -68,7 +67,7 @@ export default async function SiteHome() {
               <h3 className="mt-4 text-[17px] font-semibold">For people</h3>
               <p className="mt-2 text-[14.5px] leading-relaxed text-stone-600">
                 Send documents for signature, issue branded certificates and credentials, and seal what you already
-                have — from a hosted app.
+                have, from a hosted app.
               </p>
               <div className="mt-4">
                 <LinkArrow href="https://app.letsseal.org">Open the app</LinkArrow>
@@ -91,15 +90,15 @@ export default async function SiteHome() {
 
       <section className="border-b border-stone-200">
         <Container className="py-14 sm:py-20">
-          <Eyebrow>An open standard, not just an app</Eyebrow>
+          <Eyebrow>An open standard</Eyebrow>
           <H2 className="mt-3.5 max-w-3xl">
-            Every seal is the same, checkable format — so the whole network verifies as one.
+            One format. The whole network verifies as one.
           </H2>
           <p className="mt-4 max-w-2xl text-[15.5px] leading-relaxed text-stone-600">
-            Let&rsquo;s Seal publishes <strong>SEAL</strong> — <em>Sealed Evidence, Anchored to a Ledger</em> — the open
+            Let&rsquo;s Seal publishes <strong>SEAL</strong> (<em>Sealed Evidence, Anchored to a Ledger</em>): the open
             standard for what a proof is and how anyone verifies one. It composes established standards (PAdES,
             OpenTimestamps) into one self-contained artifact, pinned to a published root. Anyone can implement it, and
-            every conforming proof checks the same way — that&rsquo;s what makes it a network, not a silo.
+            every conforming proof checks the same way. That&rsquo;s what makes it a network.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
             <Btn href="/site/standard">Read the standard</Btn>
@@ -119,7 +118,7 @@ export default async function SiteHome() {
             ))}
           </div>
           <p className="mt-8 text-[13px] text-stone-400">
-            Live counts of public proof records — no personal data, no phone-home.{" "}
+            Live counts of public proof records. No personal data, no phone-home.{" "}
             <a href="/site/open#stats" className="font-semibold text-blue-600">How we count →</a>
           </p>
         </Container>

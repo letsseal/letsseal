@@ -20,7 +20,7 @@ export default function StandardPage() {
       <PageHead
         eyebrow="The open standard · Version 1"
         title={<>SEAL — <span className="text-blue-600">S</span>ealed <span className="text-blue-600">E</span>vidence, <span className="text-blue-600">A</span>nchored to a <span className="text-blue-600">L</span>edger.</>}
-        lede="The open standard for proving a document is real. One sealed artifact, one way to check it — verifiable by anyone, forever, with us or without us. Seal with any conforming tool; anyone can verify it with any other."
+        lede="The open standard for proving any file is real. One sealed artifact, one way to check it, verifiable by anyone, forever, with us or without us. Seal with any conforming tool; anyone can verify it with any other."
       />
 
       <section className="border-b border-stone-200">

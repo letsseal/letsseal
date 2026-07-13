@@ -42,7 +42,7 @@ export default async function OpenPage() {
       <PageHead
         eyebrow="Open by design"
         title="Open source, open standards, open ledger."
-        lede="Nothing here is ours to lock up. The point of Let's Seal is that it keeps working even if we don't — because the proof lives in public standards and a public ledger."
+        lede="Nothing here is ours to lock up. Let's Seal keeps working even if we don't, because the proof lives in public standards and a public ledger."
       />
 
       <section className="border-b border-stone-200">

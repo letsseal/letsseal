@@ -47,6 +47,33 @@ export async function sealPdf(
   };
 }
 
+export type DetachedSealResult = { sha256: string; sig_b64: string; cert_cn: string };
+
+// Detached CAdES/CMS seal over a file's SHA-256 (digest-only) for any non-PDF
+// artifact. The signing service never sees the file bytes.
+export async function sealDetached(orgSlug: string, sha256: string): Promise<DetachedSealResult> {
+  const res = await fetch(`${SERVICE}/seal/detached`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ sha256, org_slug: orgSlug }),
+  });
+  if (!res.ok) throw new Error(`detached seal failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export type DetachedVerifyResult = {
+  sealed: boolean; detached: boolean; valid: boolean; trusted: boolean;
+  entire_file?: boolean; signer?: string; sha256: string; reason?: string;
+};
+
+// Verify a detached seal: the file bytes + its .sig, against our root.
+export async function verifyDetached(file: Buffer, sig: Buffer): Promise<DetachedVerifyResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(file)]), "file");
+  form.append("sig", new Blob([new Uint8Array(sig)]), "file.sig");
+  const res = await fetch(`${SERVICE}/verify/detached`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
 export type VerifyResult = {
   sealed: boolean;
   sha256: string;

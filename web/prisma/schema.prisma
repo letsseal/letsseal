@@ -262,6 +262,7 @@ model AuditEvent {
 model Anchor {
   id          String   @id @default(cuid())
   sha256      String   @unique
+  proofCode   String?  @unique // short human-typable code -> verify.letsseal.org/v/<code>
   label       String? // optional filename/description supplied by the caller
   otsProof    String? // base64 proof blob (for Bitcoin, the .ots proof)
   anchorState String   @default("pending") // pending | confirmed
@@ -287,8 +288,13 @@ model SealedDocument {
   // later re-download. Verification/authenticity never depend on this; the proof
   // is kept forever either way. When false, pdfPath may point at nothing.
   retain     Boolean  @default(false)
-  pdfPath    String
+  // The seal itself: PDFs carry it embedded (PAdES) in the stored pdfPath; any
+  // other artifact carries it detached (CAdES/CMS) in detachedSig, and has no PDF.
+  sealType   String   @default("pades") // pades (embedded) | detached (CAdES .sig)
+  pdfPath    String? // present for pades seals; null for detached
+  detachedSig String? // base64 detached CMS signature, present for detached seals
   sha256     String   @unique // what the /verify portal matches against
+  proofCode  String?  @unique // short human-typable code -> verify.letsseal.org/v/<code>
   certCN     String
   sealedAt   DateTime @default(now())
   // Decentralized anchor (proof of existence + date). Bitcoin via OpenTimestamps

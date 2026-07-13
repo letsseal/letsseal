@@ -40,7 +40,7 @@ export default function HowItWorksPage() {
       <PageHead
         eyebrow="How it works"
         title="Proof, not trust."
-        lede="A seal is proof carried by the document itself — a signature over every byte, anchored to Bitcoin. Here's exactly how it's made, and how anyone can check it for free."
+        lede="A seal is proof carried by the file itself: a signature over every byte, anchored to Bitcoin. Here's exactly how it's made, and how anyone can check it for free."
       />
 
       <section className="border-b border-stone-200">
