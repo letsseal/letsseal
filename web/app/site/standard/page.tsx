@@ -8,10 +8,10 @@ export const metadata = {
 };
 
 const LETTERS = [
-  { k: "S", w: "Sealed", d: "A PAdES signature over every byte, chaining to a published root certificate.", s: "PAdES · X.509" },
-  { k: "E", w: "Evidence", d: "Self-contained — the proof travels with the file, not in a database you must trust.", s: "SHA-256" },
-  { k: "A", w: "Anchored", d: "The file's fingerprint is timestamped, fixing when it existed.", s: "OpenTimestamps" },
-  { k: "L", w: "Ledger", d: "Anchored to a public ledger no one controls — independent proof of time.", s: "Bitcoin" },
+  { k: "S", w: "Sealed", d: "A PAdES signature over every byte, chaining to a published root.", s: "PAdES · X.509" },
+  { k: "E", w: "Evidence", d: "The proof travels inside the file. No database, no lookup, no account.", s: "SHA-256" },
+  { k: "A", w: "Anchored", d: "The file's fingerprint, timestamped the moment it existed.", s: "OpenTimestamps" },
+  { k: "L", w: "Ledger", d: "Written to Bitcoin — a public clock no one owns.", s: "Bitcoin" },
 ];
 
 export default function StandardPage() {
@@ -20,7 +20,7 @@ export default function StandardPage() {
       <PageHead
         eyebrow="The open standard · Version 1"
         title={<>SEAL — <span className="text-blue-600">S</span>ealed <span className="text-blue-600">E</span>vidence, <span className="text-blue-600">A</span>nchored to a <span className="text-blue-600">L</span>edger.</>}
-        lede="The open standard for proving a document is real. A SEAL proof is verifiable by anyone, forever — independently of us. It doesn't invent new cryptography; it defines how to compose established standards into one artifact and one verification method, so a proof made by any conforming tool can be checked by any other."
+        lede="The open standard for proving a document is real. One sealed artifact, one way to check it — verifiable by anyone, forever, with us or without us. Seal with any conforming tool; anyone can verify it with any other."
       />
 
       <section className="border-b border-stone-200">
@@ -66,10 +66,10 @@ export default function StandardPage() {
               </p>
             </Card>
             <Card>
-              <div className="text-[15px] font-semibold text-stone-900">Integrity + time, honestly</div>
+              <div className="text-[15px] font-semibold text-stone-900">Integrity and time</div>
               <p className="mt-2 text-[14px] leading-relaxed text-stone-600">
-                SEAL proves a document is unaltered and existed by a date. It does <em>not</em> assert who the signer
-                is — no notarisation, no identity claim. That boundary is part of the standard.
+                SEAL proves a document is unaltered and existed by a date. That&rsquo;s the guarantee — complete, and
+                permanent. Who sealed it is attribution by channel, and the standard is precise about the difference.
               </p>
             </Card>
           </div>
@@ -108,19 +108,18 @@ export default function StandardPage() {
         <Container className="py-14 sm:py-20">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <Eyebrow>What SEAL is — and isn&rsquo;t</Eyebrow>
-              <H2 className="mt-3.5">A profile of open standards, not a new protocol</H2>
+              <Eyebrow>What SEAL is</Eyebrow>
+              <H2 className="mt-3.5">A published standard, open to everyone</H2>
               <p className="mt-4 text-[15px] leading-relaxed text-stone-600">
-                SEAL composes PAdES, X.509, SHA-256 and OpenTimestamps. We didn&rsquo;t invent new cryptography — we
-                defined how to compose established, audited standards into one self-contained proof and one checkable
-                method, pinned to a published root and a public ledger. Calling it a &ldquo;new protocol&rdquo; would
-                overclaim; calling it a standard is exactly right — a published, versioned, openly-implementable one,
-                the way the OpenAPI Specification or a sitemap is a standard without a standards body.
+                SEAL is a published, versioned standard for a document proof: a PAdES/X.509 signature over the whole
+                file, an OpenTimestamps anchor on Bitcoin, pinned to a public root. One self-contained artifact, one way
+                to check it — the way the OpenAPI Specification or a sitemap is a standard anyone can implement without
+                asking permission.
               </p>
               <p className="mt-4 text-[15px] leading-relaxed text-stone-600">
                 <strong>Let&rsquo;s Seal</strong> is the project and the free network; <strong>SEAL</strong> is the open
-                standard it publishes. A document sealed through Let&rsquo;s Seal conforms to SEAL — and so can anyone
-                else&rsquo;s tools.
+                standard it publishes. Seal a document through Let&rsquo;s Seal and it conforms to SEAL — and so does
+                anything anyone else builds to it.
               </p>
             </div>
             <Card className="bg-stone-50">

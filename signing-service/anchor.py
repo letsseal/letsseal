@@ -29,9 +29,15 @@ import urllib.request
 
 OTS_BIN = os.path.join(os.path.dirname(__file__), ".venv", "bin", "ots")
 
+_OTS_HOME = os.environ.get("LETSSEAL_OTS_HOME") or os.path.join(tempfile.gettempdir(), "letsseal-ots-cache")
+os.makedirs(_OTS_HOME, exist_ok=True)
+
 
 def _run(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
-    return subprocess.run([OTS_BIN, *args], capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(
+        [OTS_BIN, *args], capture_output=True, text=True, timeout=timeout,
+        env={**os.environ, "HOME": _OTS_HOME},
+    )
 
 
 def parse_status(info: str) -> dict:

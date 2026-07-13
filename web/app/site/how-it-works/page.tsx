@@ -1,5 +1,5 @@
 import { PageHead, Container, H2, serif, Card, LinkArrow } from "../_components/ui";
-import { FileCheck2, Fingerprint, Anchor, ShieldCheck } from "lucide-react";
+import { FileCheck2, Fingerprint, Anchor, ShieldCheck, Check } from "lucide-react";
 
 export const metadata = {
   title: "How it works — Let's Seal",
@@ -104,26 +104,15 @@ export default function HowItWorksPage() {
 
       <section className="border-b border-stone-200">
         <Container className="py-14 sm:py-18">
-          <H2>What a seal does — and doesn&rsquo;t — prove</H2>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2">
-            <div>
-              <div className="text-[13px] font-semibold text-blue-700">It proves</div>
-              <ul className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-stone-600">
-                <li>The document existed at a specific time (anchored to Bitcoin).</li>
-                <li>It has not changed by a single byte since.</li>
-                <li>The same party controlled the sealing channel across documents.</li>
-              </ul>
-            </div>
-            <div>
-              <div className="text-[13px] font-semibold text-stone-500">It does not prove</div>
-              <ul className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-stone-600">
-                <li>The legal identity of who sealed it — attribution is control of a channel, not identity.</li>
-                <li>That the contents are true, only that they are unchanged.</li>
-              </ul>
-            </div>
-          </div>
-          <p className="mt-6 text-[14px] leading-relaxed text-stone-500">
-            We say this plainly everywhere, including on every public proof page. Honest scope is the point.
+          <H2>What a seal proves</H2>
+          <ul className="mt-6 max-w-2xl space-y-3 text-[16px] leading-relaxed text-stone-700">
+            <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> The document existed at a specific time, anchored to Bitcoin.</li>
+            <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> It hasn&rsquo;t changed by a single byte since.</li>
+            <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> Every document from the same issuer traces to the same seal.</li>
+          </ul>
+          <p className="mt-6 max-w-2xl text-[15px] leading-relaxed text-stone-600">
+            A seal proves the document — its integrity and its moment in time. It ties that document to whoever
+            controlled the sealing channel: attribution by control, and every proof page states exactly that.
           </p>
           <div className="mt-6">
             <LinkArrow href="/site/open">See the open standards behind it</LinkArrow>

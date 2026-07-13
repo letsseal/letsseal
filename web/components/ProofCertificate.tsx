@@ -131,8 +131,8 @@ function SigningTrailCard({ trail }: { trail: SigningTrail }) {
       </details>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Attribution reflects <b>control of the signing channel</b> (e.g. a link sent to the signer&apos;s email),
-        recorded tamper-evidently. It is <b>not</b> identity verification — it does not prove who the signer is.
+        Attribution reflects <b>control of the signing channel</b> — a link sent to the signer&apos;s email, say —
+        recorded tamper-evidently. It shows who held the channel, not a verified legal identity.
       </p>
     </div>
   );

@@ -13,15 +13,15 @@ export const revalidate = 300;
 const OPEN = [
   {
     h: "Open source",
-    p: "Every part — CLI, SDKs, web app, signing service — is MIT-licensed on GitHub. Nothing is hidden, nothing is proprietary.",
+    p: "Every part — CLI, SDKs, web app, signing service — is MIT-licensed on GitHub. Read it, fork it, run it.",
   },
   {
     h: "Open standards",
-    p: "PAdES signatures, X.509 certificates, SHA-256, OpenTimestamps. We compose established standards; we didn't invent a format you'd have to trust.",
+    p: "PAdES signatures, X.509 certificates, SHA-256, OpenTimestamps — established, audited, and yours to verify against.",
   },
   {
     h: "Open ledger",
-    p: "Anchors live on Bitcoin's public blockchain. Verification doesn't depend on our servers being online — or on us existing at all.",
+    p: "Anchors live on Bitcoin's public blockchain. Verification stands on its own — no server of ours required, ever.",
   },
   {
     h: "No lock-in",
@@ -87,12 +87,11 @@ cp .env.example .env   # add your CA + config
       <section id="stats" className="scroll-mt-20 border-b border-stone-200">
         <Container className="py-14 sm:py-20">
           <span className="text-xs font-semibold uppercase tracking-[0.13em] text-stone-400">Transparency</span>
-          <H2 className="mt-3.5">By the numbers — live, and honestly counted</H2>
+          <H2 className="mt-3.5">By the numbers, live</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            These are live counts of the public proof records on this network — the same records anyone can already
-            see at a <code className="rounded bg-stone-100 px-1 py-0.5 text-[13px]">/d/&lt;hash&gt;</code> proof page.
-            No separate telemetry, no phone-home. For a young network the numbers are small — and that&rsquo;s the
-            honest point: they grow as the network does.
+            Live counts from the network&rsquo;s own public proof records — the same ones anyone can pull from a{" "}
+            <code className="rounded bg-stone-100 px-1 py-0.5 text-[13px]">/d/&lt;hash&gt;</code> proof page. No
+            telemetry, no phone-home. Every number is real, and it climbs as the network grows.
           </p>
 
           <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
