@@ -32,16 +32,20 @@ export async function reanchorOrphans(limit = 25): Promise<{ found: number; anch
 
 // Upgrade all pending OpenTimestamps anchors: ask the calendars whether their
 // aggregated Bitcoin transaction has confirmed, and persist any that have.
+// Sweeps both sealed documents and standalone "anchor anything" timestamps.
 // Safe to call repeatedly (cron or in-process interval).
 export async function upgradePendingAnchors(limit = 50): Promise<{ checked: number; confirmed: number }> {
-  const pending = await db.sealedDocument.findMany({
+  let checked = 0;
+  let confirmed = 0;
+
+  // Sealed documents.
+  const docs = await db.sealedDocument.findMany({
     where: { anchorState: "pending", otsProof: { not: null } },
     take: limit,
     orderBy: { sealedAt: "asc" },
   });
-
-  let confirmed = 0;
-  for (const rec of pending) {
+  for (const rec of docs) {
+    checked++;
     try {
       const up = await upgradeAnchor(rec.otsProof!);
       if (up.status.state === "confirmed") {
@@ -61,5 +65,28 @@ export async function upgradePendingAnchors(limit = 50): Promise<{ checked: numb
       // still pending or service offline — leave as-is, try again next run
     }
   }
-  return { checked: pending.length, confirmed };
+
+  // Standalone "anchor anything" timestamps.
+  const anchors = await db.anchor.findMany({
+    where: { anchorState: "pending", otsProof: { not: null } },
+    take: limit,
+    orderBy: { createdAt: "asc" },
+  });
+  for (const rec of anchors) {
+    checked++;
+    try {
+      const up = await upgradeAnchor(rec.otsProof!);
+      if (up.status.state === "confirmed") {
+        await db.anchor.update({
+          where: { id: rec.id },
+          data: { anchorState: "confirmed", btcBlock: up.status.bitcoin_block ?? null, otsProof: up.ots_b64 },
+        });
+        confirmed++;
+      }
+    } catch {
+      // still pending or service offline — leave as-is, try again next run
+    }
+  }
+
+  return { checked, confirmed };
 }

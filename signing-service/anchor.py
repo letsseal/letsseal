@@ -20,10 +20,12 @@ verify independently with `ots verify` against their own Bitcoin node.
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 import subprocess
 import tempfile
+import urllib.request
 
 OTS_BIN = os.path.join(os.path.dirname(__file__), ".venv", "bin", "ots")
 
@@ -107,26 +109,79 @@ def stamp(pdf_bytes: bytes) -> dict:
         return {"ots_b64": base64.b64encode(ots).decode(), "status": parse_status(info)}
 
 
-def _verify_block(ots_path: str, file_hash: str | None, timeout: int = 30) -> int | None:
-    """Confirm a Bitcoin attestation by actually running `ots verify` (against
-    the default block explorer), not by trusting the attestation string in
-    `ots info`. Returns the block height only when verification truly succeeds.
+_EXPLORERS = [
+    ("mempool.space", "https://mempool.space/api"),
+    ("blockstream.info", "https://blockstream.info/api"),
+    ("mempool.emzy.de", "https://mempool.emzy.de/api"),
+]
 
-    Fails safe: any failure — non-zero rc, unparseable output, timeout, or an
-    unreachable explorer/node (offline) — returns None so the caller stays
-    'pending' rather than falsely confirming. Never raises.
+
+def _rev_hex(h: str) -> str:
+    return bytes.fromhex(h)[::-1].hex()
+
+
+def _parse_attestation(info: str) -> tuple[int | None, str | None]:
+    """Pull the Bitcoin block height and committed merkle root from `ots info`."""
+    m = re.search(r"BitcoinBlockHeaderAttestation\((\d+)\)", info)
+    if not m:
+        return None, None
+    r = re.search(r"Bitcoin block merkle root\s*([0-9a-f]{64})", info)
+    return int(m.group(1)), (r.group(1).lower() if r else None)
+
+
+def _http_get(url: str, timeout: int) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "letsseal-anchor/1"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode()
+
+
+def _explorer_merkleroots(height: int, timeout: int = 12) -> dict[str, str]:
+    """Fetch block `height`'s merkle root from each public explorer that answers."""
+    roots: dict[str, str] = {}
+    for name, base in _EXPLORERS:
+        try:
+            block_hash = _http_get(f"{base}/block-height/{height}", timeout).strip()
+            if not re.fullmatch(r"[0-9a-f]{64}", block_hash):
+                continue
+            meta = json.loads(_http_get(f"{base}/block/{block_hash}", timeout))
+            root = str(meta.get("merkle_root", "")).lower()
+            if re.fullmatch(r"[0-9a-f]{64}", root):
+                roots[name] = root
+        except Exception:
+            continue
+    return roots
+
+
+def _verify_block(ots_path: str, file_hash: str | None, info: str, timeout: int = 30) -> int | None:
+    """Independently confirm the Bitcoin attestation. Returns the block height
+    only on a real match; never raises, fails safe to None (stays 'pending').
+
+    Prefers a local Bitcoin node if one exists (`ots verify` reads the header
+    straight from it — zero third-party trust, the gold standard). With no node,
+    falls back to cross-checking the attested block's merkle root against >=2
+    independent public explorers — the exact field a node would check, from
+    sources that must agree. OTS attestations are always many confirmations deep,
+    so the block is never near the volatile tip: no reorg risk.
     """
-    if not file_hash:
+    height, committed = _parse_attestation(info)
+    if height is None:
         return None
-    try:
-        r = _run(["verify", "-d", file_hash, ots_path], timeout=timeout)
-    except Exception:
+
+    if file_hash:
+        try:
+            r = _run(["verify", "-d", file_hash, ots_path], timeout=timeout)
+            out = (r.stdout or "") + (r.stderr or "")
+            if r.returncode == 0 and re.search(r"[Bb]itcoin block \d+", out):
+                return height
+        except Exception:
+            pass
+
+    if not committed:
         return None
-    out = (r.stdout or "") + (r.stderr or "")
-    m = re.search(r"[Bb]itcoin block (\d+)", out)
-    if r.returncode == 0 and m:
-        return int(m.group(1))
-    return None
+    want = {committed, _rev_hex(committed)}
+    roots = _explorer_merkleroots(height, timeout=min(timeout, 12))
+    agree = [name for name, root in roots.items() if root in want or _rev_hex(root) in want]
+    return height if len(agree) >= 2 else None
 
 
 def upgrade(ots_b64: str) -> dict:
@@ -142,7 +197,7 @@ def upgrade(ots_b64: str) -> dict:
         info = _run(["info", p]).stdout
         status = parse_status(info)
         if status.get("state") == "confirmed":
-            block = _verify_block(p, status.get("file_sha256"))
+            block = _verify_block(p, status.get("file_sha256"), info)
             if block is not None:
                 status["bitcoin_block"] = block
             else:
