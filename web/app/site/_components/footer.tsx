@@ -5,6 +5,7 @@ const COLS = [
     h: "Project",
     links: [
       { label: "Mission", href: "/site/mission" },
+      { label: "The SEAL standard", href: "/site/standard" },
       { label: "How it works", href: "/site/how-it-works" },
       { label: "Root of trust", href: "/site/trust" },
       { label: "Open", href: "/site/open" },

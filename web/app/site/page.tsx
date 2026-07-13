@@ -1,15 +1,18 @@
 import { Check, Users, Code2 } from "lucide-react";
 import { Container, Eyebrow, H2, Btn, LinkArrow, serif } from "./_components/ui";
 import { GettingStartedAccordion } from "./_components/getting-started";
+import { getNetworkStats } from "@/lib/stats";
 
-const STATS = [
-  { n: "1.24M", l: "Documents sealed" },
-  { n: "4.8M", l: "Verifications, no account" },
-  { n: "340", l: "Instances self-hosting" },
-  { n: "£0", l: "Charged, to anyone, ever" },
-];
+export const revalidate = 300;
 
-export default function SiteHome() {
+export default async function SiteHome() {
+  const stats = await getNetworkStats();
+  const STATS = [
+    { n: stats.documentsSealed.toLocaleString(), l: "Documents sealed" },
+    { n: stats.organizations.toLocaleString(), l: "Businesses issuing" },
+    { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "—", l: "Latest Bitcoin anchor" },
+    { n: "£0", l: "Charged, to anyone, ever" },
+  ];
   return (
     <>
       <section className="border-b border-stone-200">
@@ -86,6 +89,25 @@ export default function SiteHome() {
         </Container>
       </section>
 
+      <section className="border-b border-stone-200">
+        <Container className="py-14 sm:py-20">
+          <Eyebrow>An open standard, not just an app</Eyebrow>
+          <H2 className="mt-3.5 max-w-3xl">
+            Every seal is the same, checkable format — so the whole network verifies as one.
+          </H2>
+          <p className="mt-4 max-w-2xl text-[15.5px] leading-relaxed text-stone-600">
+            Let&rsquo;s Seal publishes <strong>SEAL</strong> — <em>Sealed Evidence, Anchored to a Ledger</em> — the open
+            standard for what a proof is and how anyone verifies one. It composes established standards (PAdES,
+            OpenTimestamps) into one self-contained artifact, pinned to a published root. Anyone can implement it, and
+            every conforming proof checks the same way — that&rsquo;s what makes it a network, not a silo.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <Btn href="/site/standard">Read the standard</Btn>
+            <LinkArrow href="/site/trust">The published root of trust</LinkArrow>
+          </div>
+        </Container>
+      </section>
+
       <section className="border-b border-stone-200 bg-stone-100/60">
         <Container className="py-14">
           <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
@@ -97,7 +119,7 @@ export default function SiteHome() {
             ))}
           </div>
           <p className="mt-8 text-[13px] text-stone-400">
-            Aggregate, anonymous — no personal data, ever.{" "}
+            Live counts of public proof records — no personal data, no phone-home.{" "}
             <a href="/site/open#stats" className="font-semibold text-blue-600">How we count →</a>
           </p>
         </Container>

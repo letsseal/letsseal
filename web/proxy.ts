@@ -41,6 +41,16 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (host === APP_HOST) {
+    if (url.pathname === "/") {
+      const rewritten = url.clone();
+      rewritten.pathname = "/app";
+      rewritten.protocol = "http:"; 
+      return NextResponse.rewrite(rewritten);
+    }
+    return NextResponse.next();
+  }
+
   if (host === APEX) {
     const p = url.pathname;
     const isShared = SHARED_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
