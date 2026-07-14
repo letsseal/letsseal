@@ -267,6 +267,42 @@ fn verify(file: &str) {
     let bytes = read(file);
     let sig_path = format!("{file}.sig");
     let has_sig = Path::new(&sig_path).exists();
+    let pem_path = format!("{file}.pem");
+    let has_pem = Path::new(&pem_path).exists();
+
+    // A cosign-compatible artifact seal is the <file>.sig + <file>.pem pair. The
+    // .pem sidecar distinguishes it from a detached CMS .sig (which has no cert file).
+    if has_sig && has_pem {
+        let fname = basename(file);
+        let sname = basename(&sig_path);
+        let pname = basename(&pem_path);
+        let sig = read(&sig_path);
+        // Send leaf + chain (if a sibling <file>.chain.pem exists) so the server can
+        // chain to the root, mirroring what we wrote at sign time.
+        let mut pem = read(&pem_path);
+        let chain_path = format!("{file}.chain.pem");
+        if Path::new(&chain_path).exists() { pem.extend_from_slice(&read(&chain_path)); }
+        let resp = post_multipart_files(
+            &format!("{}/verify/blob", api()),
+            &[("file", &fname, &bytes), ("sig", &sname, &sig), ("cert", &pname, &pem)],
+            true,
+        ).unwrap_or_else(|e| die(&format!("verify failed: {e}")));
+        let r: serde_json::Value = resp.into_json().unwrap_or_else(|_| die("bad response"));
+        let sealed = r.get("sealed").and_then(|x| x.as_bool()).unwrap_or(false);
+        let valid = r.get("valid").and_then(|x| x.as_bool()).unwrap_or(false);
+        let trusted = r.get("trusted").and_then(|x| x.as_bool()).unwrap_or(false);
+        if !sealed {
+            println!("unsealed  {file}  (no artifact signature found)");
+        } else {
+            println!("{} {file}", if valid && trusted { "verified " } else { "TAMPERED " });
+            println!("  signer  {}", s(&r, "signer").split(',').next().unwrap_or(""));
+            println!("  valid   {valid}   trusted {trusted}   (cosign-compatible)");
+            println!("  sha256  {}", s(&r, "sha256"));
+        }
+        show_sibling_anchor(file);
+        if !sealed || !(valid && trusted) { exit(2); }
+        return;
+    }
 
     // Media (image/video/audio, no .sig) carries its seal embedded as C2PA Content
     // Credentials — verify that. An explicit .sig always takes precedence (detached).
@@ -390,7 +426,7 @@ fn upgrade(file: &str) {
 
 fn is_derived(name: &str) -> bool {
     let lower = name.to_lowercase();
-    name.ends_with(".ots") || name.ends_with(".sig") || lower.contains(".sealed.")
+    name.ends_with(".ots") || name.ends_with(".sig") || name.ends_with(".pem") || lower.contains(".sealed.")
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -662,6 +698,46 @@ fn seal(file: &str) {
     println!("  sha256 {sha}");
 }
 
+// Supply-chain / cosign-compatible signing: a raw ECDSA signature over the file's
+// digest + the org's codeSigning cert. Writes cosign's sidecar pair (<file>.sig +
+// <file>.pem) so the artifact verifies with `sealbot verify`, `openssl`, or stock
+// `cosign verify-blob`. Digest-only — the artifact itself is never uploaded.
+fn sign_blob(file: &str) {
+    let org = flag("org").unwrap_or_else(|| die("usage: sealbot sign-blob <file> --org <slug>"));
+    let bytes = read(file);
+    let digest = sha256_hex(&bytes);
+    let r = post_json(&format!("{}/seal/blob", api()),
+        serde_json::json!({ "sha256": digest, "org_slug": org }), true)
+        .unwrap_or_else(|e| die(&format!("sign-blob failed: {e}")));
+    let sig_b64 = s(&r, "sig_b64");
+    let leaf = s(&r, "cert_pem");
+    let chain = s(&r, "chain_pem");
+    let cn = s(&r, "cert_cn");
+    let identity = s(&r, "identity");
+    if sig_b64.is_empty() || leaf.is_empty() { die("bad response from signing service"); }
+
+    let sig_out = format!("{file}.sig");
+    let pem_out = format!("{file}.pem");
+    let chain_out = format!("{file}.chain.pem");
+    // cosign wants the leaf alone as --certificate (it panics on a bundle), so leaf
+    // and chain are separate files: <file>.pem is the leaf, <file>.chain.pem the full
+    // intermediate+root chain. `sealbot verify` reads both; cosign uses them directly.
+    std::fs::write(&sig_out, &sig_b64).unwrap_or_else(|_| die("cannot write .sig"));
+    std::fs::write(&pem_out, &leaf).unwrap_or_else(|_| die("cannot write .pem"));
+    std::fs::write(&chain_out, &chain).unwrap_or_else(|_| die("cannot write .chain.pem"));
+
+    println!("signed   {file}  (cosign-compatible artifact seal)");
+    println!("  by     {cn}   [{identity}]");
+    println!("  sha256 {digest}  (file itself was NOT uploaded)");
+    println!("  sig    {sig_out}");
+    println!("  cert   {pem_out}  (+ {chain_out})");
+    println!("  verify sealbot verify {file}   (or any cosign install:)");
+    println!("         cosign verify-blob --certificate {pem_out} --certificate-chain {chain_out} \\");
+    println!("           --signature {sig_out} --certificate-identity {identity} \\");
+    println!("           --certificate-oidc-issuer-regexp '.*' --insecure-ignore-tlog --insecure-ignore-sct {file}");
+    show_sibling_anchor(file);
+}
+
 fn issue() {
     let usage = "usage: sealbot issue --id <id> --cn \"<subject>\" [--profile document|code|data]";
     let id = flag("id").unwrap_or_else(|| die(usage));
@@ -691,13 +767,15 @@ sealbot — timestamp any file on Bitcoin and prove it existed, unaltered.
 
   sealbot anchor <file> [--publish]      hash locally -> writes <file>.ots
                                           (--publish also registers a public proof page)
-  sealbot verify <file>                  check a sealed file (PDF, C2PA media, XML, S/MIME .eml, or <file>+.sig), or an .ots
+  sealbot verify <file>                  check a sealed file (PDF, C2PA media, XML, S/MIME .eml, <file>+.sig, or <file>+.sig+.pem), or an .ots
   sealbot watch  <dir> [--mode anchor|publish|seal] [--interval <sec>] [--once]
                                           notarise a folder continuously, idempotently
 
 Advanced — keyed signing (needs the signing service + a bearer token):
   sealbot seal   <file> --org <slug>         seal any file with your CA
                                              (PDF->PAdES; media->C2PA; XML->XML-DSig; .eml->S/MIME; else->.sig)
+  sealbot sign-blob <file> --org <slug>      cosign-compatible artifact seal -> <file>.sig + <file>.pem
+                                             (for build artifacts, containers, SBOMs; needs a code cert)
   sealbot issue  --id <id> --cn \"<subject>\" [--profile document|code|data]
 
   --api <url>   | SEALBOT_API    signing service (default http://127.0.0.1:8081)
@@ -730,6 +808,7 @@ fn main() {
         "verify" => { if arg.is_empty() { die("usage: sealbot verify <file>   (a sealed PDF, or an .ots proof)"); } verify(arg); }
         "watch" => { if arg.is_empty() { die("usage: sealbot watch <dir> [--mode anchor|publish|seal] [--once]"); } watch(arg); }
         "seal" => { if arg.is_empty() { die("usage: sealbot seal <file> --org <slug>"); } seal(arg); }
+        "sign-blob" => { if arg.is_empty() { die("usage: sealbot sign-blob <file> --org <slug>"); } sign_blob(arg); }
         "issue" => issue(),
         // Deprecated aliases — still run, with a one-line notice.
         "notarize" => { if arg.is_empty() { die("usage: sealbot anchor <file> --publish"); } notarize(arg); }

@@ -200,6 +200,14 @@ def _org_p12(org_slug: str) -> str:
     return path
 
 
+def _org_code_p12(org_slug: str) -> str:
+    path = os.path.join(CA_DIR, "orgs", org_slug, "signing-code.p12")
+    if not os.path.isfile(path):
+        raise HTTPException(404, f"No code-signing cert issued for org '{org_slug}' "
+                                 f"(run: setup-ca.sh org-code {org_slug} \"<name>\")")
+    return path
+
+
 def _validation_context() -> ValidationContext:
     root = load_cert_from_pemder(os.path.join(CA_DIR, "root-ca.crt"))
     inter = load_cert_from_pemder(os.path.join(CA_DIR, "intermediate.crt"))
@@ -396,6 +404,57 @@ async def verify_detached_ep(request: Request, file: UploadFile = File(...), sig
     except Exception:
         logger.exception("detached verify failed")
         return JSONResponse({"sealed": True, "detached": True, "valid": False,
+                             "trusted": False, "sha256": sha, "reason": "verification error"},
+                            status_code=200)
+
+
+@app.post("/seal/blob", operation_id="sealBlob", tags=["sealing"],
+          summary="cosign-compatible signature over a file digest",
+          dependencies=[Depends(require_auth)])
+async def seal_blob(payload: SealDetachedRequest):
+    """Seal an artifact for the supply-chain lane: a raw ECDSA-P256 signature over
+    its SHA-256 plus the org's codeSigning leaf cert, in cosign's flat
+    signature+certificate form. Digest-only — the artifact never leaves the caller.
+    Verifies with `sealbot verify`, `openssl`, and stock `cosign verify-blob`."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    sha = str(payload.sha256).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise HTTPException(400, "sha256 (64 hex) required")
+    slug = str(payload.org_slug)
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", slug):
+        raise HTTPException(400, "invalid org_slug")
+    p12 = _org_code_p12(slug)
+    from blobsign import sign_blob_digest
+    try:
+        res = await run_in_threadpool(sign_blob_digest, sha, p12, P12_PASS)
+    except Exception:
+        logger.exception("blob seal failed for org %s", slug)
+        raise HTTPException(500, "blob seal failed")
+    return JSONResponse({"sha256": sha, **res})
+
+
+@app.post("/verify/blob", operation_id="verifyBlob", tags=["sealing"],
+          summary="Verify a cosign-format blob signature", dependencies=[Depends(require_auth)])
+async def verify_blob_ep(request: Request, file: UploadFile = File(...),
+                         sig: UploadFile = File(...), cert: UploadFile = File(...)):
+    """Verify a supply-chain blob seal: the artifact's bytes + its base64 `.sig` +
+    the signer's `.pem` (leaf, optionally with chain), against our root."""
+    file_bytes = await _read_capped(file, request)
+    sig_b64 = (await sig.read()).decode("ascii", "ignore").strip()
+    cert_pem = (await cert.read()).decode("ascii", "ignore")
+    if len(sig_b64) > 100_000 or len(cert_pem) > 1_000_000:
+        raise HTTPException(413, "signature or cert too large")
+    sha = hashlib.sha256(file_bytes).hexdigest()
+    from blobsign import verify_blob_digest
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        result = await run_in_threadpool(verify_blob_digest, sha, sig_b64, cert_pem, root, cert_pem)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("blob verify failed")
+        return JSONResponse({"sealed": True, "blob": True, "valid": False,
                              "trusted": False, "sha256": sha, "reason": "verification error"},
                             status_code=200)
 

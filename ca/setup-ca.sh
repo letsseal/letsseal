@@ -112,33 +112,43 @@ sign_csr() {
 # Server-generated cert (key + cert + p12 all created here). Used for our own
 # hosted PDF signing, where the service holds the key.
 issue_cert() {
-  local id="$1" subject="$2" profile="${3:-document}" subdir="${4:-certs}"
+  local id="$1" subject="$2" profile="${3:-document}" subdir="${4:-certs}" base="${5:-signing}" san="${6:-}"
   [[ -f "$OUT/intermediate.crt" ]] || { echo "No intermediate CA. Run 'init' first." >&2 ; exit 1 ; }
   _reject_dn_meta "$subject"
   local ext ; ext="$(_profile_ext "$profile")" || { echo "unknown profile: $profile (document|code|data)" >&2 ; exit 1 ; }
+  # A subjectAltName identity is required for cosign interop (it matches
+  # --certificate-identity against the SAN). Append it when the caller supplies one.
+  # $(...) above strips the profile's trailing newline, so add the separator here.
+  [[ -n "$san" ]] && ext="${ext}"$'\n'"subjectAltName=${san}"
   local dir="$OUT/$subdir/$id" ; mkdir -p "$dir"
-  echo "==> Signing cert for '$subject' (id: $id, profile: $profile)"
-  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/signing.key"
-  openssl req -new -key "$dir/signing.key" -out "$dir/signing.csr" -subj "/CN=$subject/O=$subject/C=GB"
-  openssl x509 -req -in "$dir/signing.csr" \
+  echo "==> Signing cert for '$subject' (id: $id, profile: $profile, file: $base.p12)"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/$base.key"
+  openssl req -new -key "$dir/$base.key" -out "$dir/$base.csr" -subj "/CN=$subject/O=$subject/C=GB"
+  openssl x509 -req -in "$dir/$base.csr" \
     -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -CAcreateserial \
-    -out "$dir/signing.crt" -days "$DAYS_ORG" -sha256 \
+    -out "$dir/$base.crt" -days "$DAYS_ORG" -sha256 \
     -extfile <(printf "%s" "$ext")
-  openssl pkcs12 -export -out "$dir/signing.p12" \
-    -inkey "$dir/signing.key" -in "$dir/signing.crt" \
+  openssl pkcs12 -export -out "$dir/$base.p12" \
+    -inkey "$dir/$base.key" -in "$dir/$base.crt" \
     -certfile "$OUT/chain.pem" -passout "pass:$P12_PASS"
-  rm -f "$dir/signing.csr"
-  echo "==> Wrote $dir/signing.p12  (password: \$LETSSEAL_P12_PASS)"
+  rm -f "$dir/$base.csr"
+  echo "==> Wrote $dir/$base.p12  (password: \$LETSSEAL_P12_PASS)"
 }
 
 # A business is just a 'document' cert stored under orgs/.
-issue_org() { issue_cert "$1" "$2" document orgs ; }
+issue_org() { issue_cert "$1" "$2" document orgs signing ; }
+
+# A business's code-signing cert (EKU codeSigning) for the supply-chain lane —
+# cosign requires this EKU, so it lives beside the document cert as signing-code.p12.
+# The SAN is the org's stable Let's Seal namespace URI — cosign's --certificate-identity.
+issue_org_code() { issue_cert "$1" "$2" code orgs signing-code "URI:https://letsseal.org/o/$1" ; }
 
 cmd="${1:-}"
 case "$cmd" in
-  init)     init_ca ;;
-  org)      issue_org "${2:?slug required}" "${3:?legal name required}" ;;
-  cert)     issue_cert "${2:?id required}" "${3:?subject required}" "${4:-document}" certs ;;
-  sign-csr) sign_csr "${2:?id required}" "${3:?csr path required}" "${4:-document}" "${5:-$2}" certs ;;
-  *) echo "Usage: $0 init | org <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
+  init)      init_ca ;;
+  org)       issue_org "${2:?slug required}" "${3:?legal name required}" ;;
+  org-code)  issue_org_code "${2:?slug required}" "${3:?legal name required}" ;;
+  cert)      issue_cert "${2:?id required}" "${3:?subject required}" "${4:-document}" certs ;;
+  sign-csr)  sign_csr "${2:?id required}" "${3:?csr path required}" "${4:-document}" "${5:-$2}" certs ;;
+  *) echo "Usage: $0 init | org <slug> \"Legal Name\" | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
 esac
