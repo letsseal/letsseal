@@ -48,3 +48,12 @@ uvicorn==0.34.0
 uvloop==0.22.1
 watchfiles==1.2.0
 websockets==16.1
+c2pa-python==0.36.0
+iniconfig==2.3.0
+packaging==26.2
+pluggy==1.6.0
+Pygments==2.20.0
+pytest==9.1.1
+setuptools==83.0.0
+toml==0.10.2
+wheel==0.47.0

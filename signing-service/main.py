@@ -400,6 +400,65 @@ async def verify_detached_ep(request: Request, file: UploadFile = File(...), sig
                             status_code=200)
 
 
+@app.post("/seal/c2pa", operation_id="sealC2pa", tags=["sealing"],
+          summary="Seal an image with an embedded C2PA manifest", response_class=Response,
+          dependencies=[Depends(require_auth)],
+          responses={200: {"content": {"image/*": {"schema": {"type": "string", "format": "binary"}}},
+                           "description": "The signed image (Content Credentials embedded). "
+                                          "`X-Letsseal-Sha256`, `X-Letsseal-Cert-CN` and "
+                                          "`X-Letsseal-Format` headers carry the digest, signer and MIME."}})
+async def seal_c2pa(
+    request: Request,
+    org_slug: str = Form(...),
+    title: str = Form(None),
+    file: UploadFile = File(...),
+):
+    """Embed a C2PA (Content Credentials) manifest signed by the org cert into an
+    image, chaining to the same root. The image is rewritten (the manifest lives
+    inside it), so the bytes are uploaded; time comes from a separate anchor."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", org_slug):
+        raise HTTPException(400, "invalid org_slug")
+    data = await _read_capped(file, request)
+    from c2pa_seal import mime_for, sign_c2pa
+    mime = mime_for(file.filename, data)
+    if not mime:
+        raise HTTPException(400, "unsupported image format (jpeg, png, webp, tiff, gif, avif, heic)")
+    p12 = _org_p12(org_slug)
+    try:
+        signed, cn = await run_in_threadpool(sign_c2pa, data, mime, p12, P12_PASS, title)
+    except Exception:
+        logger.exception("c2pa seal failed for org %s", org_slug)
+        raise HTTPException(500, "c2pa seal failed")
+    sha = hashlib.sha256(signed).hexdigest()
+    return Response(content=signed, media_type=mime, headers={
+        "X-Letsseal-Sha256": sha, "X-Letsseal-Cert-CN": cn, "X-Letsseal-Format": mime,
+    })
+
+
+@app.post("/verify/c2pa", operation_id="verifyC2pa", tags=["sealing"],
+          summary="Verify an image's embedded C2PA manifest", dependencies=[Depends(require_auth)])
+async def verify_c2pa_ep(request: Request, file: UploadFile = File(...)):
+    """Verify an image's embedded Content Credentials against our root."""
+    data = await _read_capped(file, request)
+    sha = hashlib.sha256(data).hexdigest()
+    from c2pa_seal import mime_for, verify_c2pa
+    mime = mime_for(file.filename, data)
+    if not mime:
+        return JSONResponse({"sealed": False, "c2pa": True, "valid": False, "trusted": False,
+                             "sha256": sha, "reason": "not a supported image format"})
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        result = await run_in_threadpool(verify_c2pa, data, mime, root)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("c2pa verify failed")
+        return JSONResponse({"sealed": True, "c2pa": True, "valid": False, "trusted": False,
+                             "sha256": sha, "reason": "verification error"})
+
+
 @app.post("/verify", operation_id="verify", tags=["sealing"],
           summary="Verify a sealed PDF", response_model=VerifyResponse,
           dependencies=[Depends(require_auth)])

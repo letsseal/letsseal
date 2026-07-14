@@ -4,7 +4,7 @@ import { ShieldX, ArrowLeft, Download } from "lucide-react";
 import { db } from "@/lib/db";
 import { apiUser } from "@/lib/auth-helpers";
 import { readFile, fileExists } from "@/lib/storage";
-import { verifyPdf, upgradeAnchor } from "@/lib/signing";
+import { verifyPdf, verifyC2pa, upgradeAnchor } from "@/lib/signing";
 import { getBlockInfo } from "@/lib/bitcoin";
 import { getSigningTrail } from "@/lib/signing-audit";
 import { TopBar } from "@/components/TopBar";
@@ -46,12 +46,22 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   if (!rec) return <NotAProof reason="No sealed document or timestamp on record matches this reference." sha={hash} />;
   const sha256 = rec.sha256;
   const detached = rec.sealType === "detached";
+  const isC2pa = rec.sealType === "c2pa";
 
   let crypto: ProofData["crypto"] = { sealed: true, onRecordOnly: true };
   const key = detached ? null : rec.pdfPath; 
   const docOnFile = key ? await fileExists(key) : false;
   if (detached) {
     crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN };
+  } else if (isC2pa) {
+    if (docOnFile && key) {
+      try {
+        const v = await verifyC2pa(await readFile(key));
+        crypto = { sealed: v.sealed, intact: v.valid, valid: v.valid, trusted: v.trusted, signer: v.signer, onRecordOnly: false };
+      } catch { crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN }; }
+    } else {
+      crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN };
+    }
   } else if (docOnFile && key) {
     try {
       const v = await verifyPdf(await readFile(key));
@@ -105,6 +115,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     anchor: { state: anchorState, btcBlock, blockHash: block?.hash ?? null, blockTime: block?.time ?? null },
     otsUrl: rec.otsProof ? (rec.envelopeId ? `/api/file/${rec.envelopeId}?variant=ots` : `/api/anchor/${sha256}`) : null,
     sigUrl: detached ? `/api/seal/${sha256}/sig` : null,
+    imageUrl: isC2pa ? `/api/seal/${sha256}/image` : null,
     trail: viewerIsIssuer ? trail : null,
     credential: cred ? {
       recipientName: cred.recipientName,
@@ -142,11 +153,13 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         )}
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{detached ? "File proof" : "Document proof"}</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{isC2pa ? "Image proof" : detached ? "File proof" : "Document proof"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {detached
-              ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
-              : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}
+            {isC2pa
+              ? "A permanent record that this image carries signed Content Credentials (C2PA) and is timestamped. Download the signed image and verify it in any C2PA-aware tool."
+              : detached
+                ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
+                : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}
           </p>
         </div>
         <ProofCertificate data={data} gate={gate} />

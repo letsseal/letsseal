@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, sealDetached, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, sealC2pa, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 
@@ -158,5 +158,79 @@ export async function hostedSealDetached(
   return {
     sha256: sha, sig: sig_b64, certCN: cert_cn || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedC2paSeal = {
+  image: Buffer;
+  sha256: string;
+  certCN: string;
+  format: string; // MIME of the signed image
+  anchorState: string; // none | pending | confirmed
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// File extension for a signed-image MIME, for the stored path (the download route
+// serves the right Content-Type from it).
+const C2PA_EXT: Record<string, string> = {
+  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/tiff": "tiff",
+  "image/gif": "gif", "image/avif": "avif", "image/heic": "heic", "image/heif": "heif",
+  "image/x-adobe-dng": "dng",
+};
+
+// Seal an IMAGE for a business: embed a signed C2PA (Content Credentials) manifest,
+// anchor the signed image's hash to Bitcoin, and persist it as a permanent
+// verifiable proof. The seal lives inside the image, so we store and serve the
+// signed bytes (like the PDF path). `image` is the original; we return the signed one.
+export async function hostedSealC2pa(
+  org: { id: string; slug: string; name: string },
+  image: Buffer,
+  opts: { filename?: string; contentType?: string; title?: string | null; anchor?: boolean } = {},
+): Promise<HostedC2paSeal> {
+  const sealed = await sealC2pa(org.slug, image, {
+    filename: opts.filename, contentType: opts.contentType, title: opts.title,
+  });
+
+  // Persist the signed image so /d can offer it for download and re-verification.
+  const ext = C2PA_EXT[sealed.format] ?? "bin";
+  const imgPath = `hosted/${sealed.sha256}/sealed.${ext}`;
+  await saveFile(imgPath, sealed.image);
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sealed.sha256);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none";
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sealed.sha256 },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "c2pa",
+      title: opts.title ?? null,
+      pdfPath: imgPath, // the stored signed image (column is the generic "sealed file path")
+      sha256: sealed.sha256,
+      proofCode: await mintProofCode(),
+      certCN: sealed.certCN || org.name,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  return {
+    image: sealed.image, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
+    format: sealed.format, anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };
 }

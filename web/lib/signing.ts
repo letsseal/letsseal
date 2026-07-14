@@ -74,6 +74,51 @@ export async function verifyDetached(file: Buffer, sig: Buffer): Promise<Detache
   return res.json();
 }
 
+export type C2paSealResult = { image: Buffer; sha256: string; certCN: string; format: string };
+
+// Embed a signed C2PA (Content Credentials) manifest into an image. The image is
+// rewritten (the manifest lives inside it), so unlike detached this uploads the
+// bytes. Returns the signed image + its new digest, signer and MIME.
+export async function sealC2pa(
+  orgSlug: string,
+  image: Buffer,
+  opts: { filename?: string; contentType?: string; title?: string | null } = {},
+): Promise<C2paSealResult> {
+  const form = new FormData();
+  form.append("org_slug", orgSlug);
+  if (opts.title) form.append("title", opts.title);
+  form.append(
+    "file",
+    new Blob([new Uint8Array(image)], { type: opts.contentType || "application/octet-stream" }),
+    opts.filename || "image",
+  );
+  const res = await fetch(`${SERVICE}/seal/c2pa`, { method: "POST", headers: svcHeaders(), body: form });
+  if (!res.ok) throw new Error(`c2pa seal failed: ${res.status} ${await res.text()}`);
+  return {
+    image: Buffer.from(await res.arrayBuffer()),
+    sha256: res.headers.get("x-letsseal-sha256") ?? "",
+    certCN: res.headers.get("x-letsseal-cert-cn") ?? "",
+    format: res.headers.get("x-letsseal-format") ?? "",
+  };
+}
+
+export type C2paVerifyResult = {
+  sealed: boolean; c2pa: boolean; valid: boolean; trusted: boolean;
+  validation_state?: string; signer?: string; sha256: string; reason?: string;
+};
+
+// Verify an image's embedded C2PA manifest against our root.
+export async function verifyC2pa(image: Buffer, opts: { filename?: string; contentType?: string } = {}): Promise<C2paVerifyResult> {
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([new Uint8Array(image)], { type: opts.contentType || "application/octet-stream" }),
+    opts.filename || "image",
+  );
+  const res = await fetch(`${SERVICE}/verify/c2pa`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
 export type VerifyResult = {
   sealed: boolean;
   sha256: string;

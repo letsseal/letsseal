@@ -19,6 +19,7 @@ export type ProofData = {
   anchor?: { state: string; btcBlock: number | null; blockHash?: string | null; blockTime?: string | null } | null;
   otsUrl?: string | null;
   sigUrl?: string | null;
+  imageUrl?: string | null;
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -316,6 +317,18 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             <p className="mt-2 text-xs text-muted-foreground">
               Save it beside your file and verify anywhere, with no Let&apos;s Seal server:{" "}
               <code className="rounded bg-background px-1 py-0.5 font-mono">openssl cms -verify -inform DER -in file.sig -content file -binary -CAfile letsseal-root.crt</code>
+            </p>
+          </div>
+        )}
+        {data.imageUrl && (
+          <div className="mt-3">
+            <a href={data.imageUrl}
+               className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+              <Download className="h-3.5 w-3.5" /> Download signed image
+            </a>
+            <p className="mt-2 text-xs text-muted-foreground">
+              The image carries embedded <b>Content Credentials</b> (C2PA). Open it in any C2PA-aware tool
+              (Adobe, the Content Credentials verifier) to see the issuer and confirm it&apos;s unaltered.
             </p>
           </div>
         )}
