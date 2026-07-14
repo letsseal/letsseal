@@ -21,6 +21,7 @@ export type ProofData = {
   sigUrl?: string | null;
   imageUrl?: string | null;
   xmlUrl?: string | null;
+  emlUrl?: string | null;
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -342,6 +343,18 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             <p className="mt-2 text-xs text-muted-foreground">
               The XML carries an embedded <b>XML-DSig</b> signature. Verify it with any XML Signature tool,
               e.g. <code className="rounded bg-background px-1 py-0.5 font-mono">xmlsec1 --verify --trusted-pem letsseal-root.crt signed.xml</code>
+            </p>
+          </div>
+        )}
+        {data.emlUrl && (
+          <div className="mt-3">
+            <a href={data.emlUrl}
+               className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+              <Download className="h-3.5 w-3.5" /> Download signed message
+            </a>
+            <p className="mt-2 text-xs text-muted-foreground">
+              The message carries a standard <b>S/MIME</b> signature. Verify it with any S/MIME tool,
+              e.g. <code className="rounded bg-background px-1 py-0.5 font-mono">openssl smime -verify -in message.eml -CAfile letsseal-root.crt</code>
             </p>
           </div>
         )}

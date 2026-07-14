@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, sealDetached, sealC2pa, sealXml, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 
@@ -294,6 +294,68 @@ export async function hostedSealXml(
 
   return {
     xml: sealed.xml, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedSmimeSeal = {
+  eml: Buffer;
+  sha256: string;
+  certCN: string;
+  anchorState: string; // none | pending | confirmed
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// Seal an email message for a business: wrap it in a signed S/MIME
+// multipart/signed envelope, anchor the signed message's hash to Bitcoin, and
+// persist it as a permanent verifiable proof. The signature travels inside the
+// .eml, so we store and serve the signed bytes. `message` is the original; we
+// return the signed one.
+export async function hostedSealSmime(
+  org: { id: string; slug: string; name: string },
+  message: Buffer,
+  opts: { filename?: string; title?: string | null; anchor?: boolean } = {},
+): Promise<HostedSmimeSeal> {
+  const sealed = await sealSmime(org.slug, message, { filename: opts.filename });
+
+  const emlPath = `hosted/${sealed.sha256}/sealed.eml`;
+  await saveFile(emlPath, sealed.eml);
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sealed.sha256);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none";
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sealed.sha256 },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "smime",
+      title: opts.title ?? null,
+      pdfPath: emlPath, // the stored signed .eml (generic "sealed file path")
+      sha256: sealed.sha256,
+      proofCode: await mintProofCode(),
+      certCN: sealed.certCN || org.name,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  return {
+    eml: sealed.eml, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };
 }

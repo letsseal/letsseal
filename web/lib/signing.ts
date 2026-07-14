@@ -149,6 +149,36 @@ export async function verifyXml(xml: Buffer, opts: { filename?: string } = {}): 
   return res.json();
 }
 
+export type SmimeSealResult = { eml: Buffer; sha256: string; certCN: string };
+
+// Wrap an email message in an S/MIME `multipart/signed` envelope signed by the org
+// cert. Same CMS crypto as the detached seal, delivered in the form mail speaks.
+export async function sealSmime(orgSlug: string, message: Buffer, opts: { filename?: string } = {}): Promise<SmimeSealResult> {
+  const form = new FormData();
+  form.append("org_slug", orgSlug);
+  form.append("file", new Blob([new Uint8Array(message)], { type: "message/rfc822" }), opts.filename || "message.eml");
+  const res = await fetch(`${SERVICE}/seal/smime`, { method: "POST", headers: svcHeaders(), body: form });
+  if (!res.ok) throw new Error(`smime seal failed: ${res.status} ${await res.text()}`);
+  return {
+    eml: Buffer.from(await res.arrayBuffer()),
+    sha256: res.headers.get("x-letsseal-sha256") ?? "",
+    certCN: res.headers.get("x-letsseal-cert-cn") ?? "",
+  };
+}
+
+export type SmimeVerifyResult = {
+  sealed: boolean; smime: boolean; valid: boolean; trusted: boolean;
+  signer?: string; sha256: string; reason?: string;
+};
+
+// Verify an S/MIME signed email message against our root.
+export async function verifySmime(message: Buffer, opts: { filename?: string } = {}): Promise<SmimeVerifyResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(message)], { type: "message/rfc822" }), opts.filename || "message.eml");
+  const res = await fetch(`${SERVICE}/verify/smime`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
 export type VerifyResult = {
   sealed: boolean;
   sha256: string;

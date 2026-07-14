@@ -221,6 +221,19 @@ fn is_xml(b: &[u8]) -> bool {
     i < b.len() && b[i] == b'<'
 }
 
+// A signed S/MIME message: the multipart/signed content-type with a pkcs7
+// signature protocol sits at the top of the .eml. Used on verify (content-based).
+fn is_smime(b: &[u8]) -> bool {
+    let head = String::from_utf8_lossy(&b[..b.len().min(4096)]).to_ascii_lowercase();
+    head.contains("multipart/signed") && head.contains("pkcs7-signature")
+}
+
+// An unsigned mail message to seal, by extension (.eml / .mime).
+fn is_eml_name(file: &str) -> bool {
+    let (_, ext) = stem_ext(file);
+    ext == "eml" || ext == "mime"
+}
+
 // Split a path into (stem, ext) on the last dot of the basename, e.g.
 // "a/b/photo.JPG" -> ("a/b/photo", "jpg"). ext is lowercased; "" if none.
 fn stem_ext(file: &str) -> (String, String) {
@@ -291,6 +304,28 @@ fn verify(file: &str) {
             println!("{} {file}", if valid && trusted { "verified " } else { "TAMPERED " });
             println!("  signer  {}", s(&r, "signer").split(',').next().unwrap_or(""));
             println!("  valid   {valid}   trusted {trusted}   (XML-DSig)");
+            println!("  sha256  {}", s(&r, "sha256"));
+        }
+        show_sibling_anchor(file);
+        if !sealed || !(valid && trusted) { exit(2); }
+        return;
+    }
+
+    // A signed S/MIME message (no .sig) carries its multipart/signed signature
+    // inline — verify that.
+    if is_smime(&bytes) && !has_sig {
+        let resp = post_multipart(&format!("{}/verify/smime", api()), &[], &basename(file), &bytes, true)
+            .unwrap_or_else(|e| die(&format!("verify failed: {e}")));
+        let r: serde_json::Value = resp.into_json().unwrap_or_else(|_| die("bad response"));
+        let sealed = r.get("sealed").and_then(|x| x.as_bool()).unwrap_or(false);
+        let valid = r.get("valid").and_then(|x| x.as_bool()).unwrap_or(false);
+        let trusted = r.get("trusted").and_then(|x| x.as_bool()).unwrap_or(false);
+        if !sealed {
+            println!("unsealed  {file}  (no S/MIME signature found)");
+        } else {
+            println!("{} {file}", if valid && trusted { "verified " } else { "TAMPERED " });
+            println!("  signer  {}", s(&r, "signer").split(',').next().unwrap_or(""));
+            println!("  valid   {valid}   trusted {trusted}   (S/MIME)");
             println!("  sha256  {}", s(&r, "sha256"));
         }
         show_sibling_anchor(file);
@@ -407,6 +442,16 @@ fn process_one(path: &Path, mode: &str, org: &str) -> Result<(String, String, St
                 resp.into_reader().read_to_end(&mut out_bytes).ok();
                 let (stem, _) = stem_ext(&full);
                 let out = format!("{stem}.sealed.xml");
+                std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
+                Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
+            } else if is_eml_name(&full) {
+                let resp = post_multipart(&format!("{}/seal/smime", api()),
+                    &[("org_slug", org)], &basename(&full), &bytes, true)?;
+                let sha = resp.header("x-letsseal-sha256").unwrap_or("").to_string();
+                let mut out_bytes = Vec::new();
+                resp.into_reader().read_to_end(&mut out_bytes).ok();
+                let (stem, _) = stem_ext(&full);
+                let out = format!("{stem}.sealed.eml");
                 std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
                 Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
             } else {
@@ -563,6 +608,27 @@ fn seal(file: &str) {
         return;
     }
 
+    // A mail message (.eml/.mime) gets wrapped in a signed S/MIME multipart/signed
+    // envelope — format-native, verifiable by any S/MIME tool. The message is
+    // rewritten; a `<stem>.sealed.eml` is written beside the original.
+    if is_eml_name(file) {
+        let resp = post_multipart(&format!("{}/seal/smime", api()),
+            &[("org_slug", org.as_str())], &basename(file), &bytes, true)
+            .unwrap_or_else(|e| die(&format!("seal failed: {e}")));
+        let cn = resp.header("x-letsseal-cert-cn").unwrap_or("").to_string();
+        let sha = resp.header("x-letsseal-sha256").unwrap_or("").to_string();
+        let mut out_bytes = Vec::new();
+        resp.into_reader().read_to_end(&mut out_bytes).ok();
+        let (stem, _) = stem_ext(file);
+        let out = format!("{stem}.sealed.eml");
+        std::fs::write(&out, out_bytes).unwrap_or_else(|_| die("cannot write signed message"));
+        println!("sealed   {out}  (S/MIME)");
+        println!("  by     {cn}");
+        println!("  sha256 {sha}");
+        println!("  verify sealbot verify {out}   (or openssl smime -verify -in {out} -CAfile letsseal-root.crt)");
+        return;
+    }
+
     // Any other non-PDF gets a detached CAdES seal beside it (<file>.sig): the file
     // has no slot for an embedded signature, so the seal is a self-contained sidecar.
     // Digest-only — only the SHA-256 leaves this machine, never the file.
@@ -625,13 +691,13 @@ sealbot — timestamp any file on Bitcoin and prove it existed, unaltered.
 
   sealbot anchor <file> [--publish]      hash locally -> writes <file>.ots
                                           (--publish also registers a public proof page)
-  sealbot verify <file>                  check a sealed file (PDF, C2PA media, XML, or <file>+.sig), or an .ots
+  sealbot verify <file>                  check a sealed file (PDF, C2PA media, XML, S/MIME .eml, or <file>+.sig), or an .ots
   sealbot watch  <dir> [--mode anchor|publish|seal] [--interval <sec>] [--once]
                                           notarise a folder continuously, idempotently
 
 Advanced — keyed signing (needs the signing service + a bearer token):
   sealbot seal   <file> --org <slug>         seal any file with your CA
-                                             (PDF->PAdES; media->C2PA; XML->XML-DSig; else->.sig)
+                                             (PDF->PAdES; media->C2PA; XML->XML-DSig; .eml->S/MIME; else->.sig)
   sealbot issue  --id <id> --cn \"<subject>\" [--profile document|code|data]
 
   --api <url>   | SEALBOT_API    signing service (default http://127.0.0.1:8081)

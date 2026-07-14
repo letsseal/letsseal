@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, upgradeAnchor, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, upgradeAnchor, type VerifyResult } from "@/lib/signing";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
 const isXml = (b: Buffer) => {
@@ -11,6 +11,10 @@ const isXml = (b: Buffer) => {
 };
 
 const isPdf = (b: Buffer) => b.length >= 5 && b.subarray(0, 5).toString("latin1") === "%PDF-";
+const isSmime = (b: Buffer) => {
+  const head = b.subarray(0, 4096).toString("latin1").toLowerCase();
+  return head.includes("multipart/signed") && head.includes("pkcs7-signature");
+};
 const isC2paMedia = (b: Buffer) => {
   const h4 = b.subarray(0, 4).toString("latin1");
   return (
@@ -58,6 +62,12 @@ export async function POST(req: NextRequest) {
         authentic: d.valid && d.trusted, signer: d.signer,
       };
     }
+  } else if (rec?.sealType === "smime" || isSmime(bytes)) {
+    const d = await verifySmime(bytes, { filename: file.name });
+    crypto = {
+      sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
+      authentic: d.valid && d.trusted, signer: d.signer,
+    };
   } else if (rec?.sealType === "c2pa" || isC2paMedia(bytes)) {
     const d = await verifyC2pa(bytes, { contentType: file.type });
     crypto = {

@@ -508,6 +508,54 @@ async def verify_xml_ep(request: Request, file: UploadFile = File(...)):
                              "sha256": sha, "reason": "verification error"})
 
 
+@app.post("/seal/smime", operation_id="sealSmime", tags=["sealing"],
+          summary="Seal an email message with an S/MIME signature",
+          response_class=Response, dependencies=[Depends(require_auth)],
+          responses={200: {"content": {"message/rfc822": {"schema": {"type": "string", "format": "binary"}}},
+                           "description": "The signed message as a `multipart/signed` .eml. "
+                                          "`X-Letsseal-Sha256` and `X-Letsseal-Cert-CN` headers "
+                                          "carry the signed-message digest and signer."}})
+async def seal_smime(request: Request, org_slug: str = Form(...), file: UploadFile = File(...)):
+    """Wrap a mail message in a standards-conformant S/MIME `multipart/signed`
+    envelope signed by the org cert, chaining to the same root. Same CMS crypto as
+    the detached seal, delivered in the form mail clients speak."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", org_slug):
+        raise HTTPException(400, "invalid org_slug")
+    data = await _read_capped(file, request)
+    from smime import sign_smime
+    p12 = _org_p12(org_slug)
+    try:
+        signed, cn = await run_in_threadpool(sign_smime, data, p12, P12_PASS)
+    except Exception:
+        logger.exception("smime seal failed for org %s", org_slug)
+        raise HTTPException(400, "could not sign message")
+    sha = hashlib.sha256(signed).hexdigest()
+    return Response(content=signed, media_type="message/rfc822", headers={
+        "X-Letsseal-Sha256": sha, "X-Letsseal-Cert-CN": cn,
+    })
+
+
+@app.post("/verify/smime", operation_id="verifySmime", tags=["sealing"],
+          summary="Verify an S/MIME signed email message",
+          dependencies=[Depends(require_auth)])
+async def verify_smime_ep(request: Request, file: UploadFile = File(...)):
+    """Verify an S/MIME `multipart/signed` message against our root."""
+    data = await _read_capped(file, request)
+    sha = hashlib.sha256(data).hexdigest()
+    from smime import verify_smime
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        result = await run_in_threadpool(verify_smime, data, root)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("smime verify failed")
+        return JSONResponse({"sealed": True, "smime": True, "valid": False, "trusted": False,
+                             "sha256": sha, "reason": "verification error"})
+
+
 @app.post("/verify", operation_id="verify", tags=["sealing"],
           summary="Verify a sealed PDF", response_model=VerifyResponse,
           dependencies=[Depends(require_auth)])
