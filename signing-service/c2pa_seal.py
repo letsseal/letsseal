@@ -31,14 +31,16 @@ _EXT_MIME = {
     "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp",
     "tif": "image/tiff", "tiff": "image/tiff", "gif": "image/gif", "avif": "image/avif",
     "heic": "image/heic", "heif": "image/heif", "dng": "image/x-adobe-dng",
+    "mp4": "video/mp4", "m4v": "video/mp4", "mov": "video/quicktime",
+    "mp3": "audio/mpeg", "flac": "audio/flac", "m4a": "audio/mp4",
 }
 
 _SUPPORTED_MIME = set(_EXT_MIME.values())
 
 
 def mime_for(filename: str | None, data: bytes | None = None) -> str | None:
-    """Best-effort image MIME from extension, falling back to magic bytes. Returns
-    None if it isn't an image format c2pa can embed into."""
+    """Best-effort media MIME from extension, falling back to magic bytes. Returns
+    None if it isn't a media format c2pa can embed into (per _EXT_MIME)."""
     if filename and "." in filename:
         ext = filename.rsplit(".", 1)[1].lower()
         if ext in _EXT_MIME:
@@ -54,12 +56,21 @@ def mime_for(filename: str | None, data: bytes | None = None) -> str | None:
             return "image/tiff"
         if data[:6] in (b"GIF87a", b"GIF89a"):
             return "image/gif"
+        if data[:4] == b"fLaC":
+            return "audio/flac"
+        if data[:3] == b"ID3" or (len(data) > 1 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0):
+            return "audio/mpeg"
         if data[4:8] == b"ftyp":
             brand = data[8:12]
             if brand in (b"avif", b"avis"):
                 return "image/avif"
             if brand in (b"heic", b"heix", b"mif1", b"msf1", b"heim", b"heis"):
                 return "image/heic"
+            if brand == b"qt  ":
+                return "video/quicktime"
+            if brand in (b"M4A ", b"M4B "):
+                return "audio/mp4"
+            return "video/mp4"
     return None
 
 
@@ -96,7 +107,7 @@ def _manifest(mime: str, title: str | None) -> dict:
     unaltered image — is carried by the signature and the hash binding."""
     return {
         "claim_generator_info": [{"name": "Let's Seal", "version": "1.0.0"}],
-        "title": title or "image",
+        "title": title or "media",
         "format": mime,
         "assertions": [
             {"label": "c2pa.actions", "data": {"actions": [{"action": "c2pa.created"}]}},

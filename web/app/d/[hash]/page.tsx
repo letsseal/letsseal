@@ -153,10 +153,10 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         )}
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{isC2pa ? "Image proof" : detached ? "File proof" : "Document proof"}</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{isC2pa ? "Media proof" : detached ? "File proof" : "Document proof"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isC2pa
-              ? "A permanent record that this image carries signed Content Credentials (C2PA) and is timestamped. Download the signed image and verify it in any C2PA-aware tool."
+              ? "A permanent record that this file carries signed Content Credentials (C2PA) and is timestamped. Download the signed file and verify it in any C2PA-aware tool."
               : detached
                 ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
                 : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}

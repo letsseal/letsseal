@@ -424,7 +424,8 @@ async def seal_c2pa(
     from c2pa_seal import mime_for, sign_c2pa
     mime = mime_for(file.filename, data)
     if not mime:
-        raise HTTPException(400, "unsupported image format (jpeg, png, webp, tiff, gif, avif, heic)")
+        raise HTTPException(400, "unsupported media format (images: jpeg/png/webp/tiff/gif/avif/heic; "
+                                 "video: mp4/mov; audio: mp3/flac/m4a)")
     p12 = _org_p12(org_slug)
     try:
         signed, cn = await run_in_threadpool(sign_c2pa, data, mime, p12, P12_PASS, title)

@@ -6,6 +6,8 @@ const MIME: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
   tiff: "image/tiff", tif: "image/tiff", gif: "image/gif", avif: "image/avif",
   heic: "image/heic", heif: "image/heif",
+  mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime",
+  mp3: "audio/mpeg", flac: "audio/flac", m4a: "audio/mp4",
 };
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ sha: string }> }) {

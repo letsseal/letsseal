@@ -171,12 +171,14 @@ export type HostedC2paSeal = {
   proofCode: string | null;
 };
 
-// File extension for a signed-image MIME, for the stored path (the download route
+// File extension for a signed-media MIME, for the stored path (the download route
 // serves the right Content-Type from it).
 const C2PA_EXT: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/tiff": "tiff",
   "image/gif": "gif", "image/avif": "avif", "image/heic": "heic", "image/heif": "heif",
   "image/x-adobe-dng": "dng",
+  "video/mp4": "mp4", "video/quicktime": "mov",
+  "audio/mpeg": "mp3", "audio/flac": "flac", "audio/mp4": "m4a",
 };
 
 // Seal an IMAGE for a business: embed a signed C2PA (Content Credentials) manifest,

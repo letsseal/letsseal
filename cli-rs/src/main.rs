@@ -200,15 +200,18 @@ fn is_pdf(bytes: &[u8]) -> bool {
     bytes.len() >= 5 && &bytes[..5] == b"%PDF-"
 }
 
-// A C2PA-embeddable image (jpeg/png/webp/tiff/gif/avif/heic), by magic bytes.
-fn is_image(b: &[u8]) -> bool {
+// A C2PA-embeddable media file, by magic bytes: images (jpeg/png/webp/tiff/gif/
+// avif/heic), video (mp4/mov via ISOBMFF ftyp), audio (mp3/flac; m4a via ftyp).
+fn is_media(b: &[u8]) -> bool {
     b.len() >= 12
         && (b.starts_with(&[0xFF, 0xD8, 0xFF])                                  // jpeg
             || b.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) // png
             || (&b[0..4] == b"RIFF" && &b[8..12] == b"WEBP")                    // webp
             || &b[0..4] == b"II\x2a\x00" || &b[0..4] == b"MM\x00\x2a"           // tiff
             || b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a")            // gif
-            || &b[4..8] == b"ftyp")                                             // avif/heic (ISOBMFF)
+            || &b[0..4] == b"fLaC"                                              // flac
+            || &b[0..3] == b"ID3" || (b[0] == 0xFF && (b[1] & 0xE0) == 0xE0)    // mp3
+            || &b[4..8] == b"ftyp")                                             // mp4/mov/m4a/avif/heic
 }
 
 // Split a path into (stem, ext) on the last dot of the basename, e.g.
@@ -245,9 +248,9 @@ fn verify(file: &str) {
     let sig_path = format!("{file}.sig");
     let has_sig = Path::new(&sig_path).exists();
 
-    // An image (no .sig) carries its seal embedded as C2PA Content Credentials —
-    // verify that. An explicit .sig always takes precedence (detached verify).
-    if is_image(&bytes) && !has_sig {
+    // Media (image/video/audio, no .sig) carries its seal embedded as C2PA Content
+    // Credentials — verify that. An explicit .sig always takes precedence (detached).
+    if is_media(&bytes) && !has_sig {
         let resp = post_multipart(&format!("{}/verify/c2pa", api()), &[], &basename(file), &bytes, true)
             .unwrap_or_else(|e| die(&format!("verify failed: {e}")));
         let r: serde_json::Value = resp.into_json().unwrap_or_else(|_| die("bad response"));
@@ -357,7 +360,7 @@ fn process_one(path: &Path, mode: &str, org: &str) -> Result<(String, String, St
                 let out = format!("{stem}.sealed.pdf");
                 std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
                 Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
-            } else if is_image(&bytes) {
+            } else if is_media(&bytes) {
                 let title = basename(&full);
                 let resp = post_multipart(&format!("{}/seal/c2pa", api()),
                     &[("org_slug", org), ("title", title.as_str())], &title, &bytes, true)?;
@@ -479,10 +482,11 @@ fn seal(file: &str) {
     let org = flag("org").unwrap_or_else(|| die("usage: sealbot seal <file> --org <slug>"));
     let bytes = read(file);
 
-    // Images get an embedded C2PA (Content Credentials) manifest — the seal lives
-    // inside the picture, read by any C2PA-aware tool. The image is rewritten, so
-    // the bytes are uploaded; a `<stem>.sealed.<ext>` is written beside the original.
-    if is_image(&bytes) {
+    // Media (image/video/audio) gets an embedded C2PA (Content Credentials)
+    // manifest — the seal lives inside the file, read by any C2PA-aware tool. The
+    // file is rewritten, so the bytes are uploaded; a `<stem>.sealed.<ext>` is
+    // written beside the original.
+    if is_media(&bytes) {
         let title = basename(file);
         let resp = post_multipart(&format!("{}/seal/c2pa", api()),
             &[("org_slug", org.as_str()), ("title", title.as_str())], &title, &bytes, true)

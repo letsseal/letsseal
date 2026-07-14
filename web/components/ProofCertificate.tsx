@@ -324,10 +324,10 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           <div className="mt-3">
             <a href={data.imageUrl}
                className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
-              <Download className="h-3.5 w-3.5" /> Download signed image
+              <Download className="h-3.5 w-3.5" /> Download signed file
             </a>
             <p className="mt-2 text-xs text-muted-foreground">
-              The image carries embedded <b>Content Credentials</b> (C2PA). Open it in any C2PA-aware tool
+              The file carries embedded <b>Content Credentials</b> (C2PA). Open it in any C2PA-aware tool
               (Adobe, the Content Credentials verifier) to see the issuer and confirm it&apos;s unaltered.
             </p>
           </div>

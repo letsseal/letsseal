@@ -21,23 +21,30 @@ A SEAL proof has two independent parts and one convention:
 
 | Letter | Part | Standard used | Proves |
 |--------|------|---------------|--------|
-| **S**ealed · **E**vidence | An AdES signature chaining to a published root CA — **PAdES** embedded in the file for PDFs, **detached CAdES/CMS** (a `file.sig` sidecar) for any other artifact. | PAdES / CAdES (ETSI EN 319 142 / 319 122), X.509, SHA-256 | **Integrity + issuer** — the file is byte-for-byte what was sealed, and which certificate sealed it. |
+| **S**ealed · **E**vidence | A signature by a certificate chaining to a published root CA, in the artifact's format-native form — **PAdES** embedded in PDFs, **C2PA** embedded in images, **detached CAdES/CMS** (a `file.sig` sidecar) for any other artifact. | PAdES / C2PA / CAdES (ETSI EN 319 142 / 319 122; C2PA 2.x), X.509, SHA-256 | **Integrity + issuer** — the file is byte-for-byte what was sealed, and which certificate sealed it. |
 | **A**nchored · **L**edger | An OpenTimestamps proof (`.ots`) over the SHA-256 of the sealed file. | OpenTimestamps, Bitcoin | **Time** — the file existed by a given public-ledger block, with no authority to trust. |
 | — | The canonical proof permalink `/d/<sha256>` and its machine-readable twin. | HTTP + JSON | **Convention** — one stable way to reference and fetch a proof. |
 
-The proof is **self-contained**: the seal travels inside the PDF (or beside any other
-file as a `.sig`) and the anchor is a small `.ots` sidecar. Neither requires a
-database, an account, or Let's Seal being online to verify.
+The proof is **self-contained**: the seal travels inside the artifact (embedded in a
+PDF or an image) or beside it as a `.sig`, and the anchor is a small `.ots` sidecar.
+Neither requires a database, an account, or Let's Seal being online to verify.
 
 ---
 
 ## 2. The seal (integrity + issuer)
 
-- A conforming artifact MUST carry an AdES signature over its bytes, in one of two
-  delivery forms:
+- A conforming artifact MUST carry a signature over its bytes, in its format-native
+  delivery form:
   - **PDF — PAdES**, embedded in the file, covering the **entire file**. A signature
     that covers only part of the file (content appended after signing via an
     incremental update) is **not** conformant and MUST be reported as altered.
+  - **Image — C2PA (Content Credentials)**, a signed manifest embedded in the image
+    (jpeg/png/webp/tiff/gif/avif/heic), read by any C2PA-aware tool. The end-entity
+    cert MUST meet the C2PA cert profile (C2PA 2.x §14.5.1) — the SEAL `document`
+    profile (EC P-256, KU digitalSignature, EKU emailProtection) satisfies it. A
+    conforming verifier configures the published SEAL root as a C2PA trust anchor;
+    a manifest that validates and chains to it is trusted, one that only validates
+    is `Valid` but untrusted. No RFC-3161 timestamp is embedded — time is the anchor.
   - **Any other file — detached CAdES/CMS**, a `file.sig` sidecar signing the file's
     SHA-256. The signer's certificate chain is embedded in the signature, so it is
     self-contained. It verifies with stock tooling and no Let's Seal server:

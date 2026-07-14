@@ -6,6 +6,8 @@ import { overContentLength, tooLarge } from "@/lib/limits";
 const EXT: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/tiff": "tiff",
   "image/gif": "gif", "image/avif": "avif", "image/heic": "heic", "image/heif": "heif",
+  "video/mp4": "mp4", "video/quicktime": "mov",
+  "audio/mpeg": "mp3", "audio/flac": "flac", "audio/mp4": "m4a",
 };
 
 export async function POST(req: NextRequest) {

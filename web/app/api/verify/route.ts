@@ -5,7 +5,7 @@ import { verifyPdf, verifyDetached, verifyC2pa, upgradeAnchor, type VerifyResult
 import { overContentLength, tooLarge } from "@/lib/limits";
 
 const isPdf = (b: Buffer) => b.length >= 5 && b.subarray(0, 5).toString("latin1") === "%PDF-";
-const isImage = (b: Buffer) => {
+const isC2paMedia = (b: Buffer) => {
   const h4 = b.subarray(0, 4).toString("latin1");
   return (
     b.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ||                              
@@ -13,6 +13,8 @@ const isImage = (b: Buffer) => {
     (h4 === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP") ||                    
     h4 === "II\x2a\x00" || h4 === "MM\x00\x2a" ||                                            
     ["GIF87a", "GIF89a"].includes(b.subarray(0, 6).toString("latin1")) ||                    
+    h4 === "fLaC" ||                                                                          
+    b.subarray(0, 3).toString("latin1") === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) || 
     b.subarray(4, 8).toString("latin1") === "ftyp"                                           
   );
 };
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
         authentic: d.valid && d.trusted, signer: d.signer,
       };
     }
-  } else if (rec?.sealType === "c2pa" || isImage(bytes)) {
+  } else if (rec?.sealType === "c2pa" || isC2paMedia(bytes)) {
     const d = await verifyC2pa(bytes, { contentType: file.type });
     crypto = {
       sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
