@@ -43,8 +43,12 @@ database, an account, or Let's Seal being online to verify.
     self-contained. It verifies with stock tooling and no Let's Seal server:
 
     ```
-    openssl cms -verify -inform DER -in file.sig -content file -CAfile letsseal-root.crt
+    openssl cms -verify -inform DER -in file.sig -content file -binary -CAfile letsseal-root.crt
     ```
+
+    `-binary` is required: it stops `openssl cms` applying S/MIME text
+    canonicalisation (LF → CRLF) to the content before hashing. The seal is over
+    the file's raw SHA-256, so the raw bytes must be hashed exactly as signed.
 - The signing certificate MUST chain to a **published SEAL root**. The root is not in
   any OS or Adobe trust store *by design* — trust is pinned to the published root, not
   granted by a vendor trust list.

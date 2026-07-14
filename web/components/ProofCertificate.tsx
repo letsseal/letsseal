@@ -315,7 +315,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             </a>
             <p className="mt-2 text-xs text-muted-foreground">
               Save it beside your file and verify anywhere, with no Let&apos;s Seal server:{" "}
-              <code className="rounded bg-background px-1 py-0.5 font-mono">openssl cms -verify -inform DER -in file.sig -content file -CAfile letsseal-root.crt</code>
+              <code className="rounded bg-background px-1 py-0.5 font-mono">openssl cms -verify -inform DER -in file.sig -content file -binary -CAfile letsseal-root.crt</code>
             </p>
           </div>
         )}

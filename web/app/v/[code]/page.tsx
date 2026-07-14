@@ -1,11 +1,18 @@
 import { redirect, notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { canonicalizeProofCode } from "@/lib/proofcode";
+import { rateLimited } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProofCodePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
+
+  const h = await headers();
+  const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  if (rateLimited(`v:${ip}`, 60, 60_000)) notFound();
+
   const canon = canonicalizeProofCode(code);
   if (!canon) notFound();
 

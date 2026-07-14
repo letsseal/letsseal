@@ -37,17 +37,18 @@ export async function hostedSeal(
   pdf: Buffer,
   opts: { title?: string | null; reason?: string; anchor?: boolean; stamp?: boolean } = {},
 ): Promise<HostedSeal> {
-  // Pre-mint the document id so a verify QR can point at a stable proof URL that
-  // is known *before* sealing (the sealed PDF's hash isn't). The `sd_` prefix
-  // keeps it distinct from a 64-hex SHA and self-identifying in the /d resolver.
+  // Pre-mint the document id AND the short proof code so the verify stamp is
+  // known *before* sealing (the sealed PDF's hash isn't). The QR encodes the
+  // short /v/<code> URL and the stamp prints the same code as a typable line.
   const docId = `sd_${randomBytes(16).toString("hex")}`;
-  const docProofUrl = proofUrl(docId);
+  const proofCode = await mintProofCode();
+  const verifyUrl = `${appUrl()}/v/${proofCode}`;
 
   // Stamp the single corner verify-badge before sealing, so the signature covers
   // it (tamper-evident). Best-effort — a badge failure must not fail the seal.
   let toSeal = pdf;
   if (opts.stamp) {
-    try { toSeal = await stampVerifyBadge(pdf, { proofUrl: docProofUrl, orgName: org.name }); }
+    try { toSeal = await stampVerifyBadge(pdf, { proofUrl: verifyUrl, orgName: org.name, proofCode }); }
     catch { toSeal = pdf; }
   }
 
@@ -86,7 +87,7 @@ export async function hostedSeal(
       title: opts.title ?? null,
       pdfPath,
       sha256: sealed.sha256,
-      proofCode: await mintProofCode(),
+      proofCode,
       certCN: sealed.certCN,
       otsProof,
       anchorState,

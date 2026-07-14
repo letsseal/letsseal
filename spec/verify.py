@@ -116,7 +116,7 @@ def verify_detached(file_path, sig_path, timeout=30):
         try:
             r = subprocess.run(
                 ["openssl", "cms", "-verify", "-inform", "DER", "-in", sig_path,
-                 "-content", file_path, "-no_check_time", "-out", os.devnull, *extra],
+                 "-content", file_path, "-no_check_time", "-binary", "-out", os.devnull, *extra],
                 capture_output=True, text=True, timeout=timeout,
             )
             return r.returncode == 0 and "verification successful" in (r.stdout + r.stderr).lower()

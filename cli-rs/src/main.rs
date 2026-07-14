@@ -438,7 +438,7 @@ fn seal(file: &str) {
         println!("  by     {}", s(&r, "cert_cn"));
         println!("  sha256 {digest}  (file itself was NOT uploaded)");
         println!("  sig    {out}");
-        println!("  verify openssl cms -verify -inform DER -in {out} -content {file} -CAfile letsseal-root.crt");
+        println!("  verify openssl cms -verify -inform DER -in {out} -content {file} -binary -CAfile letsseal-root.crt");
         return;
     }
 

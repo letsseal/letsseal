@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sha:
     : null;
   if (!member) return new Response("not found", { status: 404 });
 
-  if (!(await fileExists(rec.pdfPath))) {
+  if (!rec.pdfPath || !(await fileExists(rec.pdfPath))) {
     return new Response("This document wasn't retained — only its proof is kept.", { status: 410 });
   }
 

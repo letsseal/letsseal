@@ -15,7 +15,11 @@ The result is a standard detached CMS/PKCS#7 signature with the signer's cert
 chain embedded, so it is self-contained and verifies with stock tooling and no
 Let's Seal server:
 
-    openssl cms -verify -inform DER -in file.sig -content file -CAfile letsseal-root.crt
+    openssl cms -verify -inform DER -in file.sig -content file -binary \
+        -CAfile letsseal-root.crt
+
+(-binary is required: it stops openssl applying S/MIME CRLF canonicalisation to
+the content, so the raw file bytes are hashed exactly as they were signed.)
 
 Together with `ots verify file.ots`, that is the whole independent verification of
 a sealed non-PDF file: issuer (this) + time (the anchor).
@@ -87,7 +91,7 @@ def verify_detached_bytes(file_bytes: bytes, sig_der: bytes, ca_root_path: str,
         def _openssl(*extra):
             r = subprocess.run(
                 ["openssl", "cms", "-verify", "-inform", "DER", "-in", sp,
-                 "-content", fp, "-no_check_time", "-out", os.devnull, *extra],
+                 "-content", fp, "-no_check_time", "-binary", "-out", os.devnull, *extra],
                 capture_output=True, text=True, timeout=timeout,
             )
             return r.returncode == 0 and "verification successful" in (r.stdout + r.stderr).lower()
