@@ -49,11 +49,12 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   const isC2pa = rec.sealType === "c2pa";
   const isXmlSeal = rec.sealType === "xmldsig";
   const isSmimeSeal = rec.sealType === "smime";
+  const isBlobSeal = rec.sealType === "blob";
 
   let crypto: ProofData["crypto"] = { sealed: true, onRecordOnly: true };
-  const key = detached ? null : rec.pdfPath; 
+  const key = detached || isBlobSeal ? null : rec.pdfPath; 
   const docOnFile = key ? await fileExists(key) : false;
-  if (detached) {
+  if (detached || isBlobSeal) {
     crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN };
   } else if (isC2pa) {
     if (docOnFile && key) {
@@ -138,6 +139,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     imageUrl: isC2pa ? `/api/seal/${sha256}/image` : null,
     xmlUrl: isXmlSeal ? `/api/seal/${sha256}/xml` : null,
     emlUrl: isSmimeSeal ? `/api/seal/${sha256}/eml` : null,
+    artifactUrl: isBlobSeal ? `/api/seal/${sha256}/artifact` : null,
     trail: viewerIsIssuer ? trail : null,
     credential: cred ? {
       recipientName: cred.recipientName,
@@ -176,7 +178,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : detached ? "File proof" : "Document proof"}
+            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isBlobSeal ? "Artifact proof" : detached ? "File proof" : "Document proof"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isC2pa
@@ -185,9 +187,11 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
                 ? "A permanent record that this XML document carries an embedded XML-DSig signature and is timestamped. Download the signed XML and verify it with any XML Signature tool."
                 : isSmimeSeal
                   ? "A permanent record that this email message carries an S/MIME signature and is timestamped. Download the signed message and verify it with any S/MIME tool (openssl smime -verify)."
-                  : detached
-                    ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
-                    : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}
+                  : isBlobSeal
+                    ? "A permanent record that this artifact is signed and timestamped. Download the cosign signature set and verify it with sealbot, openssl, or stock cosign verify-blob."
+                    : detached
+                      ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
+                      : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}
           </p>
         </div>
         <ProofCertificate data={data} gate={gate} />

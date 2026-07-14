@@ -74,6 +74,39 @@ export async function verifyDetached(file: Buffer, sig: Buffer): Promise<Detache
   return res.json();
 }
 
+export type BlobSealResult = {
+  sha256: string; sig_b64: string; cert_pem: string; chain_pem: string;
+  cert_cn: string; identity: string;
+};
+
+// cosign-compatible seal over a file's SHA-256 (digest-only) — a raw ECDSA
+// signature + the org's codeSigning cert. The signing service never sees the
+// artifact bytes. Verifies with sealbot, openssl, and stock cosign verify-blob.
+export async function sealBlob(orgSlug: string, sha256: string): Promise<BlobSealResult> {
+  const res = await fetch(`${SERVICE}/seal/blob`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ sha256, org_slug: orgSlug }),
+  });
+  if (!res.ok) throw new Error(`blob seal failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export type BlobVerifyResult = {
+  sealed: boolean; blob: boolean; valid: boolean; trusted: boolean;
+  entire_file?: boolean; signer?: string; sha256: string; reason?: string;
+};
+
+// Verify a cosign-format blob seal: the artifact bytes + its base64 .sig + the
+// signer .pem (leaf, optionally with chain), against our root.
+export async function verifyBlob(file: Buffer, sig: string, certPem: string): Promise<BlobVerifyResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(file)]), "file");
+  form.append("sig", new Blob([sig]), "file.sig");
+  form.append("cert", new Blob([certPem]), "file.pem");
+  const res = await fetch(`${SERVICE}/verify/blob`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
 export type C2paSealResult = { image: Buffer; sha256: string; certCN: string; format: string };
 
 // Embed a signed C2PA (Content Credentials) manifest into an image. The image is

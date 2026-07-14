@@ -22,6 +22,7 @@ export type ProofData = {
   imageUrl?: string | null;
   xmlUrl?: string | null;
   emlUrl?: string | null;
+  artifactUrl?: string | null;
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -355,6 +356,29 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             <p className="mt-2 text-xs text-muted-foreground">
               The message carries a standard <b>S/MIME</b> signature. Verify it with any S/MIME tool,
               e.g. <code className="rounded bg-background px-1 py-0.5 font-mono">openssl smime -verify -in message.eml -CAfile letsseal-root.crt</code>
+            </p>
+          </div>
+        )}
+        {data.artifactUrl && (
+          <div className="mt-3">
+            <div className="flex flex-wrap gap-2">
+              <a href={`${data.artifactUrl}?part=sig`}
+                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                <Download className="h-3.5 w-3.5" /> .sig
+              </a>
+              <a href={`${data.artifactUrl}?part=pem`}
+                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                <Download className="h-3.5 w-3.5" /> .pem
+              </a>
+              <a href={`${data.artifactUrl}?part=chain`}
+                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                <Download className="h-3.5 w-3.5" /> .chain.pem
+              </a>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              A <b>cosign-compatible</b> artifact signature. Verify with{" "}
+              <code className="rounded bg-background px-1 py-0.5 font-mono">cosign verify-blob --certificate a.pem --certificate-chain a.chain.pem --signature a.sig --certificate-identity-regexp &apos;.*&apos; --certificate-oidc-issuer-regexp &apos;.*&apos; --insecure-ignore-tlog --insecure-ignore-sct &lt;artifact&gt;</code>{" "}
+              — or drop the artifact into the verifier above.
             </p>
           </div>
         )}

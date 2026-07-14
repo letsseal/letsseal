@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, type VerifyResult } from "@/lib/signing";
+import { readFile, fileExists } from "@/lib/storage";
 import { withCors, preflight } from "@/lib/cors";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
@@ -69,6 +70,11 @@ export async function POST(req: NextRequest) {
       const rec = await db.sealedDocument.findUnique({ where: { sha256 }, select: { sealType: true, detachedSig: true } });
       if (rec?.sealType === "detached" && rec.detachedSig) {
         const d = await verifyDetached(bytes, Buffer.from(rec.detachedSig, "base64"));
+        v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
+      } else if (rec?.sealType === "blob" && rec.detachedSig && (await fileExists(`hosted/${sha256}/artifact.pem`))) {
+        const leaf = (await readFile(`hosted/${sha256}/artifact.pem`)).toString("utf8");
+        const chain = (await fileExists(`hosted/${sha256}/artifact.chain.pem`)) ? (await readFile(`hosted/${sha256}/artifact.chain.pem`)).toString("utf8") : "";
+        const d = await verifyBlob(bytes, rec.detachedSig, leaf + chain);
         v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
       } else {
         v = { sealed: false, sha256 };

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, upgradeAnchor, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, upgradeAnchor, type VerifyResult } from "@/lib/signing";
+import { readFile, fileExists } from "@/lib/storage";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
 const isXml = (b: Buffer) => {
@@ -51,30 +52,50 @@ export async function POST(req: NextRequest) {
   });
 
   let crypto: VerifyResult;
-  if (uploadedSig || rec?.sealType === "detached") {
+  if (rec?.sealType === "blob" && !uploadedSig) {
+    const leafPath = `hosted/${sha256}/artifact.pem`;
+    const chainPath = `hosted/${sha256}/artifact.chain.pem`;
+    const sigB64 = rec.detachedSig;
+    if (sigB64 && (await fileExists(leafPath))) {
+      const leaf = (await readFile(leafPath)).toString("utf8");
+      const chain = (await fileExists(chainPath)) ? (await readFile(chainPath)).toString("utf8") : "";
+      const d = await verifyBlob(bytes, sigB64, leaf + chain);
+      crypto = {
+        sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
+        authentic: d.valid && d.trusted, signer: d.signer,
+      };
+    } else {
+      crypto = { sealed: true, sha256, signer: rec.certCN ?? undefined };
+    }
+  } else if (uploadedSig || rec?.sealType === "detached") {
     const sigBuf = uploadedSig ?? (rec?.detachedSig ? Buffer.from(rec.detachedSig, "base64") : null);
     if (!sigBuf) {
+      // Detached record exists but no sig to check against — on-record only.
       crypto = { sealed: true, sha256 };
     } else {
       const d = await verifyDetached(bytes, sigBuf);
+      // Map the detached verdict onto the shared VerifyResult shape the UI reads.
       crypto = {
         sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
         authentic: d.valid && d.trusted, signer: d.signer,
       };
     }
   } else if (rec?.sealType === "smime" || isSmime(bytes)) {
+    // An S/MIME signed email message — check its multipart/signed signature.
     const d = await verifySmime(bytes, { filename: file.name });
     crypto = {
       sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
       authentic: d.valid && d.trusted, signer: d.signer,
     };
   } else if (rec?.sealType === "c2pa" || isC2paMedia(bytes)) {
+    // An image/video/audio file — check its embedded C2PA (Content Credentials) manifest.
     const d = await verifyC2pa(bytes, { contentType: file.type });
     crypto = {
       sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
       authentic: d.valid && d.trusted, signer: d.signer,
     };
   } else if (rec?.sealType === "xmldsig" || isXml(bytes)) {
+    // An XML document — check its enveloped XML-DSig signature.
     const d = await verifyXml(bytes, { filename: file.name });
     crypto = {
       sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
@@ -83,9 +104,11 @@ export async function POST(req: NextRequest) {
   } else if (isPdf(bytes)) {
     crypto = await verifyPdf(bytes);
   } else {
+    // Not a PDF or image, and no detached seal we can check — nothing sealed here.
     crypto = { sealed: false, sha256 };
   }
 
+  // Cross-reference our registry: does this exact document exist on record?
   let registry: null | {
     org: string | null; title: string | null; completedAt: string | null; auditEvents: number;
   } = null;

@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 
@@ -157,6 +157,75 @@ export async function hostedSealDetached(
 
   return {
     sha256: sha, sig: sig_b64, certCN: cert_cn || org.name,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedBlobSeal = {
+  sha256: string;
+  sig: string; // base64 raw ECDSA signature (cosign form)
+  certPem: string;
+  chainPem: string;
+  certCN: string;
+  identity: string;
+  anchorState: string; // none | pending | confirmed
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// cosign-compatible artifact seal for a business: a raw ECDSA signature over the
+// artifact's SHA-256 + the org's codeSigning cert, anchored to Bitcoin, persisted
+// as a permanent verifiable proof. Digest-only — the artifact bytes never reach
+// us. We store the small sig/cert/chain so /d can serve the cosign sidecar set.
+export async function hostedSealBlob(
+  org: { id: string; slug: string; name: string },
+  sha256: string,
+  opts: { title?: string | null; anchor?: boolean } = {},
+): Promise<HostedBlobSeal> {
+  const sha = sha256.trim().toLowerCase();
+  const r = await sealBlob(org.slug, sha);
+
+  // Store the cosign sidecar set so the proof page can offer them for download.
+  await saveFile(`hosted/${sha}/artifact.sig`, Buffer.from(r.sig_b64));
+  await saveFile(`hosted/${sha}/artifact.pem`, Buffer.from(r.cert_pem));
+  await saveFile(`hosted/${sha}/artifact.chain.pem`, Buffer.from(r.chain_pem));
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sha);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none";
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sha },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "blob",
+      title: opts.title ?? null,
+      pdfPath: null,
+      detachedSig: r.sig_b64, // the raw sig, for drop-the-file-only verification
+      sha256: sha,
+      proofCode: await mintProofCode(),
+      certCN: r.cert_cn || org.name,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  return {
+    sha256: sha, sig: r.sig_b64, certPem: r.cert_pem, chainPem: r.chain_pem,
+    certCN: r.cert_cn || org.name, identity: r.identity,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };
 }
