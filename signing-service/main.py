@@ -208,6 +208,14 @@ def _org_code_p12(org_slug: str) -> str:
     return path
 
 
+def _log_p12() -> str:
+    path = os.path.join(CA_DIR, "certs", "_log", "signing.p12")
+    if not os.path.isfile(path):
+        raise HTTPException(503, "transparency log signing key not provisioned "
+                                 "(run: setup-ca.sh cert _log \"Lets Seal Transparency Log\" data)")
+    return path
+
+
 def _validation_context() -> ValidationContext:
     root = load_cert_from_pemder(os.path.join(CA_DIR, "root-ca.crt"))
     inter = load_cert_from_pemder(os.path.join(CA_DIR, "intermediate.crt"))
@@ -457,6 +465,46 @@ async def verify_blob_ep(request: Request, file: UploadFile = File(...),
         return JSONResponse({"sealed": True, "blob": True, "valid": False,
                              "trusted": False, "sha256": sha, "reason": "verification error"},
                             status_code=200)
+
+
+class SignSthRequest(BaseModel):
+    tree_size: int = Field(..., ge=0, description="Number of leaves the head covers.")
+    root_hash: str = Field(..., description="Lowercase hex SHA-256 Merkle root.")
+    ts: int = Field(..., ge=0, description="Timestamp (ms) the head is signed at.")
+
+
+@app.post("/log/sth/sign", operation_id="signSth", tags=["log"],
+          summary="Sign a transparency-log Signed Tree Head",
+          dependencies=[Depends(require_auth)])
+async def sign_sth_ep(payload: SignSthRequest):
+    """Sign a Signed Tree Head with the system log key. Internal — the web app
+    owns the log and computes the root; this authenticates it."""
+    from translog import sign_sth
+    p12 = _log_p12()
+    try:
+        res = await run_in_threadpool(sign_sth, payload.tree_size, str(payload.root_hash),
+                                      int(payload.ts), p12, P12_PASS)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("STH signing failed")
+        raise HTTPException(500, "STH signing failed")
+    return JSONResponse(res)
+
+
+@app.get("/log/cert", operation_id="logCert", tags=["log"],
+         summary="The transparency-log public cert + chain",
+         dependencies=[Depends(require_auth)])
+async def log_cert_ep():
+    """The log signing cert + chain (public, no key). Published so STH signatures
+    are self-verifiable."""
+    from translog import log_cert
+    p12 = _log_p12()
+    try:
+        return JSONResponse(await run_in_threadpool(log_cert, p12, P12_PASS))
+    except Exception:
+        logger.exception("log cert fetch failed")
+        raise HTTPException(500, "log cert fetch failed")
 
 
 @app.post("/seal/c2pa", operation_id="sealC2pa", tags=["sealing"],

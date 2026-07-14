@@ -7,6 +7,7 @@ import { readFile, fileExists } from "@/lib/storage";
 import { verifyPdf, verifyC2pa, verifyXml, verifySmime, upgradeAnchor } from "@/lib/signing";
 import { getBlockInfo } from "@/lib/bitcoin";
 import { getSigningTrail } from "@/lib/signing-audit";
+import { getInclusionProof } from "@/lib/translog";
 import { TopBar } from "@/components/TopBar";
 import { ProofCertificate, type ProofData } from "@/components/ProofCertificate";
 import { Button } from "@/components/ui/button";
@@ -140,6 +141,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     xmlUrl: isXmlSeal ? `/api/seal/${sha256}/xml` : null,
     emlUrl: isSmimeSeal ? `/api/seal/${sha256}/eml` : null,
     artifactUrl: isBlobSeal ? `/api/seal/${sha256}/artifact` : null,
+    log: await getInclusionProof({ sha256 }).then((p) => (p ? { index: p.index, treeSize: p.treeSize } : null)).catch(() => null),
     trail: viewerIsIssuer ? trail : null,
     credential: cred ? {
       recipientName: cred.recipientName,

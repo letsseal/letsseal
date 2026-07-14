@@ -107,6 +107,30 @@ export async function verifyBlob(file: Buffer, sig: string, certPem: string): Pr
   return res.json();
 }
 
+export type SthSignResult = {
+  signature: string; cert_pem: string; chain_pem: string; cert_cn: string; ts: number;
+};
+
+// Sign a transparency-log Signed Tree Head with the system log key. The web app
+// owns the log and computes the Merkle root; the signing service authenticates it.
+export async function signSth(treeSize: number, rootHash: string, ts: number): Promise<SthSignResult> {
+  const res = await fetch(`${SERVICE}/log/sth/sign`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ tree_size: treeSize, root_hash: rootHash, ts }),
+  });
+  if (!res.ok) throw new Error(`STH sign failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export type LogCertResult = { cert_pem: string; chain_pem: string; cert_cn: string };
+
+// The transparency-log public cert + chain (static; the caller caches it).
+export async function getLogCert(): Promise<LogCertResult> {
+  const res = await fetch(`${SERVICE}/log/cert`, { headers: svcHeaders() });
+  if (!res.ok) throw new Error(`log cert fetch failed: ${res.status}`);
+  return res.json();
+}
+
 export type C2paSealResult = { image: Buffer; sha256: string; certCN: string; format: string };
 
 // Embed a signed C2PA (Content Credentials) manifest into an image. The image is

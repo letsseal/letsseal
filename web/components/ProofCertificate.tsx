@@ -23,6 +23,7 @@ export type ProofData = {
   xmlUrl?: string | null;
   emlUrl?: string | null;
   artifactUrl?: string | null;
+  log?: { index: number; treeSize: number } | null;
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -390,6 +391,21 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             cryptocurrency and you never touch a coin or a wallet — we use the public ledger the way a notary uses a
             public register, to stamp a record no one can alter.
           </p>
+        )}
+        {data.log && (
+          <div className="mt-4 rounded-lg border border-dashed p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transparency log</p>
+            <p className="mt-1 text-sm">
+              Recorded as entry <b className="font-mono">#{data.log.index}</b> in Let&apos;s Seal&apos;s public,
+              append-only log <span className="text-muted-foreground">(of {data.log.treeSize} total)</span>.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The log can only ever be appended to — never edited or deleted, and anyone can prove it. Fetch this
+              entry&apos;s <a href={`/api/log/proof?sha256=${data.sha256}`} className="underline">inclusion proof</a>{" "}
+              and check it against the signed <a href="/api/log/sth" className="underline">tree head</a>; the head&apos;s
+              root is itself anchored to Bitcoin.
+            </p>
+          </div>
         )}
       </div>
     </div>

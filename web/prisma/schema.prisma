@@ -271,6 +271,40 @@ model Anchor {
   createdAt   DateTime @default(now())
 }
 
+// The public, append-only Merkle transparency log (RFC 6962 — the same standard
+// Certificate Transparency and sigstore's Rekor use). Every hosted seal, of ANY
+// form (PAdES, C2PA, XML-DSig, S/MIME, detached, blob), appends exactly one leaf,
+// so anyone can prove a seal is IN the log (inclusion proof) and that the log
+// never rewrote history (consistency proof). Leaves are ordered by `idx`; the
+// tree position of a row is its ordinal in that ordering (gaps in idx, if a txn
+// rolls back, are harmless). leafHash = SHA256(0x00 || canonical-json payload).
+model LogEntry {
+  idx        Int      @id @default(autoincrement()) // monotonic; tree order
+  leafHash   String   @unique                        // hex SHA256(0x00 || payload)
+  payload    String                                  // canonical JSON: {v,sha256,sealType,certCN,ts}
+  sha256     String                                  // the sealed artifact digest (lookup)
+  sealType   String
+  createdAt  DateTime @default(now())
+
+  @@index([sha256])
+}
+
+// A Signed Tree Head: authenticates the Merkle root at a given tree size with the
+// log key, and (once anchored) commits that root to Bitcoin via OpenTimestamps —
+// so the log's own integrity is independently, publicly verifiable.
+model TreeHead {
+  id          String   @id @default(cuid())
+  treeSize    Int                          // number of leaves covered
+  rootHash    String                       // hex Merkle root
+  signature   String                       // base64 STH signature by the log key
+  otsProof    String?                      // base64 OTS proof anchoring the root
+  anchorState String   @default("none")    // none | pending | confirmed
+  btcBlock    Int?
+  createdAt   DateTime @default(now())
+
+  @@index([treeSize])
+}
+
 // The final sealed PDF — the source of truth for the verification portal.
 model SealedDocument {
   id         String   @id @default(cuid())

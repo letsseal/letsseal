@@ -4,6 +4,14 @@ import { saveFile } from "@/lib/storage";
 import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
+import { appendToLog } from "@/lib/translog";
+
+async function logSeal(sha256: string, sealType: string, certCN: string): Promise<void> {
+  try {
+    await appendToLog({ sha256, sealType, certCN });
+  } catch {
+  }
+}
 
 export const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 export const proofUrl = (ref: string) => `${appUrl()}/d/${ref}`;
@@ -95,6 +103,7 @@ export async function hostedSeal(
     select: { id: true, proofCode: true },
   });
 
+  await logSeal(sealed.sha256, "pades", sealed.certCN);
   return {
     pdf: sealed.pdf, sha256: sealed.sha256, certCN: sealed.certCN,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
@@ -155,6 +164,7 @@ export async function hostedSealDetached(
     select: { id: true, proofCode: true },
   });
 
+  await logSeal(sha, "detached", cert_cn || org.name);
   return {
     sha256: sha, sig: sig_b64, certCN: cert_cn || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
@@ -223,6 +233,7 @@ export async function hostedSealBlob(
     select: { id: true, proofCode: true },
   });
 
+  await logSeal(sha, "blob", r.cert_cn || org.name);
   return {
     sha256: sha, sig: r.sig_b64, certPem: r.cert_pem, chainPem: r.chain_pem,
     certCN: r.cert_cn || org.name, identity: r.identity,
@@ -300,6 +311,7 @@ export async function hostedSealC2pa(
     select: { id: true, proofCode: true },
   });
 
+  await logSeal(sealed.sha256, "c2pa", sealed.certCN || org.name);
   return {
     image: sealed.image, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
     format: sealed.format, anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
@@ -361,6 +373,7 @@ export async function hostedSealXml(
     select: { id: true, proofCode: true },
   });
 
+  await logSeal(sealed.sha256, "xmldsig", sealed.certCN || org.name);
   return {
     xml: sealed.xml, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
@@ -423,6 +436,7 @@ export async function hostedSealSmime(
     select: { id: true, proofCode: true },
   });
 
+  await logSeal(sealed.sha256, "smime", sealed.certCN || org.name);
   return {
     eml: sealed.eml, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
