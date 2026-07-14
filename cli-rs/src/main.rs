@@ -11,8 +11,8 @@
 //   sealbot watch  <dir>                notarise a folder continuously
 // Advanced (keyed signing — the signing service + a token):
 //   sealbot seal   <file> --org <slug>   seal any file with your CA
-//     (PDF → embedded PAdES; image → embedded C2PA Content Credentials;
-//      anything else → detached CAdES <file>.sig sidecar)
+//     (PDF → embedded PAdES; image/video/audio → embedded C2PA; XML → embedded
+//      XML-DSig; anything else → detached CAdES <file>.sig sidecar)
 //   sealbot issue  --id <id> --cn "<subject>"  get a signing cert
 
 use base64::Engine;
@@ -214,6 +214,13 @@ fn is_media(b: &[u8]) -> bool {
             || &b[4..8] == b"ftyp")                                             // mp4/mov/m4a/avif/heic
 }
 
+// XML if the first non-whitespace byte (after an optional UTF-8 BOM) is '<'.
+fn is_xml(b: &[u8]) -> bool {
+    let mut i = if b.len() >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF { 3 } else { 0 };
+    while i < b.len() && matches!(b[i], b' ' | b'\t' | b'\n' | b'\r') { i += 1; }
+    i < b.len() && b[i] == b'<'
+}
+
 // Split a path into (stem, ext) on the last dot of the basename, e.g.
 // "a/b/photo.JPG" -> ("a/b/photo", "jpg"). ext is lowercased; "" if none.
 fn stem_ext(file: &str) -> (String, String) {
@@ -263,6 +270,27 @@ fn verify(file: &str) {
             println!("{} {file}", if valid && trusted { "verified " } else { "TAMPERED " });
             println!("  signer  {}", s(&r, "signer").split(',').next().unwrap_or(""));
             println!("  valid   {valid}   trusted {trusted}   (C2PA / Content Credentials)");
+            println!("  sha256  {}", s(&r, "sha256"));
+        }
+        show_sibling_anchor(file);
+        if !sealed || !(valid && trusted) { exit(2); }
+        return;
+    }
+
+    // XML (no .sig) carries an enveloped XML-DSig signature — verify that.
+    if is_xml(&bytes) && !has_sig {
+        let resp = post_multipart(&format!("{}/verify/xml", api()), &[], &basename(file), &bytes, true)
+            .unwrap_or_else(|e| die(&format!("verify failed: {e}")));
+        let r: serde_json::Value = resp.into_json().unwrap_or_else(|_| die("bad response"));
+        let sealed = r.get("sealed").and_then(|x| x.as_bool()).unwrap_or(false);
+        let valid = r.get("valid").and_then(|x| x.as_bool()).unwrap_or(false);
+        let trusted = r.get("trusted").and_then(|x| x.as_bool()).unwrap_or(false);
+        if !sealed {
+            println!("unsealed  {file}  (no XML signature found)");
+        } else {
+            println!("{} {file}", if valid && trusted { "verified " } else { "TAMPERED " });
+            println!("  signer  {}", s(&r, "signer").split(',').next().unwrap_or(""));
+            println!("  valid   {valid}   trusted {trusted}   (XML-DSig)");
             println!("  sha256  {}", s(&r, "sha256"));
         }
         show_sibling_anchor(file);
@@ -369,6 +397,16 @@ fn process_one(path: &Path, mode: &str, org: &str) -> Result<(String, String, St
                 resp.into_reader().read_to_end(&mut out_bytes).ok();
                 let (stem, ext) = stem_ext(&full);
                 let out = if ext.is_empty() { format!("{stem}.sealed") } else { format!("{stem}.sealed.{ext}") };
+                std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
+                Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
+            } else if is_xml(&bytes) {
+                let resp = post_multipart(&format!("{}/seal/xml", api()),
+                    &[("org_slug", org)], &basename(&full), &bytes, true)?;
+                let sha = resp.header("x-letsseal-sha256").unwrap_or("").to_string();
+                let mut out_bytes = Vec::new();
+                resp.into_reader().read_to_end(&mut out_bytes).ok();
+                let (stem, _) = stem_ext(&full);
+                let out = format!("{stem}.sealed.xml");
                 std::fs::write(&out, out_bytes).map_err(|e| e.to_string())?;
                 Ok((if sha.is_empty() { digest } else { sha }, "sealed".into(), out))
             } else {
@@ -505,6 +543,26 @@ fn seal(file: &str) {
         return;
     }
 
+    // XML gets an embedded, enveloped XML-DSig signature — format-native, like the
+    // PDF/image paths. The document is rewritten; a `<stem>.sealed.xml` is written.
+    if is_xml(&bytes) {
+        let resp = post_multipart(&format!("{}/seal/xml", api()),
+            &[("org_slug", org.as_str())], &basename(file), &bytes, true)
+            .unwrap_or_else(|e| die(&format!("seal failed: {e}")));
+        let cn = resp.header("x-letsseal-cert-cn").unwrap_or("").to_string();
+        let sha = resp.header("x-letsseal-sha256").unwrap_or("").to_string();
+        let mut out_bytes = Vec::new();
+        resp.into_reader().read_to_end(&mut out_bytes).ok();
+        let (stem, _) = stem_ext(file);
+        let out = format!("{stem}.sealed.xml");
+        std::fs::write(&out, out_bytes).unwrap_or_else(|_| die("cannot write signed xml"));
+        println!("sealed   {out}  (XML-DSig)");
+        println!("  by     {cn}");
+        println!("  sha256 {sha}");
+        println!("  verify sealbot verify {out}   (or any XML Signature tool)");
+        return;
+    }
+
     // Any other non-PDF gets a detached CAdES seal beside it (<file>.sig): the file
     // has no slot for an embedded signature, so the seal is a self-contained sidecar.
     // Digest-only — only the SHA-256 leaves this machine, never the file.
@@ -567,13 +625,13 @@ sealbot — timestamp any file on Bitcoin and prove it existed, unaltered.
 
   sealbot anchor <file> [--publish]      hash locally -> writes <file>.ots
                                           (--publish also registers a public proof page)
-  sealbot verify <file>                  check a sealed file (PDF, C2PA image, or <file>+.sig), or an .ots
+  sealbot verify <file>                  check a sealed file (PDF, C2PA media, XML, or <file>+.sig), or an .ots
   sealbot watch  <dir> [--mode anchor|publish|seal] [--interval <sec>] [--once]
                                           notarise a folder continuously, idempotently
 
 Advanced — keyed signing (needs the signing service + a bearer token):
   sealbot seal   <file> --org <slug>         seal any file with your CA
-                                             (PDF -> PAdES; image -> C2PA; else -> detached .sig)
+                                             (PDF->PAdES; media->C2PA; XML->XML-DSig; else->.sig)
   sealbot issue  --id <id> --cn \"<subject>\" [--profile document|code|data]
 
   --api <url>   | SEALBOT_API    signing service (default http://127.0.0.1:8081)

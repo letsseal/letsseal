@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, upgradeAnchor, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, upgradeAnchor, type VerifyResult } from "@/lib/signing";
 import { overContentLength, tooLarge } from "@/lib/limits";
+
+const isXml = (b: Buffer) => {
+  let i = b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf ? 3 : 0;
+  while (i < b.length && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0a || b[i] === 0x0d)) i++;
+  return b[i] === 0x3c; 
+};
 
 const isPdf = (b: Buffer) => b.length >= 5 && b.subarray(0, 5).toString("latin1") === "%PDF-";
 const isC2paMedia = (b: Buffer) => {
@@ -54,6 +60,12 @@ export async function POST(req: NextRequest) {
     }
   } else if (rec?.sealType === "c2pa" || isC2paMedia(bytes)) {
     const d = await verifyC2pa(bytes, { contentType: file.type });
+    crypto = {
+      sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
+      authentic: d.valid && d.trusted, signer: d.signer,
+    };
+  } else if (rec?.sealType === "xmldsig" || isXml(bytes)) {
+    const d = await verifyXml(bytes, { filename: file.name });
     crypto = {
       sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
       authentic: d.valid && d.trusted, signer: d.signer,

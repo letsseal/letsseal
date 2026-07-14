@@ -119,6 +119,36 @@ export async function verifyC2pa(image: Buffer, opts: { filename?: string; conte
   return res.json();
 }
 
+export type XmlSealResult = { xml: Buffer; sha256: string; certCN: string };
+
+// Embed an enveloped W3C XML-DSig signature into an XML document. The document is
+// rewritten (the <Signature> lives inside it). Returns the signed XML + its digest.
+export async function sealXml(orgSlug: string, xml: Buffer, opts: { filename?: string } = {}): Promise<XmlSealResult> {
+  const form = new FormData();
+  form.append("org_slug", orgSlug);
+  form.append("file", new Blob([new Uint8Array(xml)], { type: "application/xml" }), opts.filename || "document.xml");
+  const res = await fetch(`${SERVICE}/seal/xml`, { method: "POST", headers: svcHeaders(), body: form });
+  if (!res.ok) throw new Error(`xml seal failed: ${res.status} ${await res.text()}`);
+  return {
+    xml: Buffer.from(await res.arrayBuffer()),
+    sha256: res.headers.get("x-letsseal-sha256") ?? "",
+    certCN: res.headers.get("x-letsseal-cert-cn") ?? "",
+  };
+}
+
+export type XmlVerifyResult = {
+  sealed: boolean; xmldsig: boolean; valid: boolean; trusted: boolean;
+  signer?: string; sha256: string; reason?: string;
+};
+
+// Verify an XML document's enveloped signature against our root.
+export async function verifyXml(xml: Buffer, opts: { filename?: string } = {}): Promise<XmlVerifyResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(xml)], { type: "application/xml" }), opts.filename || "document.xml");
+  const res = await fetch(`${SERVICE}/verify/xml`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
 export type VerifyResult = {
   sealed: boolean;
   sha256: string;

@@ -20,6 +20,7 @@ export type ProofData = {
   otsUrl?: string | null;
   sigUrl?: string | null;
   imageUrl?: string | null;
+  xmlUrl?: string | null;
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -329,6 +330,18 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             <p className="mt-2 text-xs text-muted-foreground">
               The file carries embedded <b>Content Credentials</b> (C2PA). Open it in any C2PA-aware tool
               (Adobe, the Content Credentials verifier) to see the issuer and confirm it&apos;s unaltered.
+            </p>
+          </div>
+        )}
+        {data.xmlUrl && (
+          <div className="mt-3">
+            <a href={data.xmlUrl}
+               className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+              <Download className="h-3.5 w-3.5" /> Download signed XML
+            </a>
+            <p className="mt-2 text-xs text-muted-foreground">
+              The XML carries an embedded <b>XML-DSig</b> signature. Verify it with any XML Signature tool,
+              e.g. <code className="rounded bg-background px-1 py-0.5 font-mono">xmlsec1 --verify --trusted-pem letsseal-root.crt signed.xml</code>
             </p>
           </div>
         )}

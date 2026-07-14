@@ -460,6 +460,54 @@ async def verify_c2pa_ep(request: Request, file: UploadFile = File(...)):
                              "sha256": sha, "reason": "verification error"})
 
 
+@app.post("/seal/xml", operation_id="sealXml", tags=["sealing"],
+          summary="Seal an XML document with an enveloped XML-DSig signature",
+          response_class=Response, dependencies=[Depends(require_auth)],
+          responses={200: {"content": {"application/xml": {"schema": {"type": "string", "format": "binary"}}},
+                           "description": "The signed XML (enveloped signature embedded). "
+                                          "`X-Letsseal-Sha256` and `X-Letsseal-Cert-CN` headers "
+                                          "carry the signed-document digest and signer."}})
+async def seal_xml(request: Request, org_slug: str = Form(...), file: UploadFile = File(...)):
+    """Embed an enveloped W3C XML Signature signed by the org cert into an XML
+    document, chaining to the same root. The document is rewritten (the signature
+    lives inside it); time comes from a separate anchor on the signed bytes."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", org_slug):
+        raise HTTPException(400, "invalid org_slug")
+    data = await _read_capped(file, request)
+    from xmldsig import sign_xml
+    p12 = _org_p12(org_slug)
+    try:
+        signed, cn = await run_in_threadpool(sign_xml, data, p12, P12_PASS)
+    except Exception:
+        logger.exception("xml seal failed for org %s", org_slug)
+        raise HTTPException(400, "could not sign (is this well-formed XML?)")
+    sha = hashlib.sha256(signed).hexdigest()
+    return Response(content=signed, media_type="application/xml", headers={
+        "X-Letsseal-Sha256": sha, "X-Letsseal-Cert-CN": cn,
+    })
+
+
+@app.post("/verify/xml", operation_id="verifyXml", tags=["sealing"],
+          summary="Verify an XML document's enveloped XML-DSig signature",
+          dependencies=[Depends(require_auth)])
+async def verify_xml_ep(request: Request, file: UploadFile = File(...)):
+    """Verify an XML document's enveloped signature against our root."""
+    data = await _read_capped(file, request)
+    sha = hashlib.sha256(data).hexdigest()
+    from xmldsig import verify_xml
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        result = await run_in_threadpool(verify_xml, data, root)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("xml verify failed")
+        return JSONResponse({"sealed": True, "xmldsig": True, "valid": False, "trusted": False,
+                             "sha256": sha, "reason": "verification error"})
+
+
 @app.post("/verify", operation_id="verify", tags=["sealing"],
           summary="Verify a sealed PDF", response_model=VerifyResponse,
           dependencies=[Depends(require_auth)])

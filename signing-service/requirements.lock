@@ -57,3 +57,5 @@ pytest==9.1.1
 setuptools==83.0.0
 toml==0.10.2
 wheel==0.47.0
+lxml==6.1.1
+signxml==5.1.0

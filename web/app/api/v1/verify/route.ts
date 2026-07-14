@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, type VerifyResult } from "@/lib/signing";
 import { withCors, preflight } from "@/lib/cors";
 import { overContentLength, tooLarge } from "@/lib/limits";
+
+const isXml = (b: Buffer) => {
+  let i = b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf ? 3 : 0;
+  while (i < b.length && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0a || b[i] === 0x0d)) i++;
+  return b[i] === 0x3c;
+};
 
 const isPdf = (b: Buffer) => b.length >= 5 && b.subarray(0, 5).toString("latin1") === "%PDF-";
 const isC2paMedia = (b: Buffer) => {
@@ -46,6 +52,9 @@ export async function POST(req: NextRequest) {
       v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
     } else if (isC2paMedia(bytes)) {
       const d = await verifyC2pa(bytes, { contentType: file.type });
+      v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
+    } else if (isXml(bytes)) {
+      const d = await verifyXml(bytes, { filename: file.name });
       v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
     } else if (isPdf(bytes)) {
       v = await verifyPdf(bytes);

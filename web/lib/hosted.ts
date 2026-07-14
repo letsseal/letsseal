@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, sealDetached, sealC2pa, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, sealC2pa, sealXml, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 
@@ -234,5 +234,66 @@ export async function hostedSealC2pa(
   return {
     image: sealed.image, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
     format: sealed.format, anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedXmlSeal = {
+  xml: Buffer;
+  sha256: string;
+  certCN: string;
+  anchorState: string; // none | pending | confirmed
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// Seal an XML document for a business: embed an enveloped XML-DSig signature,
+// anchor the signed document's hash to Bitcoin, and persist it as a permanent
+// verifiable proof. The seal lives inside the XML, so we store and serve the
+// signed bytes (like the PDF/image path). `xml` is the original; we return the signed one.
+export async function hostedSealXml(
+  org: { id: string; slug: string; name: string },
+  xml: Buffer,
+  opts: { filename?: string; title?: string | null; anchor?: boolean } = {},
+): Promise<HostedXmlSeal> {
+  const sealed = await sealXml(org.slug, xml, { filename: opts.filename });
+
+  const xmlPath = `hosted/${sealed.sha256}/sealed.xml`;
+  await saveFile(xmlPath, sealed.xml);
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sealed.sha256);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none";
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sealed.sha256 },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "xmldsig",
+      title: opts.title ?? null,
+      pdfPath: xmlPath, // the stored signed XML (generic "sealed file path")
+      sha256: sealed.sha256,
+      proofCode: await mintProofCode(),
+      certCN: sealed.certCN || org.name,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  return {
+    xml: sealed.xml, sha256: sealed.sha256, certCN: sealed.certCN || org.name,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };
 }
