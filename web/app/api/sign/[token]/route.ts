@@ -10,6 +10,7 @@ import { recordSend } from "@/lib/send-guard";
 import { advanceSequence } from "@/lib/envelope-routing";
 import { clientIp } from "@/lib/ip";
 import { ctEqual } from "@/lib/ct";
+import { isSuspended } from "@/lib/org-guard";
 
 const suppliedCode = (req: NextRequest) =>
   req.nextUrl.searchParams.get("code") ?? req.headers.get("x-access-code");
@@ -105,6 +106,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (remaining > 0) {
     await advanceSequence(signer.envelope.id);
     return NextResponse.json({ ok: true, completed: false });
+  }
+
+  if (isSuspended(signer.envelope.org)) {
+    return NextResponse.json(
+      { error: "This organisation is suspended; the document cannot be finalised." },
+      { status: 403 },
+    );
   }
 
   const sealed = await completeAndSeal(signer.envelope.id, signer.envelope.org.slug, ip, ua);

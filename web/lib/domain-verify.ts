@@ -22,11 +22,20 @@ export type StartResult =
   | { ok: true; method: "email"; domain: string; sentTo: string; expiresAt: string }
   | { ok: false; error: string };
 
+const HOSTNAME_RE = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,63}|xn--[a-z0-9-]{2,59})$/;
+
 export function normalizeDomain(input: string): string | null {
   let d = String(input || "").trim().toLowerCase();
   d = d.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "").replace(/\.$/, "");
-  if (!/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(d)) return null;
-  return d;
+  if (!d) return null;
+  let ascii: string;
+  try {
+    ascii = new URL(`http://${d}`).hostname;
+  } catch {
+    return null;
+  }
+  if (!HOSTNAME_RE.test(ascii)) return null;
+  return ascii;
 }
 
 export function isFreeEmailDomain(domain: string): boolean {
