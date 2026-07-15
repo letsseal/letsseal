@@ -21,6 +21,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
+mod oci;
+
 fn die(msg: &str) -> ! {
     eprintln!("error: {msg}");
     exit(1);
@@ -738,6 +740,142 @@ fn sign_blob(file: &str) {
     show_sibling_anchor(file);
 }
 
+// Sign an OCI image so `cosign verify <image>` accepts it: resolve the image's
+// manifest digest in the registry, have the signing service sign the cosign
+// payload with the org's code cert, then push the `.sig` artifact next to the
+// image. The image bytes never move; only the small signature is added.
+fn sign_image(image: &str) {
+    let org = flag("org").unwrap_or_else(|| die("usage: sealbot sign-image <registry/repo:tag> --org <slug>"));
+    let r = oci::ImageRef::parse(image).unwrap_or_else(|e| die(&e));
+    let mut client = oci::Client::new();
+
+    let img_digest = client
+        .resolve_digest(&r)
+        .unwrap_or_else(|e| die(&format!("could not resolve {image}: {e}")));
+
+    // The cosign "simple signing" payload over the manifest digest. Signing its
+    // SHA-256 via /seal/blob is byte-identical to cosign's ECDSA-over-payload, so
+    // the existing blob endpoint produces a cosign-valid image signature.
+    let payload = oci::simple_signing_payload(&r.registry, &r.repo, &img_digest);
+    let payload_sha = sha256_hex(&payload);
+    let resp = post_json(
+        &format!("{}/seal/blob", api()),
+        serde_json::json!({ "sha256": payload_sha, "org_slug": org }),
+        true,
+    )
+    .unwrap_or_else(|e| die(&format!("signing service error: {e}")));
+    let sig_b64 = s(&resp, "sig_b64");
+    let cert = s(&resp, "cert_pem");
+    let chain = s(&resp, "chain_pem");
+    let identity = s(&resp, "identity");
+    let cn = s(&resp, "cert_cn");
+    if sig_b64.is_empty() || cert.is_empty() {
+        die("bad response from signing service");
+    }
+
+    // Push the signature artifacts to the registry.
+    let payload_d = client.push_blob(&r, &payload).unwrap_or_else(|e| die(&format!("push payload: {e}")));
+    let config = b"{}";
+    let config_d = client.push_blob(&r, config).unwrap_or_else(|e| die(&format!("push config: {e}")));
+    let (manifest, tag) = oci::signature_manifest(
+        &payload_d, payload.len(), &config_d, config.len(), &sig_b64, &cert, &chain, &img_digest,
+    );
+    client
+        .push_manifest(&r, &tag, &manifest, oci::OCI_MANIFEST)
+        .unwrap_or_else(|e| die(&format!("push signature manifest: {e}")));
+
+    println!("signed   {}/{}", r.registry, r.repo);
+    println!("  digest {img_digest}");
+    println!("  by     {cn}   [{identity}]");
+    println!("  sig    pushed as {}/{}:{tag}", r.registry, r.repo);
+    println!("  verify cosign verify --certificate-identity {identity} \\");
+    println!("           --certificate-oidc-issuer-regexp '.*' --insecure-ignore-tlog \\");
+    println!("           {}/{}@{img_digest}", r.registry, r.repo);
+    println!("         (or with our published key: cosign verify --key <letsseal.pub> --insecure-ignore-tlog <image>)");
+}
+
+// Sign an SBOM / provenance attestation about a file: a DSSE/in-toto envelope
+// the service signs with the org's code cert. Digest-only — the artifact never
+// leaves. Verifies with cosign verify-blob-attestation --key.
+fn attest_file(file: &str) {
+    let org = flag("org").unwrap_or_else(|| die("usage: sealbot attest <file> --org <slug> --predicate <sbom.json> [--type spdxjson]"));
+    let pred_path = flag("predicate").unwrap_or_else(|| die("--predicate <file> required (the SBOM / provenance JSON)"));
+    let ptype = flag("type").unwrap_or_else(|| "custom".into());
+    let bytes = read(file);
+    let digest = sha256_hex(&bytes);
+    let pred_raw = read(&pred_path);
+    let predicate: serde_json::Value = serde_json::from_slice(&pred_raw)
+        .unwrap_or_else(|_| die("--predicate must be a JSON file"));
+    let r = post_json(&format!("{}/attest", api()),
+        serde_json::json!({ "sha256": digest, "org_slug": org, "predicate": predicate,
+                            "predicate_type": ptype, "subject_name": basename(file) }), true)
+        .unwrap_or_else(|e| die(&format!("attest failed: {e}")));
+    let bundle = r.get("bundle").cloned().unwrap_or(serde_json::Value::Null);
+    let pubkey = s(&r, "pubkey_pem");
+    let cn = s(&r, "cert_cn");
+    let ptype_uri = s(&r, "predicate_type");
+    if bundle.is_null() || pubkey.is_empty() { die("bad response from signing service"); }
+
+    let bundle_out = format!("{file}.att.bundle");
+    let pub_out = format!("{file}.pub");
+    std::fs::write(&bundle_out, serde_json::to_string(&bundle).unwrap()).unwrap_or_else(|_| die("cannot write .att.bundle"));
+    std::fs::write(&pub_out, &pubkey).unwrap_or_else(|_| die("cannot write .pub"));
+    println!("attested {file}  ({ptype_uri})");
+    println!("  by      {cn}");
+    println!("  sha256  {digest}  (file itself was NOT uploaded)");
+    println!("  bundle  {bundle_out}   key {pub_out}");
+    println!("  verify  cosign verify-blob-attestation --bundle {bundle_out} --key {pub_out} \\");
+    println!("            --type {ptype} --insecure-ignore-tlog --check-claims=true {file}");
+}
+
+// Attach a signed SBOM / provenance attestation TO an OCI image so
+// `cosign verify-attestation <image>` accepts it: resolve the image digest, have
+// the service sign a DSSE attestation about it, then push the `.att` artifact.
+fn attest_image(image: &str) {
+    let org = flag("org").unwrap_or_else(|| die("usage: sealbot attest-image <registry/repo:tag> --org <slug> --predicate <sbom.json> [--type spdxjson]"));
+    let pred_path = flag("predicate").unwrap_or_else(|| die("--predicate <file> required (the SBOM / provenance JSON)"));
+    let ptype = flag("type").unwrap_or_else(|| "custom".into());
+    let predicate: serde_json::Value = serde_json::from_slice(&read(&pred_path))
+        .unwrap_or_else(|_| die("--predicate must be a JSON file"));
+
+    let r = oci::ImageRef::parse(image).unwrap_or_else(|e| die(&e));
+    let mut client = oci::Client::new();
+    let img_digest = client.resolve_digest(&r).unwrap_or_else(|e| die(&format!("could not resolve {image}: {e}")));
+    let img_hex = img_digest.trim_start_matches("sha256:");
+
+    // Sign a DSSE attestation whose subject is the image's manifest digest.
+    let resp = post_json(&format!("{}/attest", api()),
+        serde_json::json!({ "sha256": img_hex, "org_slug": org, "predicate": predicate,
+                            "predicate_type": ptype, "subject_name": format!("{}/{}", r.registry, r.repo) }), true)
+        .unwrap_or_else(|e| die(&format!("signing service error: {e}")));
+    let dsse = resp.get("dsse").cloned().unwrap_or(serde_json::Value::Null);
+    let cert = s(&resp, "cert_pem");
+    let chain = s(&resp, "chain_pem");
+    let identity = s(&resp, "identity");
+    let cn = s(&resp, "cert_cn");
+    let ptype_uri = s(&resp, "predicate_type");
+    let sig_b64 = dsse.pointer("/signatures/0/sig").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    if dsse.is_null() || sig_b64.is_empty() || cert.is_empty() { die("bad response from signing service"); }
+
+    let dsse_bytes = serde_json::to_vec(&dsse).unwrap();
+    let dsse_d = client.push_blob(&r, &dsse_bytes).unwrap_or_else(|e| die(&format!("push dsse: {e}")));
+    let config = b"{}";
+    let config_d = client.push_blob(&r, config).unwrap_or_else(|e| die(&format!("push config: {e}")));
+    let (manifest, tag) = oci::attestation_manifest(
+        &dsse_d, dsse_bytes.len(), &config_d, config.len(), &sig_b64, &cert, &chain, &ptype_uri, &img_digest);
+    client.push_manifest(&r, &tag, &manifest, oci::OCI_MANIFEST)
+        .unwrap_or_else(|e| die(&format!("push attestation manifest: {e}")));
+
+    println!("attested {}/{}  ({ptype_uri})", r.registry, r.repo);
+    println!("  digest {img_digest}");
+    println!("  by     {cn}   [{identity}]");
+    println!("  att    pushed as {}/{}:{tag}", r.registry, r.repo);
+    println!("  verify cosign verify-attestation --type {ptype} --insecure-ignore-tlog \\");
+    println!("           --certificate-identity {identity} --certificate-oidc-issuer-regexp '.*' \\");
+    println!("           {}/{}@{img_digest}", r.registry, r.repo);
+    println!("         (or with our published key: cosign verify-attestation --key <letsseal.pub> --type {ptype} --insecure-ignore-tlog <image>)");
+}
+
 fn issue() {
     let usage = "usage: sealbot issue --id <id> --cn \"<subject>\" [--profile document|code|data]";
     let id = flag("id").unwrap_or_else(|| die(usage));
@@ -775,7 +913,15 @@ Advanced — keyed signing (needs the signing service + a bearer token):
   sealbot seal   <file> --org <slug>         seal any file with your CA
                                              (PDF->PAdES; media->C2PA; XML->XML-DSig; .eml->S/MIME; else->.sig)
   sealbot sign-blob <file> --org <slug>      cosign-compatible artifact seal -> <file>.sig + <file>.pem
-                                             (for build artifacts, containers, SBOMs; needs a code cert)
+                                             (for build artifacts, SBOMs; needs a code cert)
+  sealbot sign-image <registry/repo:tag> --org <slug>
+                                             sign an OCI image in its registry so `cosign verify <image>` works
+                                             (pushes a .sig next to the image; SEALBOT_REGISTRY_USER/_PASS for private registries)
+  sealbot attest <file> --org <slug> --predicate <sbom.json> [--type spdxjson]
+                                             sign an SBOM / provenance attestation -> <file>.att.bundle
+                                             (verifies with cosign verify-blob-attestation)
+  sealbot attest-image <registry/repo:tag> --org <slug> --predicate <sbom.json> [--type spdxjson]
+                                             attach an attestation to an image so `cosign verify-attestation <image>` works
   sealbot issue  --id <id> --cn \"<subject>\" [--profile document|code|data]
 
   --api <url>   | SEALBOT_API    signing service (default http://127.0.0.1:8081)
@@ -787,7 +933,7 @@ Every .ots verifies against Bitcoin with stock `ots verify <file>` — no relian
 Let's Seal. Composes OpenTimestamps + an X.509 CA; trust is self-anchored.";
 
 fn main() {
-    let value_flags = ["--api", "--app", "--token", "--org", "--reason", "--id", "--cn", "--profile", "--mode", "--interval", "--state", "--manifest"];
+    let value_flags = ["--api", "--app", "--token", "--org", "--reason", "--id", "--cn", "--profile", "--mode", "--interval", "--state", "--manifest", "--predicate", "--type"];
     let raw: Vec<String> = std::env::args().skip(1).collect();
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0;
@@ -809,6 +955,9 @@ fn main() {
         "watch" => { if arg.is_empty() { die("usage: sealbot watch <dir> [--mode anchor|publish|seal] [--once]"); } watch(arg); }
         "seal" => { if arg.is_empty() { die("usage: sealbot seal <file> --org <slug>"); } seal(arg); }
         "sign-blob" => { if arg.is_empty() { die("usage: sealbot sign-blob <file> --org <slug>"); } sign_blob(arg); }
+        "sign-image" => { if arg.is_empty() { die("usage: sealbot sign-image <registry/repo:tag> --org <slug>"); } sign_image(arg); }
+        "attest" => { if arg.is_empty() { die("usage: sealbot attest <file> --org <slug> --predicate <sbom.json> [--type spdxjson]"); } attest_file(arg); }
+        "attest-image" => { if arg.is_empty() { die("usage: sealbot attest-image <registry/repo:tag> --org <slug> --predicate <sbom.json> [--type spdxjson]"); } attest_image(arg); }
         "issue" => issue(),
         // Deprecated aliases — still run, with a one-line notice.
         "notarize" => { if arg.is_empty() { die("usage: sealbot anchor <file> --publish"); } notarize(arg); }

@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, sealIdentity, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, sealIdentity, signAttestation, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 import { appendToLog } from "@/lib/translog";
@@ -314,6 +314,84 @@ export async function hostedSealIdentity(
   return {
     sha256: sha, sig: r.sig_b64, certPem: r.cert_pem, chainPem: r.chain_pem,
     identity: r.identity, issuer: r.issuer, provider: r.provider,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedAttestation = {
+  sha256: string;
+  bundle: unknown;      // the cosign-verifiable DSSE bundle
+  pubkey: string;       // PEM public key (for cosign --key)
+  certPem: string;
+  predicateType: string;
+  certCN: string;
+  anchorState: string;
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// Attest an artifact (SBOM / provenance) for the hosted API: the signing service
+// signs a DSSE/in-toto statement about the artifact's SHA-256 with the org code
+// cert. Digest-only. We persist the small bundle/cert/pubkey so /d can serve the
+// cosign-verifiable set and re-verify a dropped artifact against the attestation.
+export async function hostedSealAttestation(
+  org: { id: string; slug: string; name: string },
+  sha256: string,
+  predicate: unknown,
+  opts: { predicateType?: string; subjectName?: string; title?: string | null; anchor?: boolean } = {},
+): Promise<HostedAttestation> {
+  const sha = sha256.trim().toLowerCase();
+  const r = await signAttestation(org.slug, sha, predicate, {
+    predicateType: opts.predicateType, subjectName: opts.subjectName ?? opts.title ?? "artifact",
+  });
+
+  const bundleStr = JSON.stringify(r.bundle);
+  await saveFile(`hosted/${sha}/attestation.bundle`, Buffer.from(bundleStr));
+  // Persist leaf + chain (not just the leaf): the public portal verifies an
+  // attestation by-hash through /verify/attest, which needs the full chain to
+  // establish trust to our root. Stock cosign (--key) ignores the chain, so a
+  // leaf-only pem silently passed cosign while failing our own verifier. Mirror
+  // the blob lane, which stores the chain and verifies correctly.
+  await saveFile(`hosted/${sha}/attestation.pem`, Buffer.from(r.cert_pem + r.chain_pem));
+  await saveFile(`hosted/${sha}/attestation.pub`, Buffer.from(r.pubkey_pem));
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sha);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none";
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sha },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "attestation",
+      title: opts.title ?? null,
+      pdfPath: null,
+      detachedSig: null,
+      sha256: sha,
+      proofCode: await mintProofCode(),
+      certCN: r.cert_cn || org.name,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  await logSeal(sha, "attestation", r.cert_cn || org.name);
+  return {
+    sha256: sha, bundle: r.bundle, pubkey: r.pubkey_pem, certPem: r.cert_pem,
+    predicateType: r.predicate_type, certCN: r.cert_cn || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };
 }

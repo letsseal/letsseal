@@ -16,8 +16,24 @@ export const dynamic = "force-dynamic";
 
 const isHash = (s: string) => /^[0-9a-f]{64}$/.test(s);
 
+// Pull the predicate type (SPDX / CycloneDX / SLSA / …) out of a stored
+async function attestationPredicateType(sha256: string): Promise<string> {
+  try {
+    const path = `hosted/${sha256}/attestation.bundle`;
+    if (!(await fileExists(path))) return "";
+    const bundle = JSON.parse((await readFile(path)).toString("utf8"));
+    const payloadB64 = bundle?.dsseEnvelope?.payload;
+    if (!payloadB64) return "";
+    const stmt = JSON.parse(Buffer.from(payloadB64, "base64").toString("utf8"));
+    return typeof stmt?.predicateType === "string" ? stmt.predicateType : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ hash: string }> }): Promise<Metadata> {
   const { hash } = await params;
+  // Proof pages are bearer-token URLs — keep them out of search indexes.
   return { title: `Proof · ${hash.slice(0, 12)}… · Let's Seal`, robots: { index: false, follow: false } };
 }
 
@@ -52,11 +68,12 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   const isSmimeSeal = rec.sealType === "smime";
   const isBlobSeal = rec.sealType === "blob";
   const isIdentitySeal = rec.sealType === "identity";
+  const isAttestation = rec.sealType === "attestation";
 
   let crypto: ProofData["crypto"] = { sealed: true, onRecordOnly: true };
-  const key = detached || isBlobSeal || isIdentitySeal ? null : rec.pdfPath; 
+  const key = detached || isBlobSeal || isIdentitySeal || isAttestation ? null : rec.pdfPath; 
   const docOnFile = key ? await fileExists(key) : false;
-  if (detached || isBlobSeal || isIdentitySeal) {
+  if (detached || isBlobSeal || isIdentitySeal || isAttestation) {
     crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN };
   } else if (isC2pa) {
     if (docOnFile && key) {
@@ -145,6 +162,9 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     identity: isIdentitySeal
       ? { email: rec.certCN, provider: rec.oidcProvider, issuer: rec.oidcIssuer }
       : null,
+    attestation: isAttestation
+      ? { predicateType: await attestationPredicateType(sha256), bundleUrl: `/api/seal/${sha256}/artifact` }
+      : null,
     log: await getInclusionProof({ sha256 }).then((p) => (p ? { index: p.index, treeSize: p.treeSize } : null)).catch(() => null),
     trail: viewerIsIssuer ? trail : null,
     credential: cred ? {
@@ -184,7 +204,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isIdentitySeal ? "Identity proof" : isBlobSeal ? "Artifact proof" : detached ? "File proof" : "Document proof"}
+            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isIdentitySeal ? "Identity proof" : isAttestation ? "Attestation proof" : isBlobSeal ? "Artifact proof" : detached ? "File proof" : "Document proof"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isC2pa
@@ -195,6 +215,8 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
                   ? "A permanent record that this email message carries an S/MIME signature and is timestamped. Download the signed message and verify it with any S/MIME tool (openssl smime -verify)."
                   : isIdentitySeal
                     ? "A permanent record that this artifact was signed under a third-party-verified identity and is timestamped. The signer's email was verified by their identity provider (Google/GitHub/…), not by Let's Seal. Download the cosign signature set or drop the artifact to verify."
+                    : isAttestation
+                    ? "A permanent record of a signed attestation about this artifact — an SBOM or provenance claim bound to its digest and timestamped. Download the cosign bundle and verify it with cosign verify-blob-attestation, or drop the artifact to confirm it's the attestation's subject."
                     : isBlobSeal
                     ? "A permanent record that this artifact is signed and timestamped. Download the cosign signature set and verify it with sealbot, openssl, or stock cosign verify-blob."
                     : detached

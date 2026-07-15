@@ -7,20 +7,27 @@ const PARTS: Record<string, { file: string; type: string; name: string }> = {
   pem: { file: "artifact.pem", type: "application/x-pem-file", name: "pem" },
   chain: { file: "artifact.chain.pem", type: "application/x-pem-file", name: "chain.pem" },
 };
+const ATT_PARTS: Record<string, { file: string; type: string; name: string }> = {
+  bundle: { file: "attestation.bundle", type: "application/json", name: "att.bundle" },
+  pem: { file: "attestation.pem", type: "application/x-pem-file", name: "pem" },
+  pub: { file: "attestation.pub", type: "application/x-pem-file", name: "pub" },
+};
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ sha: string }> }) {
   const { sha } = await params;
   const sha256 = sha.toLowerCase();
-  const part = PARTS[req.nextUrl.searchParams.get("part") ?? "sig"];
-  if (!part) return new Response("unknown part (sig|pem|chain)", { status: 400 });
 
   const rec = await db.sealedDocument.findUnique({
     where: { sha256 },
     select: { sealType: true },
   });
-  if (!rec || (rec.sealType !== "blob" && rec.sealType !== "identity")) {
+  if (!rec || (rec.sealType !== "blob" && rec.sealType !== "identity" && rec.sealType !== "attestation")) {
     return new Response("not found", { status: 404 });
   }
+  const isAtt = rec.sealType === "attestation";
+  const table = isAtt ? ATT_PARTS : PARTS;
+  const part = table[req.nextUrl.searchParams.get("part") ?? (isAtt ? "bundle" : "sig")];
+  if (!part) return new Response(`unknown part (${Object.keys(table).join("|")})`, { status: 400 });
 
   const path = `hosted/${sha256}/${part.file}`;
   if (!(await fileExists(path))) {

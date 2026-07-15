@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, verifyAttestation, type VerifyResult } from "@/lib/signing";
 import { readFile, fileExists } from "@/lib/storage";
 import { withCors, preflight } from "@/lib/cors";
 import { overContentLength, tooLarge } from "@/lib/limits";
@@ -80,6 +80,11 @@ export async function POST(req: NextRequest) {
           : await verifyBlob(bytes, rec.detachedSig, leaf + chain);
         const signer = ("identity" in d && d.identity) ? d.identity : d.signer;
         v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer };
+      } else if (rec?.sealType === "attestation" && (await fileExists(`hosted/${sha256}/attestation.bundle`))) {
+        const bundle = (await readFile(`hosted/${sha256}/attestation.bundle`)).toString("utf8");
+        const cert = (await readFile(`hosted/${sha256}/attestation.pem`)).toString("utf8");
+        const d = await verifyAttestation(bytes, bundle, cert);
+        v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted && d.subject_ok !== false, signer: d.signer };
       } else {
         v = { sealed: false, sha256 };
       }

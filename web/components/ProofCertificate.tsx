@@ -24,6 +24,7 @@ export type ProofData = {
   emlUrl?: string | null;
   artifactUrl?: string | null;
   identity?: { email: string; provider?: string | null; issuer?: string | null } | null;
+  attestation?: { predicateType: string; bundleUrl: string } | null;
   log?: { index: number; treeSize: number } | null;
   trail?: SigningTrail | null; 
   credential?: {
@@ -32,6 +33,19 @@ export type ProofData = {
     revokedAt?: string | null; revokedReason?: string | null;
   } | null;
 };
+
+const PREDICATES: Record<string, { label: string; type: string }> = {
+  "https://spdx.dev/Document": { label: "SPDX SBOM", type: "spdxjson" },
+  "https://cyclonedx.org/bom": { label: "CycloneDX SBOM", type: "cyclonedx" },
+  "https://slsa.dev/provenance/v1": { label: "SLSA provenance", type: "slsaprovenance1" },
+  "https://cosign.sigstore.dev/attestation/vuln/v1": { label: "vulnerability scan", type: "vuln" },
+};
+function predicateLabel(uri: string): string {
+  return PREDICATES[uri]?.label ?? (uri ? "custom" : "supply-chain");
+}
+function predicateCosignType(uri: string): string {
+  return PREDICATES[uri]?.type ?? "custom";
+}
 
 function CredentialCard({ c }: { c: NonNullable<ProofData["credential"]> }) {
   const revoked = !!c.revokedAt;
@@ -372,6 +386,29 @@ export function ProofCertificate({ data, variant = "document", gate }: {
               The signer proved control of this email to {data.identity.provider ?? "an identity provider"}
               {data.identity.issuer ? <> (<span className="font-mono">{data.identity.issuer}</span>)</> : null} at seal time.
               Let&apos;s Seal does <b>not</b> verify identity itself — this attributes the seal to that third party&apos;s verification.
+            </p>
+          </div>
+        )}
+        {data.attestation && (
+          <div className="mt-3 rounded-lg border border-dashed p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attestation</p>
+            <p className="mt-1 text-sm">
+              A signed <b>{predicateLabel(data.attestation.predicateType)}</b> attestation is bound to this artifact&apos;s digest.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <a href={`${data.attestation.bundleUrl}?part=bundle`}
+                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                <Download className="h-3.5 w-3.5" /> .att.bundle
+              </a>
+              <a href={`${data.attestation.bundleUrl}?part=pub`}
+                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                <Download className="h-3.5 w-3.5" /> .pub
+              </a>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Verify with{" "}
+              <code className="rounded bg-background px-1 py-0.5 font-mono">cosign verify-blob-attestation --bundle a.att.bundle --key letsseal.pub --type {predicateCosignType(data.attestation.predicateType)} --insecure-ignore-tlog --check-claims=true &lt;artifact&gt;</code>{" "}
+              — or drop the artifact into the verifier above to confirm it&apos;s the attestation&apos;s subject.
             </p>
           </div>
         )}

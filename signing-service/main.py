@@ -565,6 +565,73 @@ async def verify_identity_ep(request: Request, file: UploadFile = File(...),
                             status_code=200)
 
 
+class AttestRequest(BaseModel):
+    sha256: str = Field(..., description="Lowercase hex SHA-256 of the artifact the attestation is about.")
+    org_slug: str = Field(..., description="Issuing business slug (must have a code-signing cert).")
+    predicate: dict = Field(..., description="The claim object: an SBOM (SPDX/CycloneDX), SLSA provenance, vuln scan, etc.")
+    predicate_type: str = Field("custom", description="Short type (spdxjson|cyclonedx|slsaprovenance|vuln|custom) or a full predicateType URI.")
+    subject_name: str = Field("artifact", description="Human name for the subject (informational; the digest is what's bound).")
+
+
+@app.post("/attest", operation_id="attest", tags=["sealing"],
+          summary="Sign a DSSE/in-toto attestation (SBOM / provenance) over a digest",
+          dependencies=[Depends(require_auth)])
+async def attest_ep(payload: AttestRequest):
+    """Sign an in-toto/DSSE attestation binding a predicate (SBOM, SLSA provenance,
+    vuln scan) to an artifact's SHA-256, with the org's codeSigning leaf. Digest-only
+    — the artifact never leaves the caller. The returned `bundle` verifies with stock
+    `cosign verify-blob-attestation --bundle att.bundle --key signer.pub --type <type>
+    --insecure-ignore-tlog`, and with `sealbot` via the cert chain to our root."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    sha = str(payload.sha256).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise HTTPException(400, "sha256 (64 hex) required")
+    slug = str(payload.org_slug)
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", slug):
+        raise HTTPException(400, "invalid org_slug")
+    p12 = _org_code_p12(slug)
+    from attest import sign_attestation
+    try:
+        res = await run_in_threadpool(sign_attestation, sha, payload.predicate,
+                                      str(payload.predicate_type), p12, P12_PASS,
+                                      str(payload.subject_name))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("attestation signing failed for org %s", slug)
+        raise HTTPException(500, "attestation signing failed")
+    return JSONResponse({"sha256": sha, **res})
+
+
+@app.post("/verify/attest", operation_id="verifyAttest", tags=["sealing"],
+          summary="Verify a DSSE/in-toto attestation", dependencies=[Depends(require_auth)])
+async def verify_attest_ep(request: Request, file: UploadFile = File(...),
+                           bundle: UploadFile = File(...), cert: UploadFile = File(...)):
+    """Verify a supply-chain attestation: the artifact's bytes + its DSSE `bundle`
+    + the signer's `.pem`, against our root — and confirm the attestation's subject
+    digest matches the uploaded artifact (claims check)."""
+    import json as _json
+    file_bytes = await _read_capped(file, request)
+    bundle_raw = (await bundle.read()).decode("utf-8", "ignore")
+    cert_pem = (await cert.read()).decode("ascii", "ignore")
+    if len(bundle_raw) > 5_000_000 or len(cert_pem) > 1_000_000:
+        raise HTTPException(413, "bundle or cert too large")
+    sha = hashlib.sha256(file_bytes).hexdigest()
+    from attest import verify_attestation
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        bundle_json = _json.loads(bundle_raw)
+        result = await run_in_threadpool(verify_attestation, bundle_json, cert_pem, root, cert_pem, sha)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("attestation verify failed")
+        return JSONResponse({"sealed": True, "attestation": True, "valid": False,
+                             "trusted": False, "sha256": sha, "reason": "verification error"},
+                            status_code=200)
+
+
 class SignSthRequest(BaseModel):
     tree_size: int = Field(..., ge=0, description="Number of leaves the head covers.")
     root_hash: str = Field(..., description="Lowercase hex SHA-256 Merkle root.")

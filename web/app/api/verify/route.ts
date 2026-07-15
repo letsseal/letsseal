@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, upgradeAnchor, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, verifyAttestation, upgradeAnchor, type VerifyResult } from "@/lib/signing";
 import { readFile, fileExists } from "@/lib/storage";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
@@ -80,6 +80,22 @@ export async function POST(req: NextRequest) {
       crypto = {
         sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
         authentic: d.valid && d.trusted, signer: d.identity || d.signer,
+      };
+    } else {
+      crypto = { sealed: true, sha256, signer: rec.certCN ?? undefined };
+    }
+  } else if (rec?.sealType === "attestation" && !uploadedSig) {
+    // A hosted attestation — verify the stored DSSE bundle against our root and
+    // confirm the dropped artifact is the attestation's subject.
+    const bundlePath = `hosted/${sha256}/attestation.bundle`;
+    const certPath = `hosted/${sha256}/attestation.pem`;
+    if ((await fileExists(bundlePath)) && (await fileExists(certPath))) {
+      const bundle = (await readFile(bundlePath)).toString("utf8");
+      const cert = (await readFile(certPath)).toString("utf8");
+      const d = await verifyAttestation(bytes, bundle, cert);
+      crypto = {
+        sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
+        authentic: d.valid && d.trusted && d.subject_ok !== false, signer: d.signer,
       };
     } else {
       crypto = { sealed: true, sha256, signer: rec.certCN ?? undefined };

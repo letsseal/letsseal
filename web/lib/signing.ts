@@ -153,6 +153,46 @@ export async function identityProviders(): Promise<string[]> {
   return Array.isArray(j.providers) ? j.providers : [];
 }
 
+export type AttestResult = {
+  sha256: string; bundle: unknown; dsse: unknown; pubkey_pem: string;
+  cert_pem: string; chain_pem: string; cert_cn: string; identity: string; predicate_type: string;
+};
+
+// Sign a DSSE/in-toto attestation (SBOM, SLSA provenance, vuln scan) about an
+// artifact's SHA-256 with the org's codeSigning cert. Digest-only. The returned
+// `bundle` verifies with stock cosign verify-blob-attestation --key.
+export async function signAttestation(
+  orgSlug: string, sha256: string, predicate: unknown,
+  opts: { predicateType?: string; subjectName?: string } = {},
+): Promise<AttestResult> {
+  const res = await fetch(`${SERVICE}/attest`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      sha256, org_slug: orgSlug, predicate,
+      predicate_type: opts.predicateType ?? "custom",
+      subject_name: opts.subjectName ?? "artifact",
+    }),
+  });
+  if (!res.ok) throw new Error(`attest failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export type AttestVerifyResult = {
+  sealed: boolean; attestation: boolean; valid: boolean; trusted: boolean;
+  subject_ok?: boolean | null; predicate_type?: string; signer?: string; sha256: string; reason?: string;
+};
+
+// Verify a DSSE attestation: the artifact bytes + its bundle + the signer .pem,
+// against our root, confirming the attestation's subject matches the artifact.
+export async function verifyAttestation(file: Buffer, bundleJson: string, certPem: string): Promise<AttestVerifyResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(file)]), "file");
+  form.append("bundle", new Blob([bundleJson]), "att.bundle");
+  form.append("cert", new Blob([certPem]), "file.pem");
+  const res = await fetch(`${SERVICE}/verify/attest`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
 export type SthSignResult = {
   signature: string; cert_pem: string; chain_pem: string; cert_cn: string; ts: number;
 };
