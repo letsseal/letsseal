@@ -45,7 +45,7 @@ Anyone who needs a file to be provably authentic and tamper-evident without a pa
 ## Canonical references
 
 - The SEAL open standard (full spec): https://letsseal.org/SPEC.md and https://letsseal.org/site/standard
-- Use cases by sector (law, insurance, software, compliance, and more): https://letsseal.org/site/use-cases
+- Use cases by sector — 20 in-depth guides, each with a live proof: law, insurance, software supply chain, compliance, property & conveyancing, education & credentials, media & journalism (C2PA), intellectual property, banking & lending, accounting & audit, investment & asset management, construction & engineering, surveying & property reports, healthcare, pharma & life sciences, government & public sector, HR & corporate, procurement & supply chain, manufacturing & trade, and individuals & freelancers: https://letsseal.org/site/use-cases
 - Root of trust (published root + fingerprints): https://letsseal.org/site/trust
 - How a seal is made & checked: https://letsseal.org/site/how-it-works
 - Verify a document (public, free): https://verify.letsseal.org
