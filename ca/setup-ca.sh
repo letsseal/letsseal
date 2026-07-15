@@ -123,7 +123,14 @@ issue_cert() {
   [[ -n "$san" ]] && ext="${ext}"$'\n'"subjectAltName=${san}"
   local dir="$OUT/$subdir/$id" ; mkdir -p "$dir"
   echo "==> Signing cert for '$subject' (id: $id, profile: $profile, file: $base.p12)"
-  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/$base.key"
+  # Reuse an existing signing key if present so re-issuing a cert (e.g. to bind a
+  # newly-verified domain SAN) keeps the org's key — and thus its identity —
+  # stable. Only generate a fresh key on first issue.
+  if [[ -f "$dir/$base.key" ]]; then
+    echo "    (reusing existing key $dir/$base.key)"
+  else
+    openssl ecparam -name prime256v1 -genkey -noout -out "$dir/$base.key"
+  fi
   openssl req -new -key "$dir/$base.key" -out "$dir/$base.csr" -subj "/CN=$subject/O=$subject/C=GB"
   openssl x509 -req -in "$dir/$base.csr" \
     -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -CAcreateserial \
@@ -179,8 +186,27 @@ identity_init() {
   echo "    Keep root-ca.key OFFLINE. The service loads issuer.p12 to mint short-lived identity leaves."
 }
 
-# A business is just a 'document' cert stored under orgs/.
-issue_org() { issue_cert "$1" "$2" document orgs signing ; }
+# A business is just a 'document' cert stored under orgs/. Its SAN carries the
+# org's stable Let's Seal namespace URI; a verified domain is added by reissue-org.
+issue_org() { issue_cert "$1" "$2" document orgs signing "URI:https://letsseal.org/o/$1" ; }
+
+# Re-issue an org's document signing cert, optionally binding a VERIFIED domain as
+# a dNSName SAN (Phase 3: the machine-checkable issuer identity lives in the SAN,
+# so the seal artifact itself proves domain control — not just our proof page).
+# The org key is preserved (issue_cert reuses it). Absence of the DNS SAN is the
+# unverified marker. Usage: reissue-org <slug> "Legal Name" [verified-domain]
+reissue_org() {
+  local slug="$1" legal="$2" domain="${3:-}"
+  local san="URI:https://letsseal.org/o/$slug"
+  if [[ -n "$domain" ]]; then
+    # Defensive: only a-z0-9.- may reach the SAN string (the service validates too).
+    case "$domain" in
+      *[!a-z0-9.-]*|.*|*.) echo "refusing invalid domain SAN: $domain" >&2 ; exit 1 ;;
+    esac
+    san="${san},DNS:${domain}"
+  fi
+  issue_cert "$slug" "$legal" document orgs signing "$san"
+}
 
 # A business's code-signing cert (EKU codeSigning) for the supply-chain lane —
 # cosign requires this EKU, so it lives beside the document cert as signing-code.p12.
@@ -192,8 +218,9 @@ case "$cmd" in
   init)         init_ca ;;
   identity-init) identity_init ;;
   org)       issue_org "${2:?slug required}" "${3:?legal name required}" ;;
+  reissue-org) reissue_org "${2:?slug required}" "${3:?legal name required}" "${4:-}" ;;
   org-code)  issue_org_code "${2:?slug required}" "${3:?legal name required}" ;;
   cert)      issue_cert "${2:?id required}" "${3:?subject required}" "${4:-document}" certs ;;
   sign-csr)  sign_csr "${2:?id required}" "${3:?csr path required}" "${4:-document}" "${5:-$2}" certs ;;
-  *) echo "Usage: $0 init | identity-init | org <slug> \"Legal Name\" | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
+  *) echo "Usage: $0 init | identity-init | org <slug> \"Legal Name\" | reissue-org <slug> \"Legal Name\" [verified-domain] | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
 esac

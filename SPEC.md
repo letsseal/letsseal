@@ -94,9 +94,17 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
   Download: <https://letsseal.org/api/root-ca> · published at <https://letsseal.org/trust>
 
 - The seal asserts **integrity and the sealing certificate — not real-world identity.**
-  The certificate's subject name is chosen by the sealing account and is not
-  identity-verified. Conforming presentations MUST NOT imply notarisation or identity
-  verification.
+  Conforming presentations MUST NOT imply notarisation or identity verification.
+- **Issuer identity lives in the certificate's `subjectAltName`, not its subject name.**
+  The subject `CN`/`O` is a human-readable label chosen by the sealing account and is
+  **not** verified — a verifier MUST NOT treat it as an authenticated identity. An
+  organisation's authenticated identity is a domain it has proven control of
+  (RFC 8555-style DNS or controller-email validation), carried as a `dNSName` SAN on
+  the signing certificate. Because a domain is globally unique, it disambiguates
+  same-named entities. A certificate that carries **no `dNSName` SAN** denotes a
+  **self-asserted, unverified issuer**: the seal's integrity and time claims still hold,
+  but the issuer name is a claim, not a verified fact. Every organisation cert also
+  carries a stable `URI:https://letsseal.org/o/<slug>` SAN identifying its namespace.
 
 ## 3. The anchor (time)
 

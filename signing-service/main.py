@@ -70,6 +70,16 @@ def _validate_legal_name(legal: str) -> str:
     return legal
 
 
+_DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+
+
+def _validate_domain(domain: str) -> str:
+    domain = domain.strip().lower().rstrip(".")
+    if not _DOMAIN_RE.match(domain):
+        raise HTTPException(400, "invalid domain")
+    return domain
+
+
 async def _read_capped(file: UploadFile, request: Request) -> bytes:
     """Read an upload, rejecting bodies over MAX_UPLOAD_BYTES with HTTP 413
     BEFORE pulling the whole thing into memory."""
@@ -131,6 +141,12 @@ class HealthResponse(BaseModel):
 class OrgRequest(BaseModel):
     slug: str = Field(..., description="URL-safe business slug (a-z, 0-9, -).", examples=["acme"])
     legal_name: str = Field(..., description="Legal entity name to embed in the cert subject.", examples=["Acme Ltd"])
+
+
+class OrgReissueRequest(BaseModel):
+    slug: str = Field(..., description="URL-safe business slug (a-z, 0-9, -).", examples=["acme"])
+    legal_name: str = Field(..., description="Legal entity name for the cert subject.", examples=["Acme Ltd"])
+    domain: str | None = Field(None, description="Verified domain to bind as a dNSName SAN. Omit/null to unbind (unverified).", examples=["acme.co.uk"])
 
 
 class OrgResponse(BaseModel):
@@ -273,6 +289,34 @@ async def create_org_cert(payload: OrgRequest):
     if not os.path.isfile(p12):
         logger.error("org cert issuance failed for %s: %s", slug, r.stderr or r.stdout)
         raise HTTPException(500, "cert issuance failed")
+    return {"ok": True, "slug": slug}
+
+
+@app.post("/org/reissue", operation_id="reissueOrgCert", tags=["ca"],
+          summary="Re-issue a business signing cert, binding a verified-domain SAN",
+          response_model=OrgResponse, dependencies=[Depends(require_auth)])
+async def reissue_org_cert(payload: OrgReissueRequest):
+    """Re-issue an org's document signing cert, binding a verified domain as a
+    dNSName SAN (Phase 3). The org's identity then lives in the certificate itself
+    — an off-platform verifier reads `DNS:<domain>` from the raw cert, not just our
+    proof page. Pass `domain=null` to unbind (drops the DNS SAN). The org key is
+    preserved across re-issues, so its identity is stable."""
+    slug = str(payload.slug)
+    if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", slug):
+        raise HTTPException(400, "invalid slug")
+    legal = _validate_legal_name(str(payload.legal_name))
+    args = ["bash", CA_SCRIPT, "reissue-org", slug, legal]
+    if payload.domain:
+        args.append(_validate_domain(str(payload.domain)))
+
+    def run():
+        return subprocess.run(args, capture_output=True, text=True, timeout=60, env={**os.environ})
+
+    r = await run_in_threadpool(run)
+    p12 = os.path.join(CA_DIR, "orgs", slug, "signing.p12")
+    if not os.path.isfile(p12):
+        logger.error("org cert reissue failed for %s: %s", slug, r.stderr or r.stdout)
+        raise HTTPException(500, "cert reissue failed")
     return {"ok": True, "slug": slug}
 
 

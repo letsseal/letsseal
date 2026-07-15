@@ -1,6 +1,7 @@
 import { promises as dns } from "node:dns";
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
+import { reissueOrgCert } from "@/lib/signing";
 
 export const CONTROLLER_ALIASES = ["admin", "administrator", "postmaster", "hostmaster", "webmaster"] as const;
 
@@ -137,21 +138,38 @@ export async function confirmEmailToken(token: string): Promise<{ verified: bool
 
 /** Atomically mark the org verified for a domain, guarding the one-org-per-domain rule. */
 async function promote(challengeId: string, orgId: string, domain: string, via: "dns" | "email"): Promise<{ verified: boolean; error?: string }> {
+  let org: { slug: string; name: string };
   try {
-    await db.$transaction([
+    const [updated] = await db.$transaction([
       db.organization.update({
         where: { id: orgId },
         data: { verifiedDomain: domain, domainVerifiedVia: via, domainVerifiedAt: new Date() },
+        select: { slug: true, name: true },
       }),
       db.domainChallenge.update({ where: { id: challengeId }, data: { status: "verified", verifiedAt: new Date() } }),
     ]);
-    return { verified: true };
+    org = updated;
   } catch (e: unknown) {
     // Unique-constraint race: another org grabbed this domain between check and write.
     if (typeof e === "object" && e && "code" in e && (e as { code?: string }).code === "P2002") {
       return { verified: false, error: "That domain was just verified by another organisation." };
     }
     return { verified: false, error: "Could not complete verification — try again." };
+  }
+  // Bind the verified domain into the org's signing cert as a dNSName SAN so the
+  // seal artifact itself proves domain control (Phase 3). Best-effort: the DB is
+  // the source of truth for the proof page, so a signing-service hiccup must not
+  // fail an otherwise-successful verification. Reconcile later via reissue-org.
+  await syncCertDomain(org.slug, org.name, domain);
+  return { verified: true };
+}
+
+/** Re-issue the org signing cert to (un)bind the verified-domain SAN. Never throws. */
+async function syncCertDomain(slug: string, name: string, domain: string | null): Promise<void> {
+  try {
+    await reissueOrgCert(slug, name, domain);
+  } catch (e) {
+    console.error(`[domain-verify] cert ${domain ? "bind" : "unbind"} failed for ${slug}:`, e);
   }
 }
 
@@ -187,8 +205,15 @@ export async function pendingForSettings(orgId: string): Promise<
 
 /** Clear an org's domain verification (and any pending challenges). */
 export async function clearVerification(orgId: string): Promise<void> {
-  await db.$transaction([
-    db.organization.update({ where: { id: orgId }, data: { verifiedDomain: null, domainVerifiedVia: null, domainVerifiedAt: null } }),
+  const [org] = await db.$transaction([
+    db.organization.update({
+      where: { id: orgId },
+      data: { verifiedDomain: null, domainVerifiedVia: null, domainVerifiedAt: null },
+      select: { slug: true, name: true },
+    }),
     db.domainChallenge.updateMany({ where: { orgId, status: "pending" }, data: { status: "expired" } }),
   ]);
+  // Drop the dNSName SAN from the signing cert so future seals no longer assert
+  // the domain (matches the now-unverified proof-page state). Best-effort.
+  await syncCertDomain(org.slug, org.name, null);
 }

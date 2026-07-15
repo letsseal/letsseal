@@ -16,6 +16,16 @@ export async function issueOrgCert(slug: string, legalName: string): Promise<voi
   if (!res.ok) throw new Error(`cert issuance failed: ${res.status} ${await res.text()}`);
 }
 
+// Re-issue an org's signing cert, binding a verified domain as a dNSName SAN
+// (Phase 3 issuer identity). Pass domain=null to unbind. The org key is preserved.
+export async function reissueOrgCert(slug: string, legalName: string, domain: string | null): Promise<void> {
+  const res = await fetch(`${SERVICE}/org/reissue`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ slug, legal_name: legalName, domain }),
+  });
+  if (!res.ok) throw new Error(`cert reissue failed: ${res.status} ${await res.text()}`);
+}
+
 // Render a QR code PNG for a proof URL (used to stamp sealed PDFs).
 export async function qrPng(data: string): Promise<Buffer> {
   const res = await fetch(`${SERVICE}/qr`, {
