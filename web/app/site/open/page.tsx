@@ -13,7 +13,7 @@ export const revalidate = 300;
 const OPEN = [
   {
     h: "Open source",
-    p: "Every part — CLI, SDKs, web app, signing service — is MIT-licensed on GitHub. Read it, fork it, run it.",
+    p: "Every part — CLI, SDKs, web app, signing service — is Apache-2.0 licensed on GitHub. Read it, fork it, run it.",
   },
   {
     h: "Open standards",
@@ -24,8 +24,8 @@ const OPEN = [
     p: "Anchors live on Bitcoin's public blockchain. Verification stands on its own — no server of ours required, ever.",
   },
   {
-    h: "No lock-in",
-    p: "Self-host and hold your own keys. Your seals stay verifiable forever, by anyone, with no permission from us.",
+    h: "Run it yourself, keep your keys",
+    p: "Self-host the whole stack and hold your own keys. Your seals stay verifiable forever, by anyone.",
   },
 ];
 

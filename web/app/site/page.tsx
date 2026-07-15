@@ -13,8 +13,22 @@ export default async function SiteHome() {
     { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "—", l: "Latest Bitcoin anchor" },
     { n: "£0", l: "Charged, to anyone, ever" },
   ];
+  const HOME_LD = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Let's Seal",
+    applicationCategory: "SecurityApplication",
+    operatingSystem: "Web, CLI, self-hosted",
+    url: "https://letsseal.org",
+    description:
+      "The open standard for sealing anything — prove any file is authentic, unaltered, and in existence by a certain date. One standard for documents, images, email, code and containers; verifiable by anyone, forever.",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
+    isAccessibleForFree: true,
+    license: "https://opensource.org/licenses/Apache-2.0",
+  };
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(HOME_LD) }} />
       <section className="border-b border-stone-200">
         <Container className="py-[clamp(46px,7vw,88px)]">
           <Eyebrow>A public-benefit project</Eyebrow>
@@ -22,8 +36,9 @@ export default async function SiteHome() {
             Seal anything.
           </h1>
           <p className="mt-6 max-w-[620px] text-[clamp(17px,1.8vw,20px)] leading-relaxed text-stone-600">
-            A free, open standard for proving any file is unaltered and existed by a certain date. Verifiable by anyone,
-            forever, without asking permission. No account, no company in the middle: the proof stands on its own.
+            The open standard for proving any file is real — unaltered, sealed by a known certificate, and in existence
+            by a certain date. One standard for every kind of file: documents, images, email, code, containers.
+            Verifiable by anyone, forever. The proof travels with the file and stands on its own.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
             <Btn href="https://app.letsseal.org">Seal your first file</Btn>
@@ -31,7 +46,7 @@ export default async function SiteHome() {
             <LinkArrow href="/site/open">Self-host it</LinkArrow>
           </div>
           <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
-            {["Free forever", "Open source (MIT)", "Verify with no account"].map((t) => (
+            {["Free forever", "Open source (Apache-2.0)", "Verify it yourself, free"].map((t) => (
               <span key={t} className="inline-flex items-center gap-2 text-[13.5px] font-medium text-stone-600">
                 <Check className="h-4 w-4 text-blue-600" /> {t}
               </span>
@@ -96,9 +111,9 @@ export default async function SiteHome() {
           </H2>
           <p className="mt-4 max-w-2xl text-[15.5px] leading-relaxed text-stone-600">
             Let&rsquo;s Seal publishes <strong>SEAL</strong> (<em>Sealed Evidence, Anchored to a Ledger</em>): the open
-            standard for what a proof is and how anyone verifies one. It composes established standards (PAdES,
-            OpenTimestamps) into one self-contained artifact, pinned to a published root. Anyone can implement it, and
-            every conforming proof checks the same way. That&rsquo;s what makes it a network.
+            standard for what a proof is and how anyone verifies one — for every kind of file, in one self-contained
+            artifact pinned to a published root. Anyone can implement it, and every conforming proof checks the same way.
+            That&rsquo;s what makes it a network.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
             <Btn href="/site/standard">Read the standard</Btn>

@@ -107,4 +107,4 @@ sealbot verify build/report.sealed.pdf || exit 1
 Deprecated aliases (still run, with a one-line notice): `notarize` → `anchor --publish`;
 `upgrade <f>.ots` → `verify <f>.ots`.
 
-MIT licensed.
+Apache-2.0 licensed.

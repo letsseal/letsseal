@@ -24,7 +24,7 @@ const COMPARISON: { label: string; ours: string; theirs: string; oursWin: boolea
   { label: "Verify outside their app", ours: "Public page + .ots file, offline", theirs: "Trust indicator inside Adobe Reader", oursWin: true },
   { label: "A printed copy stays verifiable", ours: "Yes — QR on every page", theirs: "No", oursWin: true },
   { label: "Self-host", ours: "Yes", theirs: "No", oursWin: true },
-  { label: "Open source", ours: "Yes (MIT / Apache)", theirs: "No", oursWin: true },
+  { label: "Open source", ours: "Yes (Apache-2.0)", theirs: "No", oursWin: true },
   { label: "Automatic trust indicator in Adobe Reader", ours: "No — verify via the portal", theirs: "Yes", oursWin: false },
 ];
 
@@ -207,7 +207,7 @@ export default async function Landing() {
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Project</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><span className="text-muted-foreground">Open source (MIT / Apache)</span></li>
+              <li><span className="text-muted-foreground">Open source (Apache-2.0)</span></li>
               <li><span className="text-muted-foreground">Self-hostable</span></li>
               <li><Link href={LIVE_PROOF} target="_blank" className="text-ink hover:text-brand">Live proof</Link></li>
             </ul>

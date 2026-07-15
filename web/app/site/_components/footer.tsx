@@ -65,8 +65,8 @@ export function SiteFooter() {
           ))}
         </div>
         <div className="mt-12 flex flex-wrap justify-between gap-3 border-t border-stone-200 pt-6 text-[13px] text-stone-400">
-          <span>© 2026 Let&rsquo;s Seal · Open source (MIT) · a public-benefit project</span>
-          <span>Composes PAdES + OpenTimestamps + an open verification convention.</span>
+          <span>© 2026 Let&rsquo;s Seal · Open source (Apache-2.0) · a public-benefit project</span>
+          <span>The open standard for sealing anything — proof any file is real, verifiable by anyone, forever.</span>
         </div>
       </div>
     </footer>

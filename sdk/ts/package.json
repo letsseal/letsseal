@@ -18,7 +18,7 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": ["letsseal", "pades", "pdf-signing", "opentimestamps", "bitcoin", "notary", "e-signature"],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://letsseal.org",
   "engines": { "node": ">=18" },
   "devDependencies": { "typescript": "^5.4.0" }

@@ -10,5 +10,5 @@
     "node": ">=18"
   },
   "keywords": ["sealbot", "pdf", "signing", "seal", "opentimestamps", "bitcoin", "timestamp", "notary", "pades", "verify"],
-  "license": "MIT"
+  "license": "Apache-2.0"
 }

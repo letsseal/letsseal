@@ -45,4 +45,4 @@ from `verify()` means it chains to *this* CA, not to a vendor trust list.
 npm install && npm run build   # -> dist/
 ```
 
-MIT.
+Apache-2.0.

@@ -82,19 +82,18 @@ async def _read_capped(file: UploadFile, request: Request) -> bytes:
     return data
 
 API_DESCRIPTION = """\
-The Let's Seal signing service is the keyed core of an open, self-hostable
-alternative to pay-to-play document-authenticity trust lists — *the "Let's
-Encrypt for documents."*
+The Let's Seal signing service is the keyed core of Let's Seal — the open standard
+for sealing anything, self-hostable and free. *The "Let's Encrypt for documents."*
 
-It **composes open standards** rather than inventing new ones:
+Open standards, end to end:
 
 * **PAdES / X.509** for the cryptographic seal (via pyHanko + an on-prem CA)
 * **OpenTimestamps** for a free Bitcoin anchor proving a file existed by a date
 * **SHA-256** everywhere; hash-only endpoints so a file never has to leave the caller
 
-**Trust is self-anchored.** This CA is deliberately *not* in OS/Adobe trust
-stores; a proof is verified via the certificate chain + the public portal + the
-blockchain, not via automatic vendor trust. That is the point, not a limitation.
+**Trust is self-anchored.** A proof stands on the published root, open standards,
+and the public blockchain — authenticity anyone can verify, backed by a published
+root.
 
 ⚠️ **Runs localhost/private only — it holds signing keys.** The public, rate-limited
 surface lives in the app tier in front of it.
@@ -115,7 +114,7 @@ app = FastAPI(
     version="0.1.0",
     description=API_DESCRIPTION,
     openapi_tags=TAGS,
-    license_info={"name": "MIT", "url": "https://opensource.org/licenses/MIT"},
+    license_info={"name": "Apache-2.0", "url": "https://opensource.org/licenses/Apache-2.0"},
     contact={"name": "Let's Seal", "url": "https://letsseal.org"},
     servers=[{"url": "http://127.0.0.1:8081", "description": "Local keyed service"}],
     docs_url=None if _PROD else "/docs",

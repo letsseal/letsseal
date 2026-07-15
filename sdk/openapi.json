@@ -8,8 +8,8 @@
       "url": "https://letsseal.org/"
     },
     "license": {
-      "name": "MIT",
-      "url": "https://opensource.org/licenses/MIT"
+      "name": "Apache-2.0",
+      "url": "https://opensource.org/licenses/Apache-2.0"
     },
     "version": "0.1.0"
   },

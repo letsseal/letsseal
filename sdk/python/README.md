@@ -37,4 +37,4 @@ responses raise `LetsSealError` (`.status`, `.body`).
 stores; verify via the chain + the public portal + the blockchain. `trusted=True`
 from `verify()` means it chains to *this* CA, not to a vendor trust list.
 
-MIT.
+Apache-2.0.

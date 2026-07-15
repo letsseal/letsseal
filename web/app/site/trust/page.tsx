@@ -9,7 +9,7 @@ import { getNetworkStats } from "@/lib/stats";
 export const metadata = {
   title: "Root of trust — Let's Seal",
   description:
-    "The published Let's Seal root certificate. Every seal chains to it; verification pins it. Download the cert, check the fingerprint, and verify any document independently — without us.",
+    "The published Let's Seal root certificate. Every seal chains to it; verification pins it. Download the cert, check the fingerprint, and verify any document yourself.",
 };
 
 export const revalidate = 300;

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://letsseal.org/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://letsseal.org/site/standard</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://letsseal.org/site/how-it-works</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://letsseal.org/site/mission</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://letsseal.org/site/open</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://letsseal.org/site/trust</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://letsseal.org/site/developers</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://letsseal.org/site/docs</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://letsseal.org/site/getting-started</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://letsseal.org/site/badge</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://letsseal.org/verify</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://letsseal.org/SPEC.md</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://letsseal.org/llms.txt</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+</urlset>

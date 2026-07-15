@@ -4,23 +4,36 @@ import { ROOT_CA_FINGERPRINT_SHA256 } from "@/lib/trust";
 export const metadata = {
   title: "SEAL — the open standard for document proof · Let's Seal",
   description:
-    "SEAL — Sealed Evidence, Anchored to a Ledger. The open standard for proving a document is real: verifiable by anyone, forever, without us. Built on PAdES, X.509 and OpenTimestamps.",
+    "SEAL — Sealed Evidence, Anchored to a Ledger. The open standard for proving any file is real: unaltered, sealed by a known certificate, and in existence by a certain date. One standard for every kind of file, verifiable by anyone, forever.",
 };
 
 const LETTERS = [
   { k: "S", w: "Sealed", d: "A PAdES signature over every byte, chaining to a published root.", s: "PAdES · X.509" },
-  { k: "E", w: "Evidence", d: "The proof travels inside the file. No database, no lookup, no account.", s: "SHA-256" },
+  { k: "E", w: "Evidence", d: "The proof travels inside the file — everything needed to verify is right there.", s: "SHA-256" },
   { k: "A", w: "Anchored", d: "The file's fingerprint, timestamped the moment it existed.", s: "OpenTimestamps" },
   { k: "L", w: "Ledger", d: "Written to Bitcoin — a public clock no one owns.", s: "Bitcoin" },
 ];
 
+const STANDARD_LD = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: "SEAL — the open standard for sealing anything",
+  name: "SEAL (Sealed Evidence, Anchored to a Ledger)",
+  description:
+    "The open standard for proving any file is authentic: unaltered, sealed by a known certificate, and in existence by a certain date. One standard for every kind of file, verifiable by anyone, forever.",
+  url: "https://letsseal.org/site/standard",
+  isPartOf: { "@id": "https://letsseal.org/#website" },
+  publisher: { "@id": "https://letsseal.org/#org" },
+};
+
 export default function StandardPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STANDARD_LD) }} />
       <PageHead
         eyebrow="The open standard · Version 1"
         title={<>SEAL — <span className="text-blue-600">S</span>ealed <span className="text-blue-600">E</span>vidence, <span className="text-blue-600">A</span>nchored to a <span className="text-blue-600">L</span>edger.</>}
-        lede="The open standard for proving any file is real. One sealed artifact, one way to check it, verifiable by anyone, forever, with us or without us. Seal with any conforming tool; anyone can verify it with any other."
+        lede="The open standard for proving any file is real. One sealed artifact, one way to check it, verifiable by anyone, forever. Seal with any conforming tool; anyone can verify it with any other."
       />
 
       <section className="border-b border-stone-200">
@@ -40,8 +53,8 @@ export default function StandardPage() {
           <p className="mt-8 max-w-2xl text-[15px] leading-relaxed text-stone-600">
             Two independent parts — a <strong>seal</strong> (integrity + which certificate issued it) and an{" "}
             <strong>anchor</strong> (when it existed) — plus one <strong>convention</strong> for referencing a proof
-            (<code className="rounded bg-stone-100 px-1 py-0.5 text-[13px]">/d/&lt;sha256&gt;</code>). None of it needs
-            an account, a database, or Let&rsquo;s Seal being online.
+            (<code className="rounded bg-stone-100 px-1 py-0.5 text-[13px]">/d/&lt;sha256&gt;</code>). Everything needed
+            to verify travels with the proof itself.
           </p>
         </Container>
       </section>
@@ -61,8 +74,8 @@ export default function StandardPage() {
             <Card>
               <div className="text-[15px] font-semibold text-stone-900">Implement freely</div>
               <p className="mt-2 text-[14px] leading-relaxed text-stone-600">
-                Any tool may seal or verify to the standard — no permission, no membership, no fee. A standard
-                PAdES/X.509 validator plus the stock OpenTimestamps client is enough.
+                Any tool may seal or verify to the standard — free and open to everyone. A standard PAdES/X.509
+                validator plus the stock OpenTimestamps client is enough.
               </p>
             </Card>
             <Card>
@@ -131,7 +144,7 @@ export default function StandardPage() {
                 <li><LinkArrow href="https://verify.letsseal.org">Verify a document</LinkArrow></li>
               </ul>
               <p className="mt-5 text-[13px] leading-relaxed text-stone-500">
-                Reference implementation: a standalone verifier (<code>spec/verify.py</code>) and the MIT signing
+                Reference implementation: a standalone verifier (<code>spec/verify.py</code>) and the Apache-2.0 signing
                 service. Verifying a SEAL proof needs a standard PAdES validator plus <code>ots verify</code> — that
                 is the entire dependency list.
               </p>

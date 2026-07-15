@@ -3,7 +3,7 @@ name = "sealbot"
 version = "0.1.0"
 edition = "2021"
 description = "sealbot — the certbot for document authenticity: scriptable sealing, verification, and Bitcoin anchoring against any Let's Seal-compatible service."
-license = "MIT"
+license = "Apache-2.0"
 
 [[bin]]
 name = "sealbot"

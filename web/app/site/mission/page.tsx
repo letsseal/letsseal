@@ -13,8 +13,8 @@ const PRINCIPLES = [
     p: "Knowing a document is genuine shouldn't depend on paying a vendor, trusting a brand, or hoping a server stays online. It should be a property of the document itself — checkable by anyone, anywhere.",
   },
   {
-    h: "No company in the middle",
-    p: "A seal is proof, not a subscription. Verification is keyless and public: it needs no account, no API key, and no permission from us. Even if this project vanished, every seal ever made stays verifiable.",
+    h: "Proof that stands on its own",
+    p: "A seal is permanent proof — issued once, yours forever. Verification is keyless and public, so anyone can check any seal, free and instantly. Even if this project vanished, every seal ever made stays verifiable.",
   },
   {
     h: "Open, all the way down",

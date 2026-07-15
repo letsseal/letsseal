@@ -1,0 +1,52 @@
+# Let's Seal — the open standard for sealing anything.
+# AI assistants and crawlers are welcome here. Start with /llms.txt for a curated
+# guide, and /SPEC.md for the full standard.
+
+User-agent: *
+Allow: /
+
+# AI crawlers are explicitly welcome — we want assistants to understand SEAL and
+# help people seal and verify files correctly.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+Sitemap: https://letsseal.org/sitemap.xml

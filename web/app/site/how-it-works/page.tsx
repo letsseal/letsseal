@@ -4,7 +4,7 @@ import { FileCheck2, Fingerprint, Anchor, ShieldCheck, Check } from "lucide-reac
 export const metadata = {
   title: "How it works — Let's Seal",
   description:
-    "How a seal is made and how anyone can check it: a cryptographic signature over the whole file, anchored to Bitcoin, verifiable by anyone with no key and no account.",
+    "How a seal is made and how anyone can check it: a cryptographic signature over the whole file, anchored to Bitcoin, verifiable by anyone — free and instant.",
 };
 
 const STEPS = [
@@ -30,7 +30,7 @@ const STEPS = [
     n: "04",
     icon: ShieldCheck,
     h: "Anyone verifies — keyless",
-    p: "To check a document, anyone re-hashes it and confirms the signature and the Bitcoin anchor. No account, no API key, no permission. If it matches, it's authentic and unchanged.",
+    p: "To check a document, anyone re-hashes it and confirms the signature and the Bitcoin anchor — free and instant, open to everyone. If it matches, it's authentic and unchanged.",
   },
 ];
 
