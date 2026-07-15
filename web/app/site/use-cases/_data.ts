@@ -76,7 +76,7 @@ $ sealbot verify settlement-agreement.pdf
   cliNote:
     "Sealing uses your firm's key — an API key or your own instance. Verifying is public: opposing counsel or a court runs it against the portal, or offline with a standard PAdES validator.",
   examples: [
-    { label: "A sealed settlement agreement", note: "Open the proof page the way opposing counsel would: it shows the document is authentic, unaltered since sealing, sealed by the issuing firm, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_b50fe22546407aa24f08d51120ad5e6a" },
+    { label: "A sealed settlement agreement", note: "Open the proof page the way opposing counsel would: it shows the document is authentic, unaltered since sealing, sealed by the issuing firm, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_decd96c548d2dffdd396c7dd496fa3d3" },
     { label: "An executed contract or deed", note: "The same holds for any executed agreement — a share purchase, a lease, a loan agreement: seal the signed PDF and the exact executed version is the one that verifies. A changed clause or amount is caught instantly." },
     { label: "A legal opinion or engagement letter", note: "Advice and engagement terms sealed under the firm's certificate, so a client or regulator can confirm the document they hold is the one the firm actually issued." },
     { label: "A disclosure bundle in litigation", note: "Seal each item as it's collected and the bundle is provably unchanged from disclosure onward — a clean chain of custody an opponent can't dispute." },
@@ -138,7 +138,7 @@ $ sealbot verify certificate-of-insurance.pdf
   cliNote:
     "Point a watched folder or your document pipeline at Let's Seal and every policy leaves already sealed, timestamped, and carrying a proof link — one command, no per-document fee.",
   examples: [
-    { label: "A sealed certificate of insurance", note: "This is what a bank or contractor sees when they check a COI: genuine, unaltered, issued by the named insurer, and timestamped — no call to your team required.", proofUrl: "https://app.letsseal.org/d/sd_44fde03d6de97836aa3bc7f3d6376abd" },
+    { label: "A sealed certificate of insurance", note: "This is what a bank or contractor sees when they check a COI: genuine, unaltered, issued by the named insurer, and timestamped — no call to your team required.", proofUrl: "https://app.letsseal.org/d/sd_0921b9a72dd7ae261e7b4276ce7f72c1" },
     { label: "A policy document or schedule", note: "Seal the policy wording and schedule so the insured — and any lender relying on it — can confirm the cover terms are exactly as issued, with nothing altered." },
     { label: "A loss-adjuster or surveyor report", note: "A claims report sealed the moment it's finalised: provably the version that was filed, timestamped, and attributable to the adjuster who produced it." },
     { label: "A binder or cover note", note: "Interim cover confirmations sealed on issue, so a broker or client can verify the binder is genuine and current before the full policy follows." },
@@ -267,7 +267,7 @@ Success! Bitcoin attests existence as of 2026-06-30`,
   cliNote:
     "Sealing a PDF binds it to your certificate; anchoring a raw file proves existence-and-date without the file ever leaving your machine. Both are recorded in the public transparency log.",
   examples: [
-    { label: "A sealed compliance record", note: "The proof page is what you hand an auditor: it shows the record is unaltered, sealed by your organisation, and timestamped on Bitcoin — verifiable without touching your systems.", proofUrl: "https://app.letsseal.org/d/sd_10baa15b26867808d52c24ca1e842517" },
+    { label: "A sealed compliance record", note: "The proof page is what you hand an auditor: it shows the record is unaltered, sealed by your organisation, and timestamped on Bitcoin — verifiable without touching your systems.", proofUrl: "https://app.letsseal.org/d/sd_d002277d7338836d58ff526b307099b9" },
     { label: "SOC 2 / ISO evidence", note: "Seal each piece of control evidence as it's captured, so an assessor can confirm it's the contemporaneous record — not something assembled the night before the audit." },
     { label: "A raw access or incident log", note: "Anchor a log file's hash — the file never leaves your machine, only its digest — and prove it existed unchanged as of that date, independent of your SIEM." },
     { label: "A retention or data-integrity record", note: "GxP / ALCOA+ records sealed and timestamped on capture, giving the attributable, contemporaneous, unaltered evidence data-integrity frameworks ask for." },
@@ -329,7 +329,7 @@ $ sealbot verify tenancy-agreement.pdf
   cliNote:
     "Point a watched folder or your case-management system at Let's Seal and every agreement leaves already sealed, timestamped, and carrying a proof link — one command, no per-document fee.",
   examples: [
-    { label: "A sealed tenancy agreement", note: "Open the proof page the way a tenant or lender would: it shows the agreement is authentic, unaltered since sealing, issued by the named agent, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_b26bf1887c8f15a481aea69144fa13bb" },
+    { label: "A sealed tenancy agreement", note: "Open the proof page the way a tenant or lender would: it shows the agreement is authentic, unaltered since sealing, issued by the named agent, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_f19dc535c1dbe3577460777fc5e96c64" },
     { label: "A lease or licence to occupy", note: "Commercial and residential leases sealed on execution, so a lender, guarantor, or incoming tenant can confirm the terms are exactly as granted." },
     { label: "A transfer deed or title document", note: "Seal the TR1 or title pack so the buyer's solicitor can verify the document is genuine and unaltered — an altered deed fails on sight." },
     { label: "A completion statement or inventory", note: "Financial statements and check-in inventories sealed and dated, so there's no dispute later about the figures or the condition recorded at the time." },
@@ -391,7 +391,7 @@ $ sealbot verify degree-certificate.pdf
   cliNote:
     "Issue credentials in bulk from a CSV, or seal existing certificate PDFs. Each carries a permanent proof page and a QR — verifiable by anyone, with no call to your office.",
   examples: [
-    { label: "A sealed degree certificate", note: "This is what an employer sees when they scan the QR or open the link: a genuine, unaltered certificate, issued by the named institution and timestamped — no registrar phone call required.", proofUrl: "https://app.letsseal.org/d/sd_b13588ce1a1248a95c58599434338194" },
+    { label: "A sealed degree certificate", note: "This is what an employer sees when they scan the QR or open the link: a genuine, unaltered certificate, issued by the named institution and timestamped — no registrar phone call required.", proofUrl: "https://app.letsseal.org/d/sd_1814e36cea5ea3d56218abb0ba87bae6" },
     { label: "An academic transcript", note: "Seal the full transcript so a receiving university or employer can confirm every grade and module is exactly as issued, with nothing added or altered." },
     { label: "A professional licence or membership", note: "Awarding and professional bodies seal licences and membership certificates so anyone can check a member's standing is genuine and current." },
     { label: "A CPD or completion record", note: "Course and CPD certificates issued in bulk, each carrying its own proof — verifiable by an employer or regulator without contacting the provider." },
@@ -452,7 +452,7 @@ $ sealbot verify frontline-2026-06-30.jpg
   cliNote:
     "Images and video are sealed as C2PA Content Credentials — the same standard Adobe, camera makers, and newsrooms are adopting. It verifies in any C2PA viewer, chained to your own published root.",
   examples: [
-    { label: "A photo with Content Credentials", note: "Open the proof page the way a picture editor would: it shows the image is authentic, unedited since capture, signed by the named maker, and timestamped on Bitcoin — the provenance a deepfake can't fake.", proofUrl: "https://app.letsseal.org/d/sd_f3ab0daf2f29ff5a510a95d55a9ccc2f" },
+    { label: "A photo with Content Credentials", note: "Open the proof page the way a picture editor would: it shows the image is authentic, unedited since capture, signed by the named maker, and timestamped on Bitcoin — the provenance a deepfake can't fake.", proofUrl: "https://app.letsseal.org/d/sd_af6d3281e7f21125ed89a27b2b27c16a" },
     { label: "Video and audio footage", note: "Seal raw footage on capture so a broadcaster or fact-checker can confirm it's the untouched original — the same C2PA manifest, verifiable in standard tooling." },
     { label: "A press or agency image", note: "Wire photos sealed at source, so a newsroom downstream can prove a picture is the photographer's genuine, unedited frame before it runs." },
     { label: "Brand assets and creative sign-offs", note: "Master files and approved creative sealed and dated, so a client or agency can confirm the asset they received is the version that was signed off." },
@@ -514,7 +514,7 @@ Success! Bitcoin attests existence as of 2026-06-30`,
   cliNote:
     "Anchoring proves existence-and-date without the file ever leaving your machine — only its SHA-256. Sealing additionally binds the document to your certificate. Both are recorded in the public transparency log.",
   examples: [
-    { label: "A timestamped invention disclosure", note: "The proof page is the evidence you'd put in front of an examiner: it shows the disclosure is unaltered, sealed by your organisation, and independently timestamped on Bitcoin — a priority date no one can move.", proofUrl: "https://app.letsseal.org/d/sd_07b58faed0fcb8cea4f6a86dd7d35e51" },
+    { label: "A timestamped invention disclosure", note: "The proof page is the evidence you'd put in front of an examiner: it shows the disclosure is unaltered, sealed by your organisation, and independently timestamped on Bitcoin — a priority date no one can move.", proofUrl: "https://app.letsseal.org/d/sd_57722ecbc1d982eed2f4929a276deb4a" },
     { label: "A lab notebook or research record", note: "Anchor each notebook entry or dataset as you record it — only the hash leaves your machine — building a dated, tamper-evident trail of what you found and when." },
     { label: "A design file or trade-secret record", note: "Timestamp confidential designs and trade-secret documentation privately, so you can prove possession by a date without ever disclosing the file." },
     { label: "A source-code snapshot", note: "Anchor a release or milestone snapshot's hash to fix an authorship and existence date — provable prior art for software, with the code kept private." },
@@ -575,7 +575,7 @@ $ sealbot verify statement-2026-06.pdf
   cliNote:
     "Point a watched folder or your statement-generation pipeline at Let's Seal and every document leaves already sealed, timestamped, and carrying a proof link — one command per file, no per-seal fee.",
   examples: [
-    { label: "A sealed bank statement", note: "Open the proof page the way a lender or landlord would: it shows the statement is authentic, unaltered since issue, sealed by the named bank, and timestamped on Bitcoin — no callback required.", proofUrl: "https://app.letsseal.org/d/sd_d25177f7d01a471a18ca6b6a81065293" },
+    { label: "A sealed bank statement", note: "Open the proof page the way a lender or landlord would: it shows the statement is authentic, unaltered since issue, sealed by the named bank, and timestamped on Bitcoin — no callback required.", proofUrl: "https://app.letsseal.org/d/sd_937be52822ce620c618c84218d8e2d19" },
     { label: "A mortgage or loan agreement", note: "Seal the executed offer or agreement so a broker, solicitor, or borrower can confirm the terms are exactly as issued — an altered rate or amount is caught instantly." },
     { label: "A KYC or onboarding pack", note: "Seal the verified onboarding documents so a downstream institution can confirm the pack is the one you produced, unaltered — provable customer due diligence." },
     { label: "A guarantee or letter of credit", note: "High-value instruments sealed and timestamped on issue, so a beneficiary can verify authenticity before relying on them." },
@@ -637,7 +637,7 @@ $ sealbot verify audit-report-fy26.pdf
   cliNote:
     "Seal finalised accounts and reports one at a time or in a run. Each carries a permanent proof link — a lender or regulator verifies it against public infrastructure, with no access to your systems.",
   examples: [
-    { label: "A sealed set of financial statements", note: "Open the proof page the way a lender reviewing the accounts would: it shows the statements are authentic, unaltered since sign-off, issued by the named firm, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_ac7231d110cedba1afea82680ff3d4a6" },
+    { label: "A sealed set of financial statements", note: "Open the proof page the way a lender reviewing the accounts would: it shows the statements are authentic, unaltered since sign-off, issued by the named firm, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_8c0ef5d8021d073869eab56d7b9ea36e" },
     { label: "An audit report or opinion", note: "Seal the signed audit report so a regulator or investor can confirm the opinion is exactly as issued — decisive when accounts are relied on for a transaction." },
     { label: "A tax return or computation", note: "Seal the filed return so an adviser, lender, or authority can verify it's the version submitted, unaltered and dated." },
     { label: "A SOC 2 / ISO report", note: "Assurance reports sealed on issue, so a customer's security team can confirm the report they received is genuine and current — not a recycled or edited copy." },
@@ -699,7 +699,7 @@ $ sealbot verify factsheet-2026-06.pdf
   cliNote:
     "Seal a whole investor-statement run in one pass, or seal a single attestation to pin it in time. Each carries a permanent proof link an investor verifies against public infrastructure.",
   examples: [
-    { label: "A sealed investor statement", note: "Open the proof page the way an LP checking their statement would: it shows the figures are authentic, unaltered since issue, sealed by the named manager, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_4474075199112c05cef1c346509596f2" },
+    { label: "A sealed investor statement", note: "Open the proof page the way an LP checking their statement would: it shows the figures are authentic, unaltered since issue, sealed by the named manager, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_0a2e8dd87864869746eae8a8f1e8a0d8" },
     { label: "A fund factsheet or KIID", note: "Seal each monthly factsheet so an allocator or IFA can confirm the returns and holdings are exactly as published — not an edited or stale copy circulating elsewhere." },
     { label: "A proof-of-reserves attestation", note: "Anchor a reserves attestation to fix it at a precise moment on Bitcoin — the independent, timestamped evidence proof-of-reserves depends on." },
     { label: "A capital-call notice", note: "Seal drawdown and capital-call notices so an investor can verify the instruction is genuinely from the manager before acting on it." },
@@ -760,7 +760,7 @@ $ sealbot verify completion-certificate.pdf
   cliNote:
     "Point a watched folder at your document control and every certificate and report leaves already sealed, timestamped, and carrying a proof link — one command per file, no per-seal fee.",
   examples: [
-    { label: "A sealed completion certificate", note: "Open the proof page the way building control or an insurer would: it shows the certificate is authentic, unaltered since issue, sealed by the named firm, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_bc4f8b58df81d0847cb84112aea16875" },
+    { label: "A sealed completion certificate", note: "Open the proof page the way building control or an insurer would: it shows the certificate is authentic, unaltered since issue, sealed by the named firm, and timestamped on Bitcoin.", proofUrl: "https://app.letsseal.org/d/sd_f33c2ba8130978f3178aa76d5a278816" },
     { label: "A set of structural calculations", note: "Seal the calculations pack so a checking engineer or client can confirm the figures are exactly as issued — an altered load or span is caught instantly." },
     { label: "An inspection or test report", note: "Site inspections and material tests sealed the moment they're signed off: provably the version filed, timestamped, and attributable to the inspector." },
     { label: "An as-built drawing or handover pack", note: "Seal the final drawings and O&M pack so the record handed over at practical completion can be verified as genuine for the life of the building." },
@@ -822,7 +822,7 @@ $ sealbot verify valuation-report.pdf
   cliNote:
     "Seal reports one at a time or in a run. Each carries a permanent proof link a lender or conveyancer verifies against public infrastructure — no call to your practice.",
   examples: [
-    { label: "A sealed valuation report", note: "Open the proof page the way a mortgage lender would: it shows the valuation is authentic, unaltered since issue, produced by the named surveyor, and timestamped on Bitcoin — the anti-mortgage-fraud check, built in.", proofUrl: "https://app.letsseal.org/d/sd_8349d8c3e6fb59ec3e6168a7b86d130f" },
+    { label: "A sealed valuation report", note: "Open the proof page the way a mortgage lender would: it shows the valuation is authentic, unaltered since issue, produced by the named surveyor, and timestamped on Bitcoin — the anti-mortgage-fraud check, built in.", proofUrl: "https://app.letsseal.org/d/sd_cb2317e605352bc17a092564db341ec3" },
     { label: "A homebuyer or building survey", note: "Seal the survey so a buyer and their conveyancer can confirm the defects and findings are exactly as reported — nothing added or quietly removed." },
     { label: "An EPC", note: "Energy assessments sealed on issue, so a buyer, tenant, or lender can confirm the rating is the assessor's genuine result, not an edited copy." },
     { label: "A party-wall award or condition report", note: "Awards and schedules of condition sealed and dated, so there's no dispute later about what was recorded at the time." },
@@ -884,7 +884,7 @@ $ sealbot verify fit-note.pdf
   cliNote:
     "Seal documents you hand out; anchor sensitive records by hash so they never leave your systems. Both prove authenticity and date, and both are recorded in the public transparency log.",
   examples: [
-    { label: "A sealed fit note", note: "Open the proof page the way an employer or HR team would: it shows the note is authentic, unaltered, issued by the named practice, and timestamped — the fake-sick-note problem, solved.", proofUrl: "https://app.letsseal.org/d/sd_3506df2d934cbf79f00dd509049792ee" },
+    { label: "A sealed fit note", note: "Open the proof page the way an employer or HR team would: it shows the note is authentic, unaltered, issued by the named practice, and timestamped — the fake-sick-note problem, solved.", proofUrl: "https://app.letsseal.org/d/sd_90f03883aa7f2e585edc2e1d5f482b30" },
     { label: "A referral or discharge letter", note: "Seal letters between providers so a receiving clinician can confirm the letter is genuinely from the issuing practice, unaltered in transit." },
     { label: "A lab or imaging result", note: "Results sealed on issue, so a patient, insurer, or another clinician can verify a report is the genuine, unedited result." },
     { label: "A sensitive medical record (hash-only)", note: "Anchor just the record's SHA-256 — the file stays in your systems entirely — and still prove it existed unaltered as of a date." },
@@ -945,7 +945,7 @@ Success! Bitcoin attests existence as of 2026-06-30`,
   cliNote:
     "Seal controlled documents; anchor confidential datasets by hash so they never leave your systems. Both deliver attributable, contemporaneous, tamper-evident records recorded in the public transparency log.",
   examples: [
-    { label: "A sealed certificate of analysis", note: "Open the proof page the way a QP or customer would: it shows the CoA is authentic, unaltered, issued by your organisation, and timestamped on Bitcoin — a batch result no one can quietly change.", proofUrl: "https://app.letsseal.org/d/sd_8c2c527a55a8c023d15d0971685c90d9" },
+    { label: "A sealed certificate of analysis", note: "Open the proof page the way a QP or customer would: it shows the CoA is authentic, unaltered, issued by your organisation, and timestamped on Bitcoin — a batch result no one can quietly change.", proofUrl: "https://app.letsseal.org/d/sd_ed9b5384000e8b6b408146321e9cd686" },
     { label: "A batch or manufacturing record", note: "Seal each batch record on completion, so an inspector can confirm it's the contemporaneous record — provably unaltered since the batch was made." },
     { label: "Clinical-trial data (hash-only)", note: "Anchor a dataset's SHA-256 — the data stays entirely in your systems — and prove it existed unaltered as of that date, independent of your eTMF." },
     { label: "A validation or qualification record", note: "IQ/OQ/PQ and validation evidence sealed and timestamped, giving the attributable, contemporaneous trail data-integrity frameworks require." },
@@ -1006,7 +1006,7 @@ $ sealbot verify planning-permission.pdf
   cliNote:
     "Point a watched folder or your case system at Let's Seal and every notice, permit, and letter leaves already sealed, timestamped, and carrying a proof link — one command per document, no per-seal fee.",
   examples: [
-    { label: "A sealed permit or licence", note: "Open the proof page the way a business or inspector would: it shows the permit is authentic, unaltered, issued by the named authority, and timestamped on Bitcoin — a forged permit can't pass.", proofUrl: "https://app.letsseal.org/d/sd_7f728d9fe4b365f2a0f74270496baccf" },
+    { label: "A sealed permit or licence", note: "Open the proof page the way a business or inspector would: it shows the permit is authentic, unaltered, issued by the named authority, and timestamped on Bitcoin — a forged permit can't pass.", proofUrl: "https://app.letsseal.org/d/sd_676f1f97fabf9b20f39bdf09f94ba469" },
     { label: "A planning permission or decision notice", note: "Seal the decision so an applicant, objector, or conveyancer can confirm the permission is genuine and exactly as granted, appeal window and all." },
     { label: "A benefit, tax, or official letter", note: "Seal outbound letters in bulk, so a recipient or a third party relying on the letter can verify it's genuinely from the authority." },
     { label: "A court order or statutory notice", note: "Orders and notices sealed and timestamped on issue, so their authenticity and date can be proven by anyone acting on them." },
@@ -1067,7 +1067,7 @@ $ sealbot verify reference-letter.pdf
   cliNote:
     "Point a watched folder or your HR/payroll system at Let's Seal and every payslip and letter leaves already sealed, timestamped, and carrying a proof link — one command per document, no per-seal fee.",
   examples: [
-    { label: "A sealed payslip", note: "Open the proof page the way a lender or letting agent would: it shows the payslip is authentic, unaltered, issued by the named employer, and timestamped — the fake-payslip problem, solved.", proofUrl: "https://app.letsseal.org/d/sd_e9fd4ccfe47659288194e3fc33c00a5c" },
+    { label: "A sealed payslip", note: "Open the proof page the way a lender or letting agent would: it shows the payslip is authentic, unaltered, issued by the named employer, and timestamped — the fake-payslip problem, solved.", proofUrl: "https://app.letsseal.org/d/sd_457f68d7d553dbca7e53c8e699bf8e3f" },
     { label: "An employment reference or offer letter", note: "Seal references and offers so a new employer can confirm the letter is genuinely from the issuing company, unaltered — no phone call to HR required." },
     { label: "An employment contract", note: "Seal the executed contract so both parties can prove the terms are exactly as agreed, and which version was signed." },
     { label: "Board minutes or a share certificate", note: "Corporate records sealed and timestamped, so a shareholder, investor, or registrar can verify a resolution or certificate is genuine and dated." },
@@ -1129,7 +1129,7 @@ $ sealbot verify invoice-88231.pdf
   cliNote:
     "Seal a tender to prove when it was submitted; seal invoices and POs so a counterparty can verify they're genuine and unaltered — one command per document, no per-seal fee.",
   examples: [
-    { label: "A timestamped tender submission", note: "Open the proof page the way a procurement panel would: it shows the bid is authentic, unaltered, and — decisively — timestamped on Bitcoin before the deadline, settling any dispute over lateness.", proofUrl: "https://app.letsseal.org/d/sd_4b79d2dac6eb5cbe93d1ae25e2093fc9" },
+    { label: "A timestamped tender submission", note: "Open the proof page the way a procurement panel would: it shows the bid is authentic, unaltered, and — decisively — timestamped on Bitcoin before the deadline, settling any dispute over lateness.", proofUrl: "https://app.letsseal.org/d/sd_d5f96ffcbe88ac6f9b469371e810ce5a" },
     { label: "An invoice", note: "Seal outbound invoices so a buyer can confirm the amount and bank details are exactly as issued — the direct defence against invoice-redirection fraud." },
     { label: "A purchase order or contract", note: "Seal POs and NDAs so both sides can prove the terms are exactly as agreed, and which version was issued." },
     { label: "A certificate of origin or delivery note", note: "Trade documents sealed and dated, so a customs officer or trade-finance bank can verify they're genuine and unaltered along the chain." },
@@ -1190,7 +1190,7 @@ $ sealbot verify mill-certificate-3.1.pdf
   cliNote:
     "Seal certificates and reports as they're issued, or anchor raw test data by hash. Each carries a permanent proof link verifiable anywhere along the supply chain — no per-seal fee.",
   examples: [
-    { label: "A sealed certificate of conformity", note: "Open the proof page the way a customer's goods-in team would: it shows the certificate is authentic, unaltered, issued by the named manufacturer, and timestamped — a forged CoC can't pass.", proofUrl: "https://app.letsseal.org/d/sd_e64660327fbd016efdeca65729a881c9" },
+    { label: "A sealed certificate of conformity", note: "Open the proof page the way a customer's goods-in team would: it shows the certificate is authentic, unaltered, issued by the named manufacturer, and timestamped — a forged CoC can't pass.", proofUrl: "https://app.letsseal.org/d/sd_cc490b4ec0bc272c58c51e85d461044e" },
     { label: "A mill or material certificate", note: "Seal EN 10204 3.1 mill certs so a fabricator or inspector can confirm the material grade and heat data are exactly as certified — a known target for forgery." },
     { label: "A test or inspection report", note: "Lab and QC reports sealed on issue, so a customer or auditor can verify the results are the genuine, unedited findings." },
     { label: "A bill of lading or customs document", note: "Trade and shipping documents sealed and dated, so a customs officer or consignee can confirm they're genuine and unaltered in transit." },
@@ -1251,7 +1251,7 @@ $ sealbot verify deliverable.pdf
   cliNote:
     "Anchoring proves existence-and-date without the file ever leaving your machine — only its SHA-256. Sign in with Google or GitHub if you also want your verified identity attached. Both are free.",
   examples: [
-    { label: "A timestamped manuscript or design", note: "Open the proof page the way you'd show it to prove you had the work first: it shows the file is unaltered and independently timestamped on Bitcoin — a date no one can move.", proofUrl: "https://app.letsseal.org/d/sd_2b5ba265d0b20834e40d2fc0d1a9df52" },
+    { label: "A timestamped manuscript or design", note: "Open the proof page the way you'd show it to prove you had the work first: it shows the file is unaltered and independently timestamped on Bitcoin — a date no one can move.", proofUrl: "https://app.letsseal.org/d/sd_956247d07ce9b2f512591dde932f393d" },
     { label: "A freelance deliverable", note: "Seal what you hand a client so both of you can prove exactly what was delivered, and when — no argument later about which version was sent." },
     { label: "A personal agreement", note: "Seal an agreement between individuals so each party can prove the terms are exactly as agreed, and which version was signed." },
     { label: "A private file (hash-only)", note: "Anchor just a file's SHA-256 — the file never leaves your machine — and still prove you had it, unchanged, by a date. Reveal it only if you choose to." },

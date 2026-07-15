@@ -59,14 +59,29 @@ def require_auth(authorization: Optional[str] = Header(None)) -> None:
         raise HTTPException(401, "unauthorized")
 
 
+_CN_FOLD = str.maketrans({
+    "‘": "'", "’": "'", "‚": "'", "‛": "'",
+    "“": '"', "”": '"', "„": '"', "‟": '"',
+    "‐": "-", "‑": "-", "‒": "-", "–": "-",
+    "—": "-", "―": "-", "−": "-",
+    "…": "...", " ": " ", " ": " ", " ": " ",
+})
+
+
 def _validate_legal_name(legal: str) -> str:
     """Validate a caller-supplied legal name before it reaches the CA's subject
-    DN. Rejects DN-injection metacharacters (`/`, newlines, backslash, NUL)."""
-    legal = legal.strip()
+    DN. Folds typographic punctuation to ASCII, rejects DN-injection
+    metacharacters (`/`, newlines, backslash, NUL), and guarantees the result is
+    latin-1-encodable so it can safely ride in the signer-CN response header."""
+    legal = legal.strip().translate(_CN_FOLD)
     if not legal:
         raise HTTPException(400, "legal_name required")
     if _DN_BAD.search(legal):
         raise HTTPException(400, "legal_name contains invalid characters")
+    try:
+        legal.encode("latin-1")
+    except UnicodeEncodeError:
+        raise HTTPException(400, "legal_name contains characters not yet supported in signing certificates")
     return legal
 
 

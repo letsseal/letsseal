@@ -14,7 +14,7 @@ const ALIAS_HOSTS = new Set([
   "www.letsseal.org",
 ]);
 
-const SHARED_PREFIXES = ["/site", "/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap"];
+const SHARED_PREFIXES = ["/site", "/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/llms", "/SPEC"];
 
 export function proxy(request: NextRequest) {
   const url = request.nextUrl;

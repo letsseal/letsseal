@@ -131,7 +131,10 @@ issue_cert() {
   else
     openssl ecparam -name prime256v1 -genkey -noout -out "$dir/$base.key"
   fi
-  openssl req -new -key "$dir/$base.key" -out "$dir/$base.csr" -subj "/CN=$subject/O=$subject/C=GB"
+  # -utf8: treat the -subj bytes as UTF-8. Without it openssl reads them as Latin-1,
+  # so a name with non-ASCII (e.g. a curly apostrophe) is double-encoded into the
+  # cert's UTF8String and later renders as mojibake ("Let’s" → "Letâ€™s").
+  openssl req -new -utf8 -key "$dir/$base.key" -out "$dir/$base.csr" -subj "/CN=$subject/O=$subject/C=GB"
   openssl x509 -req -in "$dir/$base.csr" \
     -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -CAcreateserial \
     -out "$dir/$base.crt" -days "$DAYS_ORG" -sha256 \
