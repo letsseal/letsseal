@@ -1,10 +1,13 @@
-"""letsseal — the hand-crafted Python client for the Let's Seal signing service:
-PAdES sealing, verification, and free Bitcoin anchoring.
+"""letsseal — the hand-crafted Python client for the Let's Seal signing service.
 
-Zero-dependency (standard library only). Let's Seal composes open standards
-(PAdES/X.509 + OpenTimestamps); it does not invent the anchoring, and trust is
-*self-anchored* — a proof is verified via the chain + the public portal + the
-blockchain, not via OS/Adobe trust stores.
+Seal anything — PDFs (PAdES), images and media (C2PA), XML (XML-DSig), email
+(S/MIME), any file (detached CMS), and software artifacts (cosign blobs,
+SBOM/SLSA attestations) — verify, and anchor on Bitcoin for free.
+
+Zero-dependency (standard library only). Trust is self-anchored: a proof verifies
+against the published root, the public transparency log, and the Bitcoin ledger —
+everything a verifier needs travels with the proof. ``trusted=True`` means it
+chains to *this* root.
 
     from letsseal import LetsSeal
     ls = LetsSeal("http://127.0.0.1:8081")
@@ -16,6 +19,7 @@ from .client import (
     LetsSeal,
     LetsSealError,
     SealResult,
+    SealedFile,
     CertResult,
     AnchorResult,
     AnchorStatus,
@@ -26,6 +30,7 @@ __all__ = [
     "LetsSeal",
     "LetsSealError",
     "SealResult",
+    "SealedFile",
     "CertResult",
     "AnchorResult",
     "AnchorStatus",

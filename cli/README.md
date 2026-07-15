@@ -1,7 +1,7 @@
 # sealbot (Node)
 
-**The `certbot` for document authenticity.** Timestamp any file on Bitcoin and prove it
-existed, unaltered — one command, no account. For humans, backends, CI, and AI agents.
+**Seal and timestamp anything on Bitcoin.** Prove any file existed, unaltered — one
+command, public proof. For humans, backends, CI, and AI agents.
 
 Three core verbs (hash-only, keyless, scriptable):
 
@@ -53,8 +53,8 @@ sealbot watch ./release --mode publish --interval 30  # public proof page per ar
   public proof page) · `seal` (PDFs only, needs `--org` and the keyed service).
 
 Run it under systemd/pm2 for a directory that's continuously notarised, or on a `--once` cron
-tick. Each `.ots` still verifies against Bitcoin with stock `ots verify <file>` — zero reliance
-on Let's Seal existing.
+tick. Each `.ots` still verifies against Bitcoin with stock `ots verify <file>` — the proof
+stands on the public chain.
 
 ## Install
 
@@ -65,18 +65,18 @@ npm i -g sealbot          # or: node cli/sealbot.mjs <cmd>
 Requires Node ≥ 18. Point it at a service with `--api <url>` or `SEALBOT_API`
 (default `http://127.0.0.1:8081`).
 
-## What it is (and isn't)
+## What it is
 
 - **`anchor` works on any file.** Anchoring is just `timestamp(sha256(bytes))`, so the same
   command proves the existence-and-date of software releases, datasets, audit logs, evidence,
   model weights, backups — not only PDFs.
-- **It packages, it doesn't invent.** The Bitcoin timestamping is [OpenTimestamps](https://opentimestamps.org);
-  the seal is a standard X.509 / PAdES signature. `sealbot` wraps them with a CA, a friendly API,
-  and public proof pages. Your `.ots` proof verifies against Bitcoin with `ots verify` and **zero
-  reliance on Let's Seal existing.**
-- **Trust is self-anchored.** Unlike a paid AATL cert, the CA here is *not* in OS/Adobe trust
-  stores. Authenticity is established via the public verification portal + the blockchain — which
-  is the entire point: no trust list to buy into.
+- **The open standard for sealing anything.** Bitcoin timestamping via [OpenTimestamps](https://opentimestamps.org)
+  and an X.509 / PAdES seal, delivered as one thing anyone can verify: `sealbot` issues under a
+  CA, exposes a friendly API, and publishes proof pages. Your `.ots` proof verifies against
+  Bitcoin with stock `ots verify` — the proof stands on the public chain.
+- **Trust is self-anchored.** Authenticity comes from the published root + the public
+  transparency log + the blockchain — everything a verifier needs travels with the proof, so it
+  checks anywhere, forever.
 
 ## Exit codes
 

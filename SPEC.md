@@ -22,7 +22,7 @@ A SEAL proof has two independent parts and one convention:
 | Letter | Part | Standard used | Proves |
 |--------|------|---------------|--------|
 | **S**ealed · **E**vidence | A signature by a certificate chaining to a published root CA, in the artifact's format-native form — **PAdES** embedded in PDFs, **C2PA** embedded in images/video/audio, **XML-DSig** enveloped in XML, **S/MIME** for email messages, and **detached CAdES/CMS** (a `file.sig` sidecar) for any other artifact. | PAdES / C2PA / XML-DSig / S/MIME / CAdES (ETSI EN 319 142 / 319 122; C2PA 2.x; W3C XML Signature; RFC 8551), X.509, SHA-256 | **Integrity + issuer** — the file is byte-for-byte what was sealed, and which certificate sealed it. |
-| **A**nchored · **L**edger | An OpenTimestamps proof (`.ots`) over the SHA-256 of the sealed file. | OpenTimestamps, Bitcoin | **Time** — the file existed by a given public-ledger block, with no authority to trust. |
+| **A**nchored · **L**edger | An OpenTimestamps proof (`.ots`) over the SHA-256 of the sealed file. | OpenTimestamps, Bitcoin | **Time** — the file existed by a given public-ledger block, on a public ledger no one controls. |
 | — | The canonical proof permalink `/d/<sha256>` and its machine-readable twin. | HTTP + JSON | **Convention** — one stable way to reference and fetch a proof. |
 
 The proof is **self-contained**: the seal travels inside the artifact (embedded in a

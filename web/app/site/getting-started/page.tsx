@@ -11,14 +11,14 @@ const TIERS = [
   {
     tier: "Use ours",
     h: "Hosted",
-    p: "Nothing to install. Drop a PDF in the app or run one command — get a sealed, anchored copy with a public proof page anyone can check.",
+    p: "Drop in any file — PDF, image, XML, email, archive — or run one command, and get a sealed, anchored copy with a public proof page anyone can check.",
     who: "Best for: trying it out, one-off documents, small teams.",
   },
   {
     tier: "Run your own",
     h: "Self-hosted",
-    p: "Host the whole stack and hold your own keys. Your seals stay verifiable forever — the proof lives on Bitcoin, not on us.",
-    who: "Best for: organisations issuing at scale, or anyone who wants zero dependency on this project.",
+    p: "Host the whole stack and hold your own keys. Your seals stay verifiable forever — the proof lives on Bitcoin and the public transparency log.",
+    who: "Best for: organisations issuing at scale who want to own their CA and their keys.",
   },
 ];
 
@@ -66,8 +66,9 @@ export default function GettingStartedPage() {
             <div>
               <H2>Install sealbot</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                sealbot is the open command-line tool for sealing, anchoring, and verifying documents. It talks to the
-                hosted service by default, or to your own instance with one flag.
+                sealbot is the open command-line tool for sealing, anchoring, and verifying anything — files, PDFs,
+                media, and software artifacts. It talks to the hosted service by default, or to your own instance with
+                one flag.
               </p>
               <div className="mt-5">
                 <LinkArrow href="/site/developers">Full developer docs</LinkArrow>
@@ -83,17 +84,17 @@ export default function GettingStartedPage() {
                 </CodeBlock>
               </div>
               <div>
-                <div className="mb-2 text-[12.5px] font-semibold uppercase tracking-wider text-stone-400">Seal a document</div>
+                <div className="mb-2 text-[12.5px] font-semibold uppercase tracking-wider text-stone-400">Seal any file</div>
                 <CodeBlock>
                   <span className="text-emerald-400">$</span> sealbot seal invoice.pdf
                   {"\n"}
-                  <span className="text-stone-500">✓ sealed · anchored to Bitcoin</span>
+                  <span className="text-stone-500">✓ sealed · anchored to Bitcoin · logged</span>
                   {"\n"}
                   <span className="text-stone-500">→ https://letsseal.org/d/9f2c…a41b</span>
                 </CodeBlock>
               </div>
               <div>
-                <div className="mb-2 text-[12.5px] font-semibold uppercase tracking-wider text-stone-400">Verify one (no account, keyless)</div>
+                <div className="mb-2 text-[12.5px] font-semibold uppercase tracking-wider text-stone-400">Verify one (public, keyless)</div>
                 <CodeBlock>
                   <span className="text-emerald-400">$</span> sealbot verify invoice.pdf
                   {"\n"}

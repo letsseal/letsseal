@@ -266,7 +266,7 @@ async function TimestampProof({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public timestamp proof</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Independent timestamp</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            A file&apos;s fingerprint anchored to a decentralised public ledger. Anyone can open this — no account, no file upload.
+            A file&apos;s fingerprint anchored to a decentralised public ledger. Anyone can open this straight from the link — the fingerprint alone is enough.
           </p>
         </div>
         <ProofCertificate data={data} variant="timestamp" />

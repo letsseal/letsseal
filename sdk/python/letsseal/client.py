@@ -40,6 +40,15 @@ class CertResult:
 
 
 @dataclass
+class SealedFile:
+    """A file sealed in-place (C2PA image, XML-DSig, S/MIME) — the signed bytes."""
+    data: bytes
+    sha256: str
+    cert_cn: str
+    format: str = ""
+
+
+@dataclass
 class AnchorStatus:
     state: str
     file_sha256: Optional[str] = None
@@ -168,3 +177,58 @@ class LetsSeal:
         """Render a proof QR code (PNG bytes)."""
         body, _ = self._request("POST", "/qr", data=json.dumps({"data": data}).encode(), content_type="application/json")
         return body
+
+
+    def seal_detached(self, sha256: str, *, org: str) -> dict:
+        """Seal any file as a detached CAdES/CMS signature over its SHA-256 — the
+        file never leaves the caller. Pair with ``anchor_hash`` for the time."""
+        return self._post_json("/seal/detached", {"sha256": sha256, "org_slug": org})
+
+    def seal_detached_local(self, file: FileInput, *, org: str) -> dict:
+        """Hash ``file`` locally, then seal the digest (detached)."""
+        content, _ = _read(file)
+        return self.seal_detached(sha256_hex(content), org=org)
+
+    def seal_blob(self, sha256: str, *, org: str) -> dict:
+        """Supply-chain seal: a cosign-compatible signature over a file's SHA-256,
+        using the org's code-signing leaf. Verifies with stock ``cosign verify-blob``."""
+        return self._post_json("/seal/blob", {"sha256": sha256, "org_slug": org})
+
+    def attest(self, sha256: str, *, org: str, predicate: dict,
+               predicate_type: str = "custom", subject_name: str = "artifact") -> dict:
+        """Sign a DSSE/in-toto attestation (SBOM, SLSA provenance, vuln scan) over a
+        digest. The returned bundle verifies with ``cosign verify-blob-attestation``."""
+        return self._post_json("/attest", {
+            "sha256": sha256, "org_slug": org, "predicate": predicate,
+            "predicate_type": predicate_type, "subject_name": subject_name})
+
+    def identity_providers(self) -> dict:
+        """The OIDC identity providers this deployment has enabled."""
+        body, _ = self._request("GET", "/identity/providers")
+        return json.loads(body)
+
+    def seal_identity(self, sha256: str, *, provider: str, token: str) -> dict:
+        """Seal a digest under a provider-verified identity: pass the provider's proof
+        (an OIDC ID token, or a GitHub OAuth access token for ``github``) and Let's Seal
+        mints a short-lived leaf binding the provider-verified email. Records that the
+        *provider* verified the email — not a claim of real-world identity."""
+        return self._post_json("/seal/identity", {"sha256": sha256, "provider": provider, "token": token})
+
+    def seal_c2pa(self, file: FileInput, *, org: str, title: Optional[str] = None) -> SealedFile:
+        """Seal an image or media file with an embedded C2PA (Content Credentials) manifest."""
+        fields = {"org_slug": org}
+        if title:
+            fields["title"] = title
+        body, hdrs = self._post_multipart("/seal/c2pa", fields, file)
+        return SealedFile(data=body, sha256=hdrs.get("x-letsseal-sha256", ""),
+                          cert_cn=hdrs.get("x-letsseal-cert-cn", ""), format=hdrs.get("x-letsseal-format", ""))
+
+    def seal_xml(self, file: FileInput, *, org: str) -> SealedFile:
+        """Seal an XML document with an enveloped W3C XML-DSig signature."""
+        body, hdrs = self._post_multipart("/seal/xml", {"org_slug": org}, file)
+        return SealedFile(data=body, sha256=hdrs.get("x-letsseal-sha256", ""), cert_cn=hdrs.get("x-letsseal-cert-cn", ""))
+
+    def seal_smime(self, file: FileInput, *, org: str) -> SealedFile:
+        """Seal an email message (``.eml``) in an S/MIME ``multipart/signed`` envelope."""
+        body, hdrs = self._post_multipart("/seal/smime", {"org_slug": org}, file)
+        return SealedFile(data=body, sha256=hdrs.get("x-letsseal-sha256", ""), cert_cn=hdrs.get("x-letsseal-cert-cn", ""))

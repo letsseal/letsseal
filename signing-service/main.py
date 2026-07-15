@@ -231,6 +231,18 @@ def _validation_context() -> ValidationContext:
                              allow_fetching=False, revocation_mode="soft-fail")
 
 
+def _ca_intermediate_pem() -> str:
+    """Our own intermediate cert(s). The digest-based verify endpoints complete a
+    leaf's chain to the pinned root with this, so a caller only ever has to upload
+    the signer's leaf `.pem` — never the intermediate. (Third-party verifiers like
+    cosign still need the separate chain file, which the seal response provides.)"""
+    try:
+        with open(os.path.join(CA_DIR, "intermediate.crt")) as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
 CA_SCRIPT = os.path.join(os.path.dirname(__file__), "..", "ca", "setup-ca.sh")
 
 
@@ -465,7 +477,8 @@ async def verify_blob_ep(request: Request, file: UploadFile = File(...),
     from blobsign import verify_blob_digest
     root = os.path.join(CA_DIR, "root-ca.crt")
     try:
-        result = await run_in_threadpool(verify_blob_digest, sha, sig_b64, cert_pem, root, cert_pem)
+        result = await run_in_threadpool(verify_blob_digest, sha, sig_b64, cert_pem, root,
+                                          cert_pem + "\n" + _ca_intermediate_pem())
         result["sha256"] = sha
         return JSONResponse(result)
     except Exception:
@@ -554,7 +567,8 @@ async def verify_identity_ep(request: Request, file: UploadFile = File(...),
     from identity import verify_identity_digest
     root = os.path.join(CA_DIR, "root-ca.crt")
     try:
-        result = await run_in_threadpool(verify_identity_digest, sha, sig_b64, cert_pem, root, cert_pem)
+        result = await run_in_threadpool(verify_identity_digest, sha, sig_b64, cert_pem, root,
+                                          cert_pem + "\n" + _ca_intermediate_pem())
         result["sha256"] = sha
         return JSONResponse(result)
     except Exception:
@@ -621,7 +635,8 @@ async def verify_attest_ep(request: Request, file: UploadFile = File(...),
     root = os.path.join(CA_DIR, "root-ca.crt")
     try:
         bundle_json = _json.loads(bundle_raw)
-        result = await run_in_threadpool(verify_attestation, bundle_json, cert_pem, root, cert_pem, sha)
+        result = await run_in_threadpool(verify_attestation, bundle_json, cert_pem, root,
+                                          cert_pem + "\n" + _ca_intermediate_pem(), sha)
         result["sha256"] = sha
         return JSONResponse(result)
     except Exception:

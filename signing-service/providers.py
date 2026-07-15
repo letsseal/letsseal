@@ -23,8 +23,8 @@ consortium/state coins): those reintroduce a trusted party and are unsuitable
 for a trust product.
 
 User-facing language should say what the anchor *does* ("independent,
-decentralized timestamp — verifiable forever, no company in the middle"), and
-name the underlying ledger only in the technical detail.
+decentralized timestamp — verifiable forever, on a public ledger no one
+controls"), and name the underlying ledger only in the technical detail.
 """
 from __future__ import annotations
 

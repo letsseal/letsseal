@@ -47,6 +47,6 @@ Anyone who needs a file to be provably authentic and tamper-evident without a pa
 - The SEAL open standard (full spec): https://letsseal.org/SPEC.md and https://letsseal.org/site/standard
 - Root of trust (published root + fingerprints): https://letsseal.org/site/trust
 - How a seal is made & checked: https://letsseal.org/site/how-it-works
-- Verify a document (public, no account): https://verify.letsseal.org
+- Verify a document (public, free): https://verify.letsseal.org
 - Developers / API: https://letsseal.org/site/developers · https://letsseal.org/site/docs
 - Mission (why it's free and open): https://letsseal.org/site/mission

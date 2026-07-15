@@ -19,21 +19,21 @@ const SECTIONS = [
     h: "sealbot CLI",
     p: "Every command, flag, and exit code.",
     href: "https://github.com/letsseal/sealbot",
-    links: ["seal", "verify", "--endpoint", "batch"],
+    links: ["seal", "verify", "attest", "sign-image"],
   },
   {
     icon: Boxes,
     h: "API & SDKs",
-    p: "HTTP reference and language SDKs.",
+    p: "HTTP reference and language SDKs for every seal form.",
     href: "/site/developers",
-    links: ["REST API", "JS/TS", "Python", "Go"],
+    links: ["REST API", "Detached", "C2PA", "XML-DSig", "S/MIME", "Attestations"],
   },
   {
     icon: ShieldCheck,
     h: "Verification",
-    p: "How keyless, public verification works.",
+    p: "How public verification works, for anyone.",
     href: "/site/how-it-works",
-    links: ["Coverage", "Bitcoin anchor", "Proof pages"],
+    links: ["Coverage", "Transparency log", "Bitcoin anchor", "Proof pages"],
   },
   {
     icon: Server,
@@ -47,7 +47,7 @@ const SECTIONS = [
     h: "Concepts",
     p: "Use cases, trust model, and honest scope.",
     href: "/site/mission",
-    links: ["Seal · Sign · Identity", "Attribution vs identity", "What a seal proves"],
+    links: ["Provider-verified identity", "Supply-chain attestations", "What a seal proves"],
   },
 ];
 

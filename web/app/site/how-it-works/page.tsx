@@ -12,25 +12,25 @@ const STEPS = [
     n: "01",
     icon: Fingerprint,
     h: "Fingerprint the whole file",
-    p: "We take a SHA-256 hash of the entire document — a 64-character fingerprint that changes completely if a single byte changes. This is what gets protected.",
+    p: "We take a SHA-256 hash of the entire file — a 64-character fingerprint that changes completely if a single byte changes. This is what gets protected.",
   },
   {
     n: "02",
     icon: FileCheck2,
-    h: "Sign it (PAdES)",
-    p: "The document is signed with a standard PAdES digital signature covering the whole file, using an X.509 certificate. Tamper with any covered byte afterward and the signature no longer matches.",
+    h: "Seal it",
+    p: "A seal covers the whole file, chaining to a published root — as PAdES for PDFs, C2PA for images and media, XML-DSig for XML, S/MIME for email, or a detached CMS signature for any other file. Tamper with any covered byte afterward and the seal no longer matches.",
   },
   {
     n: "03",
     icon: Anchor,
     h: "Anchor it to Bitcoin",
-    p: "The fingerprint is timestamped into the Bitcoin blockchain via OpenTimestamps. That gives independent, permanent proof the document existed — with no trust in us or any single authority.",
+    p: "The fingerprint is timestamped into the Bitcoin blockchain via OpenTimestamps, and recorded in a public, append-only transparency log. That gives independent, permanent proof the file existed at that moment.",
   },
   {
     n: "04",
     icon: ShieldCheck,
     h: "Anyone verifies — keyless",
-    p: "To check a document, anyone re-hashes it and confirms the signature and the Bitcoin anchor — free and instant, open to everyone. If it matches, it's authentic and unchanged.",
+    p: "To check a file, anyone re-hashes it and confirms the seal, the transparency-log entry, and the Bitcoin anchor — free and instant, open to everyone. If it matches, it's authentic and unchanged.",
   },
 ];
 

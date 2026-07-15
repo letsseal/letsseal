@@ -68,7 +68,7 @@ export default function Verify() {
           <h1 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">Verify a document</h1>
           <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
             The independent portal for checking a Let&apos;s Seal document is authentic and unaltered.
-            No account. Free. You can even confirm it offline — without us.
+            Free and public — you can even confirm it offline, with stock tools.
           </p>
         </div>
 
@@ -139,12 +139,12 @@ export default function Verify() {
             </Pillar>
             <Pillar icon={Anchor} title="Independent timestamp">
               A decentralised OpenTimestamps anchor on the Bitcoin ledger — free, permanent proof of
-              when it existed, with no authority to trust.
+              when it existed, on a public ledger no one controls.
             </Pillar>
-            <Pillar icon={Globe} title="Check it without us">
+            <Pillar icon={Globe} title="Check it yourself">
               Download the <code className="rounded bg-muted px-1 py-0.5 text-xs">.ots</code> proof and run{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">ots verify</code> yourself. Verification
-              needs nothing of ours — the portal is a convenience, not the source of truth.
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">ots verify</code> yourself. The proof carries
+              everything a verifier needs — the portal is a convenience, and the proof is the source of truth.
             </Pillar>
           </div>
           <p className="mt-8 text-center text-sm text-muted-foreground">

@@ -314,8 +314,9 @@ Advanced — keyed signing (needs the signing service + a bearer token):
   --token <tok> | SEALBOT_TOKEN  bearer for the keyed service
 
 Hash-only by default: the file never leaves your machine, only its 32-byte digest.
-Every .ots verifies against Bitcoin with stock \`ots verify <file>\` — no reliance
-on Let's Seal. Composes OpenTimestamps + an X.509 CA; trust is self-anchored.`;
+Every .ots verifies against Bitcoin with stock \`ots verify <file>\`. Let's Seal is
+the open standard for sealing anything — every seal chains to a published root, and
+trust is self-anchored: the proof carries everything a verifier needs.`;
 
 const VALUE_FLAGS = new Set(["api", "org", "reason", "app", "token", "id", "cn", "profile", "mode", "interval", "state", "manifest"]);
 const positionals = [];

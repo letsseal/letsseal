@@ -13,9 +13,9 @@ const STANDARDS = ["PAdES signatures", "X.509 certificates", "RFC 3161 timestamp
 
 const FEATURES = [
   { title: "Free, forever", body: "No per-seal or per-envelope fees. The cryptography behind a document seal is free and standard — there's no reason to rent it." },
-  { title: "Your own authority", body: "Seal documents with your own certificate authority. Tamper-evident PAdES signatures, entirely under your control — no trust list to buy into." },
+  { title: "Your own authority", body: "Seal documents with your own certificate authority. Tamper-evident PAdES signatures, entirely under your control — trust flows from your own published root." },
   { title: "Anchored to a public ledger", body: "Every seal gets an independent, decentralised timestamp via OpenTimestamps — free, permanent proof of when a document existed, recorded on a public ledger no one controls." },
-  { title: "Publicly verifiable", body: "Anyone can confirm a document on the public portal — no account, no Adobe, no reliance on our servers. Independently checkable, offline." },
+  { title: "Publicly verifiable", body: "Anyone can confirm a document on the public portal, or offline with stock tools — the proof carries everything a verifier needs. Independently checkable, anywhere." },
 ];
 
 const COMPARISON: { label: string; ours: string; theirs: string; oursWin: boolean }[] = [
@@ -169,7 +169,7 @@ export default async function Landing() {
         <h2 className="mt-4 text-2xl font-semibold tracking-tight text-ink">You never have to take our word for it</h2>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
           Every sealed document has a public proof page and a downloadable OpenTimestamps proof you can check
-          against Bitcoin yourself — with zero reliance on Let&apos;s Seal continuing to exist.
+          against Bitcoin yourself — the proof stands on its own, forever.
         </p>
         <div className="mt-6">
           <Button asChild variant="outline"><Link href={LIVE_PROOF} target="_blank">Open a live proof →</Link></Button>

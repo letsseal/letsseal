@@ -1,7 +1,8 @@
 # letsseal
 
-Python client for the [Let's Seal](https://letsseal.org) signing service — PAdES
-sealing, verification, and free Bitcoin anchoring.
+Python client for the [Let's Seal](https://letsseal.org) signing service — seal
+anything (PDFs, images, XML, email, any file, software artifacts), verify, and
+anchor on Bitcoin for free.
 
 **Zero-dependency** (standard library only). Python 3.8+.
 
@@ -19,16 +20,25 @@ res = ls.seal("contract.pdf", org="acme")     # accepts a path or bytes
 open("contract.sealed.pdf", "wb").write(res.pdf)
 print(res.cert_cn, res.sha256)
 
-# Verify — chains to the Let's Seal CA
+# Verify — chains to the Let's Seal root
 print(ls.verify(res.pdf))   # {'sealed': True, 'intact': True, 'valid': True, 'trusted': True, ...}
+
+# Seal any other file, digest-only — the bytes never leave the machine
+ls.seal_detached_local("release.tar.gz", org="acme")   # detached CMS over its SHA-256
+
+# Seal an image with embedded C2PA Content Credentials
+img = ls.seal_c2pa("photo.jpg", org="acme")            # SealedFile(data, sha256, cert_cn, format)
+open("photo.signed.jpg", "wb").write(img.data)
+
+# Supply chain: sign an SBOM/SLSA attestation over an artifact digest
+ls.attest(res.sha256, org="acme", predicate=sbom, predicate_type="spdxjson")
 
 # Anchor privately: hash locally, only the digest leaves the machine
 proof = ls.anchor_local("contract.pdf")        # AnchorResult(ots_b64, status)
 print(proof.status.state)                      # 'pending' -> 'confirmed' once on-chain
-
-# CA-as-code: sign a CSR (you keep the private key)
-cert = ls.sign_csr(id="ci", csr=pem_csr, profile="code")
 ```
+
+Also: `seal_xml`, `seal_smime`, `seal_blob`, `seal_identity`, `identity_providers`.
 
 File arguments accept a path (`str` / `os.PathLike`) or raw `bytes`. Non-2xx
 responses raise `LetsSealError` (`.status`, `.body`).

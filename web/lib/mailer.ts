@@ -112,7 +112,7 @@ export async function sendEnvelopeCompleted(opts: {
     to: opts.to,
     subject: `Completed: "${opts.envelopeTitle}" — all parties have signed`,
     html,
-    text: `All parties have signed "${opts.envelopeTitle}". Your completed, sealed copy is ready.\n\nDownload (unique to you — please don't forward):\n${opts.downloadUrl}\n\nVerify it's genuine & unaltered (anyone can, no account):\n${opts.proofUrl}\n`,
+    text: `All parties have signed "${opts.envelopeTitle}". Your completed, sealed copy is ready.\n\nDownload (unique to you — please don't forward):\n${opts.downloadUrl}\n\nVerify it's genuine & unaltered (anyone can, free):\n${opts.proofUrl}\n`,
   });
   return true;
 }
@@ -143,7 +143,7 @@ export async function sendEnvelopeCompletedSender(opts: {
         </a>
       </p>
       <p style="font-size:13px;color:#5b6472">Every signer has been sent their own copy. This is a permanent,
-        independently timestamped record that anyone can verify — no account needed.</p>
+        independently timestamped record that anyone can verify, free.</p>
     </div>`;
   await send({
     from: fromHeader(opts.orgName),

@@ -21,7 +21,7 @@ const OPEN = [
   },
   {
     h: "Open ledger",
-    p: "Anchors live on Bitcoin's public blockchain. Verification stands on its own — no server of ours required, ever.",
+    p: "Anchors live on Bitcoin's public blockchain, and every seal is recorded in a public, append-only transparency log. Verification stands on its own, anywhere, forever.",
   },
   {
     h: "Run it yourself, keep your keys",

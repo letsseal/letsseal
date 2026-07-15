@@ -36,7 +36,7 @@ export default async function CredentialsPage({ params }: { params: Promise<{ or
         <h2 className="text-2xl font-semibold tracking-tight">Credentials</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Issue branded, sealed certificates and credentials as <b>{org.name}</b>. Each one gets a permanent
-          link anyone can verify — no account, no phone call. This attests the document is genuine and
+          link anyone can verify in seconds. This attests the document is genuine and
           unaltered; it does not verify the recipient&apos;s identity.
         </p>
       </div>

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Let's Seal signing service",
-    "description": "The Let's Seal signing service is the keyed core of an open, self-hostable\nalternative to pay-to-play document-authenticity trust lists — *the \"Let's\nEncrypt for documents.\"*\n\nIt **composes open standards** rather than inventing new ones:\n\n* **PAdES / X.509** for the cryptographic seal (via pyHanko + an on-prem CA)\n* **OpenTimestamps** for a free Bitcoin anchor proving a file existed by a date\n* **SHA-256** everywhere; hash-only endpoints so a file never has to leave the caller\n\n**Trust is self-anchored.** This CA is deliberately *not* in OS/Adobe trust\nstores; a proof is verified via the certificate chain + the public portal + the\nblockchain, not via automatic vendor trust. That is the point, not a limitation.\n\n⚠️ **Runs localhost/private only — it holds signing keys.** The public, rate-limited\nsurface lives in the app tier in front of it.\n",
+    "description": "The Let's Seal signing service is the keyed core of Let's Seal — the open standard\nfor sealing anything, self-hostable and free. *The \"Let's Encrypt for documents.\"*\n\nOpen standards, end to end:\n\n* **PAdES / X.509** for the cryptographic seal (via pyHanko + an on-prem CA)\n* **OpenTimestamps** for a free Bitcoin anchor proving a file existed by a date\n* **SHA-256** everywhere; hash-only endpoints so a file never has to leave the caller\n\n**Trust is self-anchored.** A proof stands on the published root, open standards,\nand the public blockchain — authenticity anyone can verify, backed by a published\nroot.\n\n⚠️ **Runs localhost/private only — it holds signing keys.** The public, rate-limited\nsurface lives in the app tier in front of it.\n",
     "contact": {
       "name": "Let's Seal",
       "url": "https://letsseal.org/"
@@ -49,15 +49,33 @@
         "summary": "Issue a business signing certificate",
         "description": "Issue a signing certificate for a new business (runs the CA script).",
         "operationId": "issueOrgCert",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrgRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -91,15 +109,33 @@
         "summary": "Render a proof QR (PNG)",
         "description": "Render a QR code (PNG) for a proof URL — used to stamp sealed PDFs.",
         "operationId": "renderQr",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/QrRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -134,15 +170,33 @@
         "summary": "Sign a client CSR under a profile",
         "description": "CA-as-code: sign a client-supplied CSR under a signing profile.\n\nThe client generates and keeps the private key; we only sign the CSR. Trust\nis self-anchored (our CA isn't in OS/vendor trust stores) — verify via the\nchain + the portal, not automatic OS trust. Profiles: document | code | data.",
         "operationId": "signCsr",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CertSignRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -176,15 +230,33 @@
         "summary": "Seal a PDF",
         "description": "Seal an uploaded completed PDF with the org's signing cert.",
         "operationId": "seal",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_seal"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -211,6 +283,981 @@
         }
       }
     },
+    "/seal/detached": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Detached CAdES/CMS seal over a file digest",
+        "description": "Seal ANY file: a detached CMS signature over its SHA-256, chaining to the\nroot. Digest-only — the file never leaves the caller. Pair with `/anchor/hash`\nfor the Bitcoin timestamp; together they are the full SEAL for a non-PDF.",
+        "operationId": "sealDetached",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SealDetachedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/detached": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify a detached CAdES/CMS seal",
+        "description": "Verify a detached seal: the file's bytes + its `.sig`, against our root.\nPowers the public portal for any non-PDF artifact.",
+        "operationId": "verifyDetached",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifyDetached"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seal/blob": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "cosign-compatible signature over a file digest",
+        "description": "Seal an artifact for the supply-chain lane: a raw ECDSA-P256 signature over\nits SHA-256 plus the org's codeSigning leaf cert, in cosign's flat\nsignature+certificate form. Digest-only — the artifact never leaves the caller.\nVerifies with `sealbot verify`, `openssl`, and stock `cosign verify-blob`.",
+        "operationId": "sealBlob",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SealDetachedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/blob": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify a cosign-format blob signature",
+        "description": "Verify a supply-chain blob seal: the artifact's bytes + its base64 `.sig` +\nthe signer's `.pem` (leaf, optionally with chain), against our root.",
+        "operationId": "verifyBlob",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifyBlob"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity/providers": {
+      "get": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "List enabled OIDC identity providers",
+        "description": "The identity providers this service is configured for (those with an OAuth\nclient id set). The web tier reads this to render only the sign-in buttons\nthat will actually work.",
+        "operationId": "identityProviders",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seal/identity": {
+      "post": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Seal a digest under a provider-verified identity",
+        "description": "Verify a Google/GitHub/OIDC proof, mint a short-lived leaf binding the\nprovider-verified email, and sign the artifact's SHA-256 with it. Digest-only\n— the artifact never leaves the caller. Verifies with `sealbot verify` and\nstock `cosign verify-blob --certificate-identity <email>`.\n\nWe never assert identity ourselves: the seal records that the *provider*\nverified the signer's control of that email at seal time.",
+        "operationId": "sealIdentity",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SealIdentityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/identity": {
+      "post": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Verify an identity seal",
+        "description": "Verify an identity seal: the artifact's bytes + its base64 `.sig` + the\nsigner's `.pem`, against our root — and surface WHO signed (the verified\nemail) and WHO vouched (the OIDC issuer recorded at issuance).",
+        "operationId": "verifyIdentity",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifyIdentity"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attest": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Sign a DSSE/in-toto attestation (SBOM / provenance) over a digest",
+        "description": "Sign an in-toto/DSSE attestation binding a predicate (SBOM, SLSA provenance,\nvuln scan) to an artifact's SHA-256, with the org's codeSigning leaf. Digest-only\n— the artifact never leaves the caller. The returned `bundle` verifies with stock\n`cosign verify-blob-attestation --bundle att.bundle --key signer.pub --type <type>\n--insecure-ignore-tlog`, and with `sealbot` via the cert chain to our root.",
+        "operationId": "attest",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/attest": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify a DSSE/in-toto attestation",
+        "description": "Verify a supply-chain attestation: the artifact's bytes + its DSSE `bundle`\n+ the signer's `.pem`, against our root — and confirm the attestation's subject\ndigest matches the uploaded artifact (claims check).",
+        "operationId": "verifyAttest",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifyAttest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/log/sth/sign": {
+      "post": {
+        "tags": [
+          "log"
+        ],
+        "summary": "Sign a transparency-log Signed Tree Head",
+        "description": "Sign a Signed Tree Head with the system log key. Internal — the web app\nowns the log and computes the root; this authenticates it.",
+        "operationId": "signSth",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignSthRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/log/cert": {
+      "get": {
+        "tags": [
+          "log"
+        ],
+        "summary": "The transparency-log public cert + chain",
+        "description": "The log signing cert + chain (public, no key). Published so STH signatures\nare self-verifiable.",
+        "operationId": "logCert",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seal/c2pa": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Seal an image with an embedded C2PA manifest",
+        "description": "Embed a C2PA (Content Credentials) manifest signed by the org cert into an\nimage, chaining to the same root. The image is rewritten (the manifest lives\ninside it), so the bytes are uploaded; time comes from a separate anchor.",
+        "operationId": "sealC2pa",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_sealC2pa"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The signed image (Content Credentials embedded). `X-Letsseal-Sha256`, `X-Letsseal-Cert-CN` and `X-Letsseal-Format` headers carry the digest, signer and MIME.",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/c2pa": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify an image's embedded C2PA manifest",
+        "description": "Verify an image's embedded Content Credentials against our root.",
+        "operationId": "verifyC2pa",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifyC2pa"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seal/xml": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Seal an XML document with an enveloped XML-DSig signature",
+        "description": "Embed an enveloped W3C XML Signature signed by the org cert into an XML\ndocument, chaining to the same root. The document is rewritten (the signature\nlives inside it); time comes from a separate anchor on the signed bytes.",
+        "operationId": "sealXml",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_sealXml"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The signed XML (enveloped signature embedded). `X-Letsseal-Sha256` and `X-Letsseal-Cert-CN` headers carry the signed-document digest and signer.",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/xml": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify an XML document's enveloped XML-DSig signature",
+        "description": "Verify an XML document's enveloped signature against our root.",
+        "operationId": "verifyXml",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifyXml"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/seal/smime": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Seal an email message with an S/MIME signature",
+        "description": "Wrap a mail message in a standards-conformant S/MIME `multipart/signed`\nenvelope signed by the org cert, chaining to the same root. Same CMS crypto as\nthe detached seal, delivered in the form mail clients speak.",
+        "operationId": "sealSmime",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_sealSmime"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The signed message as a `multipart/signed` .eml. `X-Letsseal-Sha256` and `X-Letsseal-Cert-CN` headers carry the signed-message digest and signer.",
+            "content": {
+              "message/rfc822": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/smime": {
+      "post": {
+        "tags": [
+          "sealing"
+        ],
+        "summary": "Verify an S/MIME signed email message",
+        "description": "Verify an S/MIME `multipart/signed` message against our root.",
+        "operationId": "verifySmime",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_verifySmime"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/verify": {
       "post": {
         "tags": [
@@ -219,15 +1266,33 @@
         "summary": "Verify a sealed PDF",
         "description": "Verify an uploaded PDF against our CA — powers the public portal.",
         "operationId": "verify",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_verify"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -261,15 +1326,33 @@
         "summary": "Anchor a file on Bitcoin",
         "description": "Anchor sha256(pdf) on a decentralized ledger. Returns the proof.",
         "operationId": "anchorFile",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_anchorFile"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -303,15 +1386,33 @@
         "summary": "Anchor a bare digest on Bitcoin",
         "description": "Anchor a bare SHA-256 digest on a decentralized ledger (no file upload).",
         "operationId": "anchorHash",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AnchorHashRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -345,15 +1446,33 @@
         "summary": "Upgrade a pending anchor",
         "description": "Given an existing .ots proof (base64), try to upgrade it to a confirmed\nBitcoin attestation. Returns the (possibly updated) proof + status.",
         "operationId": "anchorUpgrade",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AnchorUpgradeRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -504,6 +1623,45 @@
         ],
         "title": "AnchorUpgradeRequest"
       },
+      "AttestRequest": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "Lowercase hex SHA-256 of the artifact the attestation is about."
+          },
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug",
+            "description": "Issuing business slug (must have a code-signing cert)."
+          },
+          "predicate": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Predicate",
+            "description": "The claim object: an SBOM (SPDX/CycloneDX), SLSA provenance, vuln scan, etc."
+          },
+          "predicate_type": {
+            "type": "string",
+            "title": "Predicate Type",
+            "description": "Short type (spdxjson|cyclonedx|slsaprovenance|vuln|custom) or a full predicateType URI.",
+            "default": "custom"
+          },
+          "subject_name": {
+            "type": "string",
+            "title": "Subject Name",
+            "description": "Human name for the subject (informational; the digest is what's bound).",
+            "default": "artifact"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha256",
+          "org_slug",
+          "predicate"
+        ],
+        "title": "AttestRequest"
+      },
       "Body_anchorFile": {
         "properties": {
           "file": {
@@ -551,6 +1709,67 @@
         ],
         "title": "Body_seal"
       },
+      "Body_sealC2pa": {
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_slug",
+          "file"
+        ],
+        "title": "Body_sealC2pa"
+      },
+      "Body_sealSmime": {
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_slug",
+          "file"
+        ],
+        "title": "Body_sealSmime"
+      },
+      "Body_sealXml": {
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_slug",
+          "file"
+        ],
+        "title": "Body_sealXml"
+      },
       "Body_verify": {
         "properties": {
           "file": {
@@ -564,6 +1783,146 @@
           "file"
         ],
         "title": "Body_verify"
+      },
+      "Body_verifyAttest": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "bundle": {
+            "type": "string",
+            "format": "binary",
+            "title": "Bundle"
+          },
+          "cert": {
+            "type": "string",
+            "format": "binary",
+            "title": "Cert"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "bundle",
+          "cert"
+        ],
+        "title": "Body_verifyAttest"
+      },
+      "Body_verifyBlob": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "sig": {
+            "type": "string",
+            "format": "binary",
+            "title": "Sig"
+          },
+          "cert": {
+            "type": "string",
+            "format": "binary",
+            "title": "Cert"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "sig",
+          "cert"
+        ],
+        "title": "Body_verifyBlob"
+      },
+      "Body_verifyC2pa": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_verifyC2pa"
+      },
+      "Body_verifyDetached": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "sig": {
+            "type": "string",
+            "format": "binary",
+            "title": "Sig"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "sig"
+        ],
+        "title": "Body_verifyDetached"
+      },
+      "Body_verifyIdentity": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "sig": {
+            "type": "string",
+            "format": "binary",
+            "title": "Sig"
+          },
+          "cert": {
+            "type": "string",
+            "format": "binary",
+            "title": "Cert"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "sig",
+          "cert"
+        ],
+        "title": "Body_verifyIdentity"
+      },
+      "Body_verifySmime": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_verifySmime"
+      },
+      "Body_verifyXml": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_verifyXml"
       },
       "CertSignRequest": {
         "properties": {
@@ -716,6 +2075,84 @@
         ],
         "title": "QrRequest"
       },
+      "SealDetachedRequest": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "Lowercase hex SHA-256 of the file to seal."
+          },
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug",
+            "description": "Issuing business slug (must have a signing cert)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha256",
+          "org_slug"
+        ],
+        "title": "SealDetachedRequest"
+      },
+      "SealIdentityRequest": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "Lowercase hex SHA-256 of the artifact to seal."
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "OIDC provider id: google | microsoft | apple | github | <configured>.",
+            "examples": [
+              "google",
+              "github"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "The provider's proof: an OIDC ID token (JWT) for OIDC providers, or a GitHub OAuth access token for provider=github. Verified here against the provider before any cert is minted."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha256",
+          "provider",
+          "token"
+        ],
+        "title": "SealIdentityRequest"
+      },
+      "SignSthRequest": {
+        "properties": {
+          "tree_size": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tree Size",
+            "description": "Number of leaves the head covers."
+          },
+          "root_hash": {
+            "type": "string",
+            "title": "Root Hash",
+            "description": "Lowercase hex SHA-256 Merkle root."
+          },
+          "ts": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Ts",
+            "description": "Timestamp (ms) the head is signed at."
+          }
+        },
+        "type": "object",
+        "required": [
+          "tree_size",
+          "root_hash",
+          "ts"
+        ],
+        "title": "SignSthRequest"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -777,7 +2214,43 @@
               }
             ],
             "title": "Intact",
-            "description": "Bytes covered by the signature are unmodified."
+            "description": "The WHOLE document is unaltered since sealing (covered bytes untouched AND nothing appended after the signature)."
+          },
+          "covered_intact": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered Intact",
+            "description": "Raw: only the bytes within the signature's range are unmodified (does NOT account for content appended after signing)."
+          },
+          "whole_document": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whole Document",
+            "description": "The signature covers the entire file (no incremental updates after it)."
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage",
+            "description": "Signature coverage level: ENTIRE_FILE (good) | ENTIRE_REVISION | CONTENTS_ONLY | ..."
           },
           "valid": {
             "anyOf": [
@@ -802,6 +2275,18 @@
             ],
             "title": "Trusted",
             "description": "Chains to this CA's trust root."
+          },
+          "authentic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authentic",
+            "description": "AUTHORITATIVE pass/fail verdict: valid AND intact AND trusted. A valid signature from an unrecognized (self-signed) cert is NOT authentic. Render verdicts from this, not sealed/intact alone."
           },
           "signer": {
             "anyOf": [
@@ -859,6 +2344,10 @@
     {
       "name": "ca",
       "description": "CA-as-code: issue org and per-client signing certificates."
+    },
+    {
+      "name": "identity",
+      "description": "Seal under a third-party-verified identity (Sign in with Google/GitHub/OIDC)."
     },
     {
       "name": "util",

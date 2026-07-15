@@ -1,7 +1,7 @@
 # Let's Seal SDKs
 
-Client libraries for the Let's Seal signing service — PAdES sealing, verification,
-and free Bitcoin anchoring.
+Client libraries for the Let's Seal signing service — seal anything (PDFs, images,
+XML, email, any file, software artifacts), verify, and anchor on Bitcoin for free.
 
 **The API is the product; the clients are cheap.** The whole contract lives in one
 file — [`openapi.json`](./openapi.json) — and everything here is built from it. You
@@ -96,10 +96,9 @@ script — you'll get newer client styling (Java `native` HttpClient, .NET 8, et
 Kotlin, Rust, and Swift generators are available from the same spec — add a line
 to `generate.sh`.
 
-## Honesty
+## Trust model
 
-Let's Seal **composes open standards** (PAdES/X.509 + OpenTimestamps); it does not
-invent the anchoring. Trust is **self-anchored** — this CA is deliberately not in
-OS/Adobe trust stores, so a proof is verified via the certificate chain + the
-public portal + the blockchain, not via automatic vendor trust. The clients say so
-too.
+Let's Seal is the open standard for sealing anything. Trust is **self-anchored**: a
+proof verifies against the published root, the public transparency log, and the
+Bitcoin ledger — everything a verifier needs travels with the proof itself. So
+`trusted` means the seal chains to *this* root, and the clients report exactly that.

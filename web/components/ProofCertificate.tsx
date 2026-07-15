@@ -437,9 +437,9 @@ export function ProofCertificate({ data, variant = "document", gate }: {
         )}
         {anchored && (
           <p className="mt-3 text-xs text-muted-foreground">
-            Don&apos;t trust us — verify it yourself. Download the <b>.ots proof</b> and run{" "}
+            Verify it yourself. Download the <b>.ots proof</b> and run{" "}
             <code className="rounded bg-background px-1 py-0.5 font-mono">ots verify {isTimestamp ? "your-file" : "your-file.pdf"}</code>{" "}
-            to confirm the anchor against Bitcoin with zero reliance on Let&apos;s Seal. Let&apos;s Seal holds no
+            to confirm the anchor against Bitcoin — the proof stands on the public ledger. Let&apos;s Seal holds no
             cryptocurrency and you never touch a coin or a wallet — we use the public ledger the way a notary uses a
             public register, to stamp a record no one can alter.
           </p>

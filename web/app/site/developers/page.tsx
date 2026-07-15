@@ -4,14 +4,14 @@ import { Terminal, Boxes, GitBranch, Webhook } from "lucide-react";
 export const metadata = {
   title: "Developers — Let's Seal",
   description:
-    "Seal, anchor, and verify from the CLI, CI/CD, the HTTP API, or the SDKs. Verification is public and keyless. Everything is open source.",
+    "Seal anything — files, PDFs, images, XML, email, and software artifacts — from the CLI, CI/CD, the HTTP API, or the SDKs. Anyone verifies publicly. Everything is open source, Apache-2.0.",
 };
 
 const SDKS = [
   { lang: "JavaScript / TypeScript", pkg: "npm i @letsseal/sdk" },
   { lang: "Python", pkg: "pip install letsseal" },
   { lang: "Go", pkg: "go get github.com/letsseal/go-letsseal" },
-  { lang: "HTTP", pkg: "curl https://api.letsseal.org/v1/seal" },
+  { lang: "HTTP", pkg: "curl -F file=@x app.letsseal.org/api/v1/verify" },
 ];
 
 export default function DevelopersPage() {
@@ -20,7 +20,7 @@ export default function DevelopersPage() {
       <PageHead
         eyebrow="Developers"
         title="Seal and verify from anywhere in your stack."
-        lede="A CLI, a GitHub Action, an HTTP API, and SDKs — all open source. Sealing needs an account or a self-hosted instance; verifying is public and keyless."
+        lede="A CLI, a GitHub Action, an HTTP API, and SDKs — all open source, Apache-2.0. Seal any file behind your API key or your own instance; anyone verifies publicly."
       />
 
       <section className="border-b border-stone-200">
@@ -32,8 +32,9 @@ export default function DevelopersPage() {
               </div>
               <H2 className="mt-5">sealbot, the CLI</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                The core tool for humans and scripts alike. Seal, anchor, and verify documents from your terminal.
-                Point it at the hosted service or your own instance with <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[13px]">--endpoint</code>.
+                The core tool for humans and scripts alike. Seal, anchor, and verify anything — PDFs, images, XML,
+                email, or any file — from your terminal. <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[13px]">sealbot seal</code> picks
+                the right form for each file type. Point it at the hosted service or your own instance with <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[13px]">--api</code>.
               </p>
               <div className="mt-5 flex flex-col gap-2.5">
                 <LinkArrow href="https://github.com/letsseal/sealbot">sealbot on GitHub</LinkArrow>
@@ -44,13 +45,15 @@ export default function DevelopersPage() {
               <CodeBlock>
                 <span className="text-emerald-400">$</span> sealbot seal report.pdf
                 {"\n"}
+                <span className="text-emerald-400">$</span> sealbot seal photo.jpg
+                {"\n"}
                 <span className="text-emerald-400">$</span> sealbot verify report.pdf
                 {"\n"}
-                <span className="text-emerald-400">$</span> sealbot seal *.pdf --endpoint https://seal.acme.internal
+                <span className="text-emerald-400">$</span> sealbot seal *.pdf --api https://seal.acme.internal
               </CodeBlock>
               <p className="text-[13px] text-stone-500">
-                Verifying never needs credentials — it re-hashes the file and checks the signature and Bitcoin anchor
-                locally.
+                Verification is public — anyone re-hashes the file and checks the signature, the transparency log, and
+                the Bitcoin anchor.
               </p>
             </div>
           </div>

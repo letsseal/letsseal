@@ -65,10 +65,10 @@ export default function StandardPage() {
           <H2 className="mt-3.5">Open to verify. Open to implement. Impossible to lock up.</H2>
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
             <Card>
-              <div className="text-[15px] font-semibold text-stone-900">Verify without us</div>
+              <div className="text-[15px] font-semibold text-stone-900">Verify independently</div>
               <p className="mt-2 text-[14px] leading-relaxed text-stone-600">
-                Verification depends on the published root, public standards, and a public ledger — not on automatic
-                vendor trust, and not on Let&rsquo;s Seal existing.
+                Verification stands on the published root, public standards, a public transparency log, and a public
+                ledger — everything a verifier needs travels with the proof.
               </p>
             </Card>
             <Card>

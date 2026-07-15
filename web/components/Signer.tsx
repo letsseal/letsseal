@@ -390,7 +390,7 @@ function DoneView({ done, envelopeId, token }: { done: { completed: boolean; sha
             <div className="min-w-0">
               <div className="font-medium text-sm">Seal your own documents — free, forever</div>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Create a free account to send documents for signing and prove any file is genuine. Anyone can always verify, no account needed.
+                Create a free account to send documents for signing and prove any file is genuine. Anyone can always verify it, free.
               </p>
               <div className="flex items-center gap-3 mt-3">
                 <Button asChild size="sm"><a href="/signup">Create a free account</a></Button>

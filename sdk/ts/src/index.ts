@@ -154,6 +154,65 @@ export class LetsSeal {
     return new Uint8Array(await (await this.json("/qr", { data })).arrayBuffer());
   }
 
+
+  async sealDetached(sha256: string, org: string): Promise<{ sha256: string; sig_b64: string; cert_cn: string }> {
+    return (await this.json("/seal/detached", { sha256, org_slug: org })).json();
+  }
+
+  async sealDetachedLocal(file: FileInput, org: string): Promise<{ sha256: string; sig_b64: string; cert_cn: string }> {
+    const { blob } = toBlob(file);
+    return this.sealDetached(await sha256Hex(await blob.arrayBuffer()), org);
+  }
+
+  async sealBlob(sha256: string, org: string): Promise<Record<string, unknown>> {
+    return (await this.json("/seal/blob", { sha256, org_slug: org })).json();
+  }
+
+  async attest(input: { sha256: string; org: string; predicate: unknown; predicateType?: string; subjectName?: string }): Promise<Record<string, unknown>> {
+    return (await this.json("/attest", {
+      sha256: input.sha256, org_slug: input.org, predicate: input.predicate,
+      predicate_type: input.predicateType ?? "custom", subject_name: input.subjectName ?? "artifact",
+    })).json();
+  }
+
+  async identityProviders(): Promise<{ providers: string[] }> {
+    return (await this.req("/identity/providers", { method: "GET" })).json();
+  }
+
+  async sealIdentity(input: { sha256: string; provider: string; token: string }): Promise<Record<string, unknown>> {
+    return (await this.json("/seal/identity", { sha256: input.sha256, provider: input.provider, token: input.token })).json();
+  }
+
+  async sealC2pa(file: FileInput, opts: { org: string; title?: string }): Promise<{ image: Uint8Array; sha256: string; certCn: string; format: string }> {
+    const fields: Record<string, string> = { org_slug: opts.org };
+    if (opts.title) fields.title = opts.title;
+    const res = await this.multipart("/seal/c2pa", fields, file);
+    return {
+      image: new Uint8Array(await res.arrayBuffer()),
+      sha256: res.headers.get("x-letsseal-sha256") ?? "",
+      certCn: res.headers.get("x-letsseal-cert-cn") ?? "",
+      format: res.headers.get("x-letsseal-format") ?? "",
+    };
+  }
+
+  async sealXml(file: FileInput, opts: { org: string }): Promise<{ xml: Uint8Array; sha256: string; certCn: string }> {
+    const res = await this.multipart("/seal/xml", { org_slug: opts.org }, file);
+    return {
+      xml: new Uint8Array(await res.arrayBuffer()),
+      sha256: res.headers.get("x-letsseal-sha256") ?? "",
+      certCn: res.headers.get("x-letsseal-cert-cn") ?? "",
+    };
+  }
+
+  async sealSmime(file: FileInput, opts: { org: string }): Promise<{ eml: Uint8Array; sha256: string; certCn: string }> {
+    const res = await this.multipart("/seal/smime", { org_slug: opts.org }, file);
+    return {
+      eml: new Uint8Array(await res.arrayBuffer()),
+      sha256: res.headers.get("x-letsseal-sha256") ?? "",
+      certCn: res.headers.get("x-letsseal-cert-cn") ?? "",
+    };
+  }
+
   private normalizeAnchor(r: any): AnchorResult {
     const s = r.status ?? {};
     return { otsB64: r.ots_b64, status: { state: s.state, fileSha256: s.file_sha256, bitcoinBlock: s.bitcoin_block, calendars: s.calendars } };
