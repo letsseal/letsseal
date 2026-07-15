@@ -219,3 +219,32 @@ export async function sendVerificationEmail(opts: { to: string; name?: string; l
   });
   return true;
 }
+
+export async function sendDomainVerification(opts: {
+  to: string; domain: string; orgName: string; link: string;
+}): Promise<boolean> {
+  if (!isMailConfigured()) return false;
+  const brand = "#2563eb";
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;color:#172033">
+      <p style="font-size:15px">Someone is verifying that <b>${esc(opts.orgName)}</b> controls
+        <b>${esc(opts.domain)}</b> on <b>Let's Seal</b>, so that documents it seals can carry a
+        verified issuer identity.</p>
+      <p style="font-size:15px">If that's you, confirm control of <b>${esc(opts.domain)}</b>:</p>
+      <p style="margin:28px 0">
+        <a href="${esc(opts.link)}"
+           style="background:${brand};color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600">
+          Verify ${esc(opts.domain)}
+        </a>
+      </p>
+      <p style="font-size:13px;color:#5b6472">This link expires in 24 hours. If you weren't expecting this, ignore this email — nothing changes and no one gains access to your domain.</p>
+    </div>`;
+  await send({
+    from: fromHeader(), // platform sender — this is a Let's Seal system email, not org-sending
+    to: opts.to,
+    subject: `Verify ${opts.domain} · Let's Seal`,
+    html,
+    text: `Confirm that ${opts.orgName} controls ${opts.domain} on Let's Seal:\n${opts.link}\n\nThis link expires in 24 hours. If you weren't expecting this, ignore this email.`,
+  });
+  return true;
+}

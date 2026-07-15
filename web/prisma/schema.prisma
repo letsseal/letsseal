@@ -28,7 +28,7 @@ model Organization {
   // label until then. NULL verifiedDomain = unverified (self-asserted name) — the
   // /d proof page marks it as such. Set via DNS/HTTP/controller-email (Phase 2);
   // `operator` = established out-of-band by the Let's Seal operator.
-  verifiedDomain    String? // e.g. "acme.co.uk" — globally-unique identity anchor
+  verifiedDomain    String? @unique // e.g. "acme.co.uk" — globally-unique identity anchor
   domainVerifiedAt  DateTime?
   domainVerifiedVia String? // dns | http | email | operator
   createdAt   DateTime @default(now())
@@ -45,6 +45,29 @@ model Organization {
   sealedDocuments SealedDocument[]
   credentials Credential[]
   emailSends  EmailSend[]
+  domainChallenges DomainChallenge[]
+}
+
+// A pending or completed domain-control challenge (Phase 2). Proving control of a
+// globally-unique domain is how an org earns a verified issuer identity. On success
+// we set Organization.verifiedDomain/domainVerifiedVia. DNS = a TXT record under
+// _letsseal-challenge.<domain>; email = a link clicked from a controller alias
+// (admin@/postmaster@/…). Tokens are single-use and expire.
+model DomainChallenge {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  domain      String   // normalised, lowercase
+  method      String   // dns | email
+  token       String   @unique // random challenge secret
+  emailTarget String?  // email method: the controller alias it was sent to
+  status      String   @default("pending") // pending | verified | expired
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+
+  @@index([orgId])
+  @@index([domain])
 }
 
 // One row per outbound email — powers the per-org rate limits (count rows in a

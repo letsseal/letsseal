@@ -3,6 +3,8 @@ import { requireUser, requireOrg } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import BrandingEditor from "@/components/BrandingEditor";
 import ApiKeysManager from "@/components/ApiKeysManager";
+import DomainVerification from "@/components/DomainVerification";
+import { pendingForSettings } from "@/lib/domain-verify";
 import { Separator } from "@/components/ui/separator";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ org: 
     revokedAt: k.revokedAt?.toISOString() ?? null,
   }));
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const initialPending = await pendingForSettings(org.id);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -40,6 +43,21 @@ export default async function SettingsPage({ params }: { params: Promise<{ org: 
         slug: org.slug, name: org.name, brandColor: org.brandColor,
         accentColor: org.accentColor, logoUrl: org.logoUrl, fromEmail: org.fromEmail,
       }} />
+
+      <Separator className="my-10" />
+
+      <div id="issuer-identity" className="mb-6 scroll-mt-24">
+        <h2 className="text-2xl font-semibold tracking-tight">Issuer identity</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Prove <b>{org.name}</b> controls its domain to earn a verified badge on every proof it seals.
+          The domain is the identity — globally unique, so it never clashes with another business of the same name.
+        </p>
+      </div>
+      <DomainVerification
+        slug={org.slug}
+        initialVerified={org.verifiedDomain ? { domain: org.verifiedDomain, via: org.domainVerifiedVia } : null}
+        initialPending={initialPending}
+      />
 
       <Separator className="my-10" />
 
