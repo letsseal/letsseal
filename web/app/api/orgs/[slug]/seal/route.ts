@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiUser, requireOrg } from "@/lib/auth-helpers";
 import { hostedSeal } from "@/lib/hosted";
+import { orgSuspendedResponse } from "@/lib/org-guard";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -8,6 +9,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const org = await requireOrg(userId, slug);
   if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const suspended = orgSuspendedResponse(org);
+  if (suspended) return suspended;
 
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");

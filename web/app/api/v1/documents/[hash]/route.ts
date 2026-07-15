@@ -56,9 +56,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
       verification: (() => {
         const o = doc.org ?? doc.envelope?.org ?? null;
         if (!o) return null;
-        return o.verifiedDomain
-          ? { verified: true, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null }
-          : { verified: false, domain: null, via: null };
+        // A suspended issuer (impersonation/abuse takedown) never reports verified —
+        // programmatic consumers get the safe answer plus an explicit flag.
+        const suspended = o.status === "suspended";
+        if (o.verifiedDomain && !suspended) {
+          return { verified: true, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null, suspended: false };
+        }
+        return { verified: false, domain: null, via: null, suspended };
       })(),
       // The document title is deliberately private for contracts/hosted docs —
       // the HTML proof page hides it from non-issuers (page.tsx gateContent). This

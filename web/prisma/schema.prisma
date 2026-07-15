@@ -37,6 +37,12 @@ model Organization {
   // switch; sendingTrusted = manual/earned lift from the low new-org daily cap.
   sendingEnabled Boolean @default(true)
   sendingTrusted Boolean @default(false)
+  // Moderation / anti-impersonation takedown. `suspended` blocks all new sealing,
+  // suppresses the verified badge, and shows a warning on every proof this org
+  // issued (integrity + time still hold — only the issuer identity is in doubt).
+  status          String    @default("active") // active | suspended
+  suspendedAt     DateTime?
+  suspendedReason String?
 
   memberships Membership[]
   templates   Template[]
@@ -46,6 +52,27 @@ model Organization {
   credentials Credential[]
   emailSends  EmailSend[]
   domainChallenges DomainChallenge[]
+  abuseReports AbuseReport[]
+}
+
+// A public report that an organisation is impersonating someone / committing fraud.
+// Anyone can file one (no account) from a proof page; the operator reviews and may
+// suspend the org. The report trail is the anti-impersonation audit record.
+model AbuseReport {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  category      String   // impersonation | fraud | phishing | other
+  detail        String?  // reporter's description
+  reporterEmail String?  // optional, so the operator can follow up
+  proofHash     String?  // the /d/<hash> the reporter was viewing, if any
+  status        String   @default("open") // open | actioned | dismissed
+  createdAt     DateTime @default(now())
+  handledAt     DateTime?
+  handledNote   String?
+
+  @@index([orgId])
+  @@index([status])
 }
 
 // A pending or completed domain-control challenge (Phase 2). Proving control of a

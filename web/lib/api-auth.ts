@@ -56,9 +56,10 @@ export async function authApiKey(req: NextRequest, scope?: string): Promise<Auth
 
   const key = await db.apiKey.findUnique({
     where: { hash: hashSecret(m[1].trim()) },
-    include: { org: { select: { id: true, slug: true, name: true } } },
+    include: { org: { select: { id: true, slug: true, name: true, status: true } } },
   });
   if (!key || key.revokedAt) return fail(401, "invalid or revoked API key");
+  if (key.org.status === "suspended") return fail(403, "this organisation is suspended");
 
   const scopes = key.scopes.split(",").map((s) => s.trim()).filter(Boolean);
   if (scope && !scopes.includes(scope)) return fail(403, `this key lacks the '${scope}' scope`);

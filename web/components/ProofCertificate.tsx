@@ -9,6 +9,9 @@ export type ProofData = {
   onRecord: boolean;
   issuer?: string | null;
   verification?: { verified: boolean; domain: string | null; via: string | null } | null;
+  suspended?: boolean;
+  suspendedReason?: string | null;
+  orgSlug?: string | null;
   title?: string | null;
   completedAt?: string | null;
   auditEvents?: number;
@@ -174,6 +177,26 @@ function viaLabel(via: string): string {
   return { dns: "verified via DNS", http: "verified via a website file", email: "verified via a domain admin email", operator: "verified by the operator" }[via] ?? "verified";
 }
 
+// Inline issuer-identity chip beside the issuer/business name. Suspended wins over
+// any verified state (a takedown must never look like a green tick).
+function IdentityPill({ data }: { data: ProofData }) {
+  if (data.suspended) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
+        <ShieldAlert className="h-3 w-3" />suspended
+      </span>
+    );
+  }
+  if (!data.verification) return null;
+  return data.verification.verified ? (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+      <BadgeCheck className="h-3 w-3" />{data.verification.domain}
+    </span>
+  ) : (
+    <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">unverified</span>
+  );
+}
+
 // The public "certificate of proof". For a sealed document it leads with two
 // trust layers (cryptographic seal + independent timestamp); for a bare "anchor
 // anything" timestamp it shows just the independent timestamp.
@@ -235,7 +258,16 @@ export function ProofCertificate({ data, variant = "document", gate }: {
         </div>
       </div>
 
-      {data.verification && (
+      {data.suspended ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <b>Issuer suspended.</b> Let&apos;s Seal has suspended this issuer{data.suspendedReason ? <> — {data.suspendedReason}</> : null}.
+            Do not trust the issuer name on this document. The file is still <b>intact and timestamped</b> as shown below —
+            only <b>who issued it</b> is in dispute.
+          </span>
+        </div>
+      ) : data.verification && (
         data.verification.verified ? (
           <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
@@ -271,13 +303,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             <Row label="Issuer">
               <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
                 <span>{data.crypto.signer?.split(",")[0]?.replace(/^Common Name:\s*/, "") ?? data.issuer ?? "—"}</span>
-                {data.verification && (data.verification.verified ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                    <BadgeCheck className="h-3 w-3" />{data.verification.domain}
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">unverified</span>
-                ))}
+                <IdentityPill data={data} />
               </span>
             </Row>
             <Row label="Sealed">
@@ -348,13 +374,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
               <Row label="Business">
                 <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
                   <span>{data.issuer}</span>
-                  {data.verification && (data.verification.verified ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                      <BadgeCheck className="h-3 w-3" />{data.verification.domain}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">unverified</span>
-                  ))}
+                  <IdentityPill data={data} />
                 </span>
               </Row>
             )}
@@ -507,6 +527,15 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           </div>
         )}
       </div>
+
+      {data.orgSlug && !data.suspended && (
+        <p className="text-center text-xs text-muted-foreground">
+          Does this issuer look like it&apos;s impersonating someone?{" "}
+          <a href={`/report?org=${data.orgSlug}&hash=${data.sha256}`} className="underline hover:text-foreground">
+            Report this issuer
+          </a>
+        </p>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiUser, requireOrg } from "@/lib/auth-helpers";
 import { issueCredential, type IssueInput } from "@/lib/credentials";
+import { orgSuspendedResponse } from "@/lib/org-guard";
 
 const MAX_BATCH = 200;
 
@@ -32,6 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const org = await requireOrg(userId, slug);
   if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const suspended = orgSuspendedResponse(org);
+  if (suspended) return suspended;
 
   const body = await req.json().catch(() => ({}));
   const rows: any[] = Array.isArray(body?.credentials) ? body.credentials : [body];

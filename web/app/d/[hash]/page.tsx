@@ -155,6 +155,9 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         ? { verified: true as const, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null }
         : { verified: false as const, domain: null, via: null };
     })(),
+    suspended: (rec.org ?? rec.envelope?.org)?.status === "suspended",
+    suspendedReason: (rec.org ?? rec.envelope?.org)?.suspendedReason ?? null,
+    orgSlug,
     title: gateContent ? null : rawTitle,
     completedAt: (rec.envelope?.completedAt ?? rec.sealedAt).toISOString(),
     auditEvents: rec.envelope?._count.audit ?? 0,
