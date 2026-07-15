@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Award, Stamp, BadgeCheck, Code2, Settings, ChevronsUpDown } from "lucide-react";
+import { LayoutDashboard, FileText, Award, Stamp, BadgeCheck, Fingerprint, Code2, Settings, ChevronsUpDown } from "lucide-react";
 
 function SealMark({ className = "" }: { className?: string }) {
   return (
@@ -25,6 +25,7 @@ export function Sidebar({
     { label: "Documents", href: `/${slug}/documents`, icon: FileText, badge: docCount || undefined },
     { label: "Credentials", href: `/${slug}/credentials`, icon: Award },
     { label: "Seal & anchor", href: `/${slug}/seal`, icon: Stamp },
+    { label: "Identity seal", href: `/${slug}/identity`, icon: Fingerprint },
     { label: "Verify", href: `/verify`, icon: BadgeCheck },
   ];
   const dev = [

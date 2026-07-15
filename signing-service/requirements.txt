@@ -5,3 +5,4 @@ python-multipart==0.0.20
 opentimestamps-client==0.7.2
 c2pa-python==0.36.0
 signxml==5.1.0
+requests==2.34.2  # OIDC identity: fetch provider JWKS + GitHub API (oidc.py)

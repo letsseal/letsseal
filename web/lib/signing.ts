@@ -107,6 +107,52 @@ export async function verifyBlob(file: Buffer, sig: string, certPem: string): Pr
   return res.json();
 }
 
+export type IdentitySealResult = {
+  sha256: string; sig_b64: string; cert_pem: string; chain_pem: string;
+  cert_cn: string; identity: string; issuer: string; provider: string; not_after: string;
+};
+
+// Seal a digest under a third-party-verified identity: the signing service
+// re-verifies the provider's proof (Google/GitHub/OIDC token), mints a short-lived
+// leaf binding the verified email, and signs the SHA-256 with it. Digest-only —
+// the artifact never reaches the service. `token` is an OIDC ID token (JWT) for
+// OIDC providers, or a GitHub OAuth access token for provider "github".
+export async function sealIdentity(provider: string, sha256: string, token: string): Promise<IdentitySealResult> {
+  const res = await fetch(`${SERVICE}/seal/identity`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ sha256, provider, token }),
+  });
+  if (!res.ok) throw new Error(`identity seal failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export type IdentityVerifyResult = {
+  sealed: boolean; identity_seal: boolean; valid: boolean; trusted: boolean;
+  entire_file?: boolean; signer?: string; identity?: string; oidc_issuer?: string;
+  account_url?: string; sha256: string; reason?: string;
+};
+
+// Verify an identity seal: the artifact bytes + its base64 .sig + the signer .pem,
+// against our root — and surface who signed (verified email) and who vouched (the
+// OIDC issuer recorded at issuance).
+export async function verifyIdentity(file: Buffer, sig: string, certPem: string): Promise<IdentityVerifyResult> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(file)]), "file");
+  form.append("sig", new Blob([sig]), "file.sig");
+  form.append("cert", new Blob([certPem]), "file.pem");
+  const res = await fetch(`${SERVICE}/verify/identity`, { method: "POST", headers: svcHeaders(), body: form });
+  return res.json();
+}
+
+// The identity providers the signing service is configured for (only those with
+// an OAuth client id set). The UI renders sign-in buttons from this.
+export async function identityProviders(): Promise<string[]> {
+  const res = await fetch(`${SERVICE}/identity/providers`, { headers: svcHeaders() });
+  if (!res.ok) return [];
+  const j = await res.json();
+  return Array.isArray(j.providers) ? j.providers : [];
+}
+
 export type SthSignResult = {
   signature: string; cert_pem: string; chain_pem: string; cert_cn: string; ts: number;
 };

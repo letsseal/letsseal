@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, type VerifyResult } from "@/lib/signing";
 import { readFile, fileExists } from "@/lib/storage";
 import { withCors, preflight } from "@/lib/cors";
 import { overContentLength, tooLarge } from "@/lib/limits";
@@ -71,11 +71,15 @@ export async function POST(req: NextRequest) {
       if (rec?.sealType === "detached" && rec.detachedSig) {
         const d = await verifyDetached(bytes, Buffer.from(rec.detachedSig, "base64"));
         v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
-      } else if (rec?.sealType === "blob" && rec.detachedSig && (await fileExists(`hosted/${sha256}/artifact.pem`))) {
+      } else if ((rec?.sealType === "blob" || rec?.sealType === "identity") && rec.detachedSig && (await fileExists(`hosted/${sha256}/artifact.pem`))) {
         const leaf = (await readFile(`hosted/${sha256}/artifact.pem`)).toString("utf8");
         const chain = (await fileExists(`hosted/${sha256}/artifact.chain.pem`)) ? (await readFile(`hosted/${sha256}/artifact.chain.pem`)).toString("utf8") : "";
-        const d = await verifyBlob(bytes, rec.detachedSig, leaf + chain);
-        v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
+        // Identity seals surface the verified email as the signer; blob seals the cert CN.
+        const d = rec.sealType === "identity"
+          ? await verifyIdentity(bytes, rec.detachedSig, leaf + chain)
+          : await verifyBlob(bytes, rec.detachedSig, leaf + chain);
+        const signer = ("identity" in d && d.identity) ? d.identity : d.signer;
+        v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer };
       } else {
         v = { sealed: false, sha256 };
       }

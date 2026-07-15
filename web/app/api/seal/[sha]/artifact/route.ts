@@ -18,7 +18,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sha:
     where: { sha256 },
     select: { sealType: true },
   });
-  if (!rec || rec.sealType !== "blob") return new Response("not found", { status: 404 });
+  if (!rec || (rec.sealType !== "blob" && rec.sealType !== "identity")) {
+    return new Response("not found", { status: 404 });
+  }
 
   const path = `hosted/${sha256}/${part.file}`;
   if (!(await fileExists(path))) {

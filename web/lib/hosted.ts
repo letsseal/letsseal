@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
-import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, anchorHash } from "@/lib/signing";
+import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, sealIdentity, anchorHash } from "@/lib/signing";
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 import { appendToLog } from "@/lib/translog";
@@ -237,6 +237,83 @@ export async function hostedSealBlob(
   return {
     sha256: sha, sig: r.sig_b64, certPem: r.cert_pem, chainPem: r.chain_pem,
     certCN: r.cert_cn || org.name, identity: r.identity,
+    anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+  };
+}
+
+export type HostedIdentitySeal = {
+  sha256: string;
+  sig: string; // base64 raw ECDSA signature (cosign form)
+  certPem: string;
+  chainPem: string;
+  identity: string; // provider-verified email bound into the cert SAN
+  issuer: string;   // the OIDC issuer that vouched
+  provider: string; // google | github | ...
+  anchorState: string; // none | pending | confirmed
+  proofUrl: string;
+  proofCode: string | null;
+};
+
+// Identity seal for the hosted API: the signing service re-verifies a
+// Google/GitHub/OIDC proof, mints a short-lived leaf binding the verified email,
+// and signs the artifact's SHA-256 with it. Digest-only — the artifact bytes
+// never reach us. We persist the small cosign sidecar set + the verified identity
+// and the issuer that vouched, so /d can attribute the seal forever. The org is
+// the account that made the call; the identity is WHO signed (a third party
+// verified them — we never assert identity ourselves).
+export async function hostedSealIdentity(
+  org: { id: string; slug: string; name: string },
+  sha256: string,
+  provider: string,
+  token: string,
+  opts: { title?: string | null; anchor?: boolean } = {},
+): Promise<HostedIdentitySeal> {
+  const sha = sha256.trim().toLowerCase();
+  const r = await sealIdentity(provider, sha, token);
+
+  await saveFile(`hosted/${sha}/artifact.sig`, Buffer.from(r.sig_b64));
+  await saveFile(`hosted/${sha}/artifact.pem`, Buffer.from(r.cert_pem));
+  await saveFile(`hosted/${sha}/artifact.chain.pem`, Buffer.from(r.chain_pem));
+
+  let otsProof: string | null = null;
+  let anchorState = "none";
+  if (opts.anchor ?? true) {
+    try {
+      const a = await anchorHash(sha);
+      otsProof = a.ots_b64;
+      anchorState = a.status.state;
+    } catch {
+      anchorState = "none";
+    }
+  }
+
+  const docId = `sd_${randomBytes(16).toString("hex")}`;
+  const rec = await db.sealedDocument.upsert({
+    where: { sha256: sha },
+    update: {},
+    create: {
+      id: docId,
+      org: { connect: { id: org.id } },
+      source: "api",
+      sealType: "identity",
+      title: opts.title ?? null,
+      pdfPath: null,
+      detachedSig: r.sig_b64, // the raw sig, for drop-the-file-only verification
+      sha256: sha,
+      proofCode: await mintProofCode(),
+      certCN: r.cert_cn || r.identity,
+      oidcProvider: r.provider,
+      oidcIssuer: r.issuer,
+      otsProof,
+      anchorState,
+    },
+    select: { id: true, proofCode: true },
+  });
+
+  await logSeal(sha, "identity", r.identity);
+  return {
+    sha256: sha, sig: r.sig_b64, certPem: r.cert_pem, chainPem: r.chain_pem,
+    identity: r.identity, issuer: r.issuer, provider: r.provider,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };
 }

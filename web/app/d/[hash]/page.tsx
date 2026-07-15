@@ -51,11 +51,12 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   const isXmlSeal = rec.sealType === "xmldsig";
   const isSmimeSeal = rec.sealType === "smime";
   const isBlobSeal = rec.sealType === "blob";
+  const isIdentitySeal = rec.sealType === "identity";
 
   let crypto: ProofData["crypto"] = { sealed: true, onRecordOnly: true };
-  const key = detached || isBlobSeal ? null : rec.pdfPath; 
+  const key = detached || isBlobSeal || isIdentitySeal ? null : rec.pdfPath; 
   const docOnFile = key ? await fileExists(key) : false;
-  if (detached || isBlobSeal) {
+  if (detached || isBlobSeal || isIdentitySeal) {
     crypto = { sealed: true, onRecordOnly: true, signer: rec.certCN };
   } else if (isC2pa) {
     if (docOnFile && key) {
@@ -140,7 +141,10 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     imageUrl: isC2pa ? `/api/seal/${sha256}/image` : null,
     xmlUrl: isXmlSeal ? `/api/seal/${sha256}/xml` : null,
     emlUrl: isSmimeSeal ? `/api/seal/${sha256}/eml` : null,
-    artifactUrl: isBlobSeal ? `/api/seal/${sha256}/artifact` : null,
+    artifactUrl: isBlobSeal || isIdentitySeal ? `/api/seal/${sha256}/artifact` : null,
+    identity: isIdentitySeal
+      ? { email: rec.certCN, provider: rec.oidcProvider, issuer: rec.oidcIssuer }
+      : null,
     log: await getInclusionProof({ sha256 }).then((p) => (p ? { index: p.index, treeSize: p.treeSize } : null)).catch(() => null),
     trail: viewerIsIssuer ? trail : null,
     credential: cred ? {
@@ -180,7 +184,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isBlobSeal ? "Artifact proof" : detached ? "File proof" : "Document proof"}
+            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isIdentitySeal ? "Identity proof" : isBlobSeal ? "Artifact proof" : detached ? "File proof" : "Document proof"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isC2pa
@@ -189,7 +193,9 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
                 ? "A permanent record that this XML document carries an embedded XML-DSig signature and is timestamped. Download the signed XML and verify it with any XML Signature tool."
                 : isSmimeSeal
                   ? "A permanent record that this email message carries an S/MIME signature and is timestamped. Download the signed message and verify it with any S/MIME tool (openssl smime -verify)."
-                  : isBlobSeal
+                  : isIdentitySeal
+                    ? "A permanent record that this artifact was signed under a third-party-verified identity and is timestamped. The signer's email was verified by their identity provider (Google/GitHub/…), not by Let's Seal. Download the cosign signature set or drop the artifact to verify."
+                    : isBlobSeal
                     ? "A permanent record that this artifact is signed and timestamped. Download the cosign signature set and verify it with sealbot, openssl, or stock cosign verify-blob."
                     : detached
                       ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."

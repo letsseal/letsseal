@@ -23,6 +23,7 @@ export type ProofData = {
   xmlUrl?: string | null;
   emlUrl?: string | null;
   artifactUrl?: string | null;
+  identity?: { email: string; provider?: string | null; issuer?: string | null } | null;
   log?: { index: number; treeSize: number } | null;
   trail?: SigningTrail | null; 
   credential?: {
@@ -360,6 +361,20 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             </p>
           </div>
         )}
+        {data.identity && (
+          <div className="mt-3 rounded-lg border border-dashed p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Verified identity</p>
+            <p className="mt-1 text-sm">
+              Signed by <b className="font-mono">{data.identity.email}</b>
+              {data.identity.provider ? <> — verified via <b>{data.identity.provider}</b></> : null}.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The signer proved control of this email to {data.identity.provider ?? "an identity provider"}
+              {data.identity.issuer ? <> (<span className="font-mono">{data.identity.issuer}</span>)</> : null} at seal time.
+              Let&apos;s Seal does <b>not</b> verify identity itself — this attributes the seal to that third party&apos;s verification.
+            </p>
+          </div>
+        )}
         {data.artifactUrl && (
           <div className="mt-3">
             <div className="flex flex-wrap gap-2">
@@ -377,8 +392,8 @@ export function ProofCertificate({ data, variant = "document", gate }: {
               </a>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              A <b>cosign-compatible</b> artifact signature. Verify with{" "}
-              <code className="rounded bg-background px-1 py-0.5 font-mono">cosign verify-blob --certificate a.pem --certificate-chain a.chain.pem --signature a.sig --certificate-identity-regexp &apos;.*&apos; --certificate-oidc-issuer-regexp &apos;.*&apos; --insecure-ignore-tlog --insecure-ignore-sct &lt;artifact&gt;</code>{" "}
+              A <b>cosign-compatible</b> {data.identity ? "identity" : "artifact"} signature. Verify with{" "}
+              <code className="rounded bg-background px-1 py-0.5 font-mono">cosign verify-blob --certificate a.pem --certificate-chain a.chain.pem --signature a.sig {data.identity ? `--certificate-identity ${data.identity.email}` : "--certificate-identity-regexp '.*'"} --certificate-oidc-issuer-regexp &apos;.*&apos; --insecure-ignore-tlog --insecure-ignore-sct &lt;artifact&gt;</code>{" "}
               — or drop the artifact into the verifier above.
             </p>
           </div>

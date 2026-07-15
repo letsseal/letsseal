@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, upgradeAnchor, type VerifyResult } from "@/lib/signing";
+import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, upgradeAnchor, type VerifyResult } from "@/lib/signing";
 import { readFile, fileExists } from "@/lib/storage";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
@@ -63,6 +63,23 @@ export async function POST(req: NextRequest) {
       crypto = {
         sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
         authentic: d.valid && d.trusted, signer: d.signer,
+      };
+    } else {
+      crypto = { sealed: true, sha256, signer: rec.certCN ?? undefined };
+    }
+  } else if (rec?.sealType === "identity" && !uploadedSig) {
+    // A hosted identity seal — same cosign sidecar set as blob, but the leaf binds
+    // a provider-verified email. verifyIdentity reports that email as the signer.
+    const leafPath = `hosted/${sha256}/artifact.pem`;
+    const chainPath = `hosted/${sha256}/artifact.chain.pem`;
+    const sigB64 = rec.detachedSig;
+    if (sigB64 && (await fileExists(leafPath))) {
+      const leaf = (await readFile(leafPath)).toString("utf8");
+      const chain = (await fileExists(chainPath)) ? (await readFile(chainPath)).toString("utf8") : "";
+      const d = await verifyIdentity(bytes, sigB64, leaf + chain);
+      crypto = {
+        sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted,
+        authentic: d.valid && d.trusted, signer: d.identity || d.signer,
       };
     } else {
       crypto = { sealed: true, sha256, signer: rec.certCN ?? undefined };

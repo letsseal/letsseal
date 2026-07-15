@@ -330,6 +330,11 @@ model SealedDocument {
   sha256     String   @unique // what the /verify portal matches against
   proofCode  String?  @unique // short human-typable code -> verify.letsseal.org/v/<code>
   certCN     String
+  // Identity seals (sealType="identity") bind a third-party-verified email. We do
+  // NOT verify identity ourselves; these record which provider vouched, for the /d
+  // attribution ("verified via google"). Null for every non-identity seal form.
+  oidcProvider String? // google | github | microsoft | ...
+  oidcIssuer   String? // the OIDC issuer URL that verified the signer
   sealedAt   DateTime @default(now())
   // Decentralized anchor (proof of existence + date). Bitcoin via OpenTimestamps
   // is the live provider; the field is provider-agnostic for future ledgers.

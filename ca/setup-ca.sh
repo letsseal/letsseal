@@ -84,6 +84,7 @@ _profile_ext() {
     document) printf "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,nonRepudiation\nextendedKeyUsage=1.3.6.1.5.5.7.3.4\n" ;;         # doc signing (emailProtection EKU)
     code)     printf "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=codeSigning\n" ;;                                # code / firmware signing
     data)     printf "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,nonRepudiation\n" ;;                                               # general data attestation
+    identity) printf "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,nonRepudiation\nextendedKeyUsage=1.3.6.1.5.5.7.3.4,codeSigning\n" ;;  # OIDC-verified person identity (email + code)
     *) return 1 ;;
   esac
 }
@@ -135,6 +136,49 @@ issue_cert() {
   echo "==> Wrote $dir/$base.p12  (password: \$LETSSEAL_P12_PASS)"
 }
 
+# The dedicated identity-issuing intermediate for Phase 3 OIDC identity.
+#
+# Unlike the org certs (leaves signed OFFLINE by the main intermediate), identity
+# certs are minted ON DEMAND by the online signing service after it verifies a
+# Google/GitHub OIDC proof. That requires an issuing key to live on the box, so we
+# isolate the blast radius: a SEPARATE intermediate under the root, path-limited
+# (pathlen:0) and EKU-constrained to person/code signing, whose compromise cannot
+# forge document/org certs. Short leaf lifetimes + logging every issuance to the
+# transparency log make mis-issuance detectable. The root stays offline.
+#
+# Produces:
+#   out/identity-ca.key / identity-ca.crt   the online identity intermediate
+#   out/identity-chain.pem                  identity-ca + root (leaf chain tail)
+#   out/certs/_identity/issuer.p12          key+cert the service loads (chain=root)
+identity_init() {
+  [[ -f "$OUT/root-ca.crt" ]] || { echo "No root CA. Run 'init' first." >&2 ; exit 1 ; }
+  if [[ -f "$OUT/identity-ca.crt" ]]; then
+    echo "Identity intermediate already exists at $OUT/identity-ca.crt — refusing to overwrite." >&2
+    exit 1
+  fi
+  echo "==> Identity intermediate CA"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$OUT/identity-ca.key"
+  openssl req -new -key "$OUT/identity-ca.key" \
+    -out "$OUT/identity-ca.csr" \
+    -subj "/CN=Let's Seal Identity CA/O=Let's Seal/C=GB"
+  # pathlen:0 → it can only sign leaves. EKU (non-critical) constrains issued
+  # identity to email/code so a leaked identity key can't mint TLS/other certs.
+  openssl x509 -req -in "$OUT/identity-ca.csr" \
+    -CA "$OUT/root-ca.crt" -CAkey "$OUT/root-ca.key" -CAcreateserial \
+    -out "$OUT/identity-ca.crt" -days "$DAYS_INT" -sha256 \
+    -extfile <(printf "basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\nextendedKeyUsage=1.3.6.1.5.5.7.3.4,codeSigning\n")
+  cat "$OUT/identity-ca.crt" "$OUT/root-ca.crt" > "$OUT/identity-chain.pem"
+  local dir="$OUT/certs/_identity" ; mkdir -p "$dir"
+  # The service loads this p12: identity-ca key+cert, with root as the extra cert
+  # so the emitted leaf chain (leaf + identity-ca + root) is complete for verifiers.
+  openssl pkcs12 -export -out "$dir/issuer.p12" \
+    -inkey "$OUT/identity-ca.key" -in "$OUT/identity-ca.crt" \
+    -certfile "$OUT/root-ca.crt" -passout "pass:$P12_PASS"
+  rm -f "$OUT/identity-ca.csr"
+  echo "==> Wrote $OUT/identity-ca.crt and $dir/issuer.p12"
+  echo "    Keep root-ca.key OFFLINE. The service loads issuer.p12 to mint short-lived identity leaves."
+}
+
 # A business is just a 'document' cert stored under orgs/.
 issue_org() { issue_cert "$1" "$2" document orgs signing ; }
 
@@ -145,10 +189,11 @@ issue_org_code() { issue_cert "$1" "$2" code orgs signing-code "URI:https://lets
 
 cmd="${1:-}"
 case "$cmd" in
-  init)      init_ca ;;
+  init)         init_ca ;;
+  identity-init) identity_init ;;
   org)       issue_org "${2:?slug required}" "${3:?legal name required}" ;;
   org-code)  issue_org_code "${2:?slug required}" "${3:?legal name required}" ;;
   cert)      issue_cert "${2:?id required}" "${3:?subject required}" "${4:-document}" certs ;;
   sign-csr)  sign_csr "${2:?id required}" "${3:?csr path required}" "${4:-document}" "${5:-$2}" certs ;;
-  *) echo "Usage: $0 init | org <slug> \"Legal Name\" | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
+  *) echo "Usage: $0 init | identity-init | org <slug> \"Legal Name\" | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
 esac

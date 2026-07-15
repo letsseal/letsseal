@@ -104,6 +104,7 @@ TAGS = [
     {"name": "sealing", "description": "Apply and verify PAdES seals on PDFs."},
     {"name": "anchoring", "description": "Timestamp a file or digest on Bitcoin via OpenTimestamps."},
     {"name": "ca", "description": "CA-as-code: issue org and per-client signing certificates."},
+    {"name": "identity", "description": "Seal under a third-party-verified identity (Sign in with Google/GitHub/OIDC)."},
     {"name": "util", "description": "Health and rendering helpers."},
 ]
 
@@ -213,6 +214,14 @@ def _log_p12() -> str:
     if not os.path.isfile(path):
         raise HTTPException(503, "transparency log signing key not provisioned "
                                  "(run: setup-ca.sh cert _log \"Lets Seal Transparency Log\" data)")
+    return path
+
+
+def _identity_issuer_p12() -> str:
+    path = os.path.join(CA_DIR, "certs", "_identity", "issuer.p12")
+    if not os.path.isfile(path):
+        raise HTTPException(503, "identity issuer not provisioned "
+                                 "(run: setup-ca.sh identity-init)")
     return path
 
 
@@ -463,6 +472,95 @@ async def verify_blob_ep(request: Request, file: UploadFile = File(...),
     except Exception:
         logger.exception("blob verify failed")
         return JSONResponse({"sealed": True, "blob": True, "valid": False,
+                             "trusted": False, "sha256": sha, "reason": "verification error"},
+                            status_code=200)
+
+
+class SealIdentityRequest(BaseModel):
+    sha256: str = Field(..., description="Lowercase hex SHA-256 of the artifact to seal.")
+    provider: str = Field(..., description="OIDC provider id: google | microsoft | apple | github | <configured>.",
+                          examples=["google", "github"])
+    token: str = Field(..., description="The provider's proof: an OIDC ID token (JWT) for OIDC providers, "
+                                        "or a GitHub OAuth access token for provider=github. Verified here "
+                                        "against the provider before any cert is minted.")
+
+
+@app.get("/identity/providers", operation_id="identityProviders", tags=["identity"],
+         summary="List enabled OIDC identity providers", dependencies=[Depends(require_auth)])
+async def identity_providers_ep():
+    """The identity providers this service is configured for (those with an OAuth
+    client id set). The web tier reads this to render only the sign-in buttons
+    that will actually work."""
+    from oidc import enabled_providers
+    return JSONResponse({"providers": enabled_providers()})
+
+
+@app.post("/seal/identity", operation_id="sealIdentity", tags=["identity"],
+          summary="Seal a digest under a provider-verified identity",
+          dependencies=[Depends(require_auth)])
+async def seal_identity(payload: SealIdentityRequest):
+    """Verify a Google/GitHub/OIDC proof, mint a short-lived leaf binding the
+    provider-verified email, and sign the artifact's SHA-256 with it. Digest-only
+    — the artifact never leaves the caller. Verifies with `sealbot verify` and
+    stock `cosign verify-blob --certificate-identity <email>`.
+
+    We never assert identity ourselves: the seal records that the *provider*
+    verified the signer's control of that email at seal time."""
+    if not P12_PASS:
+        raise HTTPException(503, "signing not configured")
+    sha = str(payload.sha256).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise HTTPException(400, "sha256 (64 hex) required")
+    provider = str(payload.provider).strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", provider):
+        raise HTTPException(400, "invalid provider")
+    p12 = _identity_issuer_p12()
+    from oidc import verify_oidc, verify_github, IdentityError
+    from identity import issue_and_sign
+
+    def run():
+        if provider == "github":
+            who = verify_github(payload.token)
+        else:
+            who = verify_oidc(provider, payload.token)
+        return who, issue_and_sign(sha, who["email"], who["issuer"], who["provider"],
+                                   p12, P12_PASS, who.get("account_url", ""))
+
+    try:
+        who, res = await run_in_threadpool(run)
+    except IdentityError as e:
+        logger.warning("identity proof rejected (%s): %s", provider, e)
+        raise HTTPException(401, "identity proof did not verify")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("identity seal failed (%s)", provider)
+        raise HTTPException(500, "identity seal failed")
+    return JSONResponse({"sha256": sha, **res})
+
+
+@app.post("/verify/identity", operation_id="verifyIdentity", tags=["identity"],
+          summary="Verify an identity seal", dependencies=[Depends(require_auth)])
+async def verify_identity_ep(request: Request, file: UploadFile = File(...),
+                             sig: UploadFile = File(...), cert: UploadFile = File(...)):
+    """Verify an identity seal: the artifact's bytes + its base64 `.sig` + the
+    signer's `.pem`, against our root — and surface WHO signed (the verified
+    email) and WHO vouched (the OIDC issuer recorded at issuance)."""
+    file_bytes = await _read_capped(file, request)
+    sig_b64 = (await sig.read()).decode("ascii", "ignore").strip()
+    cert_pem = (await cert.read()).decode("ascii", "ignore")
+    if len(sig_b64) > 100_000 or len(cert_pem) > 1_000_000:
+        raise HTTPException(413, "signature or cert too large")
+    sha = hashlib.sha256(file_bytes).hexdigest()
+    from identity import verify_identity_digest
+    root = os.path.join(CA_DIR, "root-ca.crt")
+    try:
+        result = await run_in_threadpool(verify_identity_digest, sha, sig_b64, cert_pem, root, cert_pem)
+        result["sha256"] = sha
+        return JSONResponse(result)
+    except Exception:
+        logger.exception("identity verify failed")
+        return JSONResponse({"sealed": True, "identity_seal": True, "valid": False,
                              "trusted": False, "sha256": sha, "reason": "verification error"},
                             status_code=200)
 
