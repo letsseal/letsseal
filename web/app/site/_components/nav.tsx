@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, X, ArrowUpRight } from "lucide-react";
 
 export const NAV = [
-  { href: "/site/mission", label: "Mission" },
   { href: "/site/how-it-works", label: "How it works" },
+  { href: "/site/use-cases", label: "Use cases" },
   { href: "/site/standard", label: "Standard" },
   { href: "/site/developers", label: "Developers" },
   { href: "/site/open", label: "Open" },
