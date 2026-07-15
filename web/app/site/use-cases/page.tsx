@@ -53,7 +53,7 @@ export default function UseCasesHub() {
           <H2 className="mt-3.5">Find your sector</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
             Each guide walks the sector through sealing and verifying its own documents — with a workflow diagram, the
-            web-app and CLI steps, and a live proof. More arrive every week.
+            web-app and CLI steps, worked examples, and a live proof. Don&rsquo;t see yours? The same seal fits any file.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SECTORS.map((s) =>

@@ -5,7 +5,7 @@ const APEX = "letsseal.org";
 const VERIFY_HOST = "verify.letsseal.org";
 const APP_HOST = "app.letsseal.org";
 
-const VERIFY_PREFIXES = ["/verify", "/d/", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/icon"];
+const VERIFY_PREFIXES = ["/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/icon"];
 const ALIAS_HOSTS = new Set([
   "letsseal.com",
   "www.letsseal.com",
@@ -14,7 +14,7 @@ const ALIAS_HOSTS = new Set([
   "www.letsseal.org",
 ]);
 
-const SHARED_PREFIXES = ["/site", "/verify", "/d/", "/api", "/_next", "/favicon", "/robots", "/sitemap"];
+const SHARED_PREFIXES = ["/site", "/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap"];
 
 export function proxy(request: NextRequest) {
   const url = request.nextUrl;

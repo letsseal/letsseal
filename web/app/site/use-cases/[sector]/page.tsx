@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Container, H2, CodeBlock, Eyebrow, LinkArrow, Btn, serif } from "../../_components/ui";
 import { SealFlow } from "../_diagram";
-import { BUILT_SECTORS, getSector, PROOF, type Lane } from "../_data";
+import { ProofPreview } from "../_proof-preview";
+import { BUILT_SECTORS, getSector, primaryProof, type Lane } from "../_data";
 import { Check, ArrowUpRight } from "lucide-react";
 
 export function generateStaticParams() {
@@ -36,7 +37,7 @@ export default async function SectorPage({ params }: { params: Promise<{ sector:
   const s = getSector(sector);
   if (!s) notFound();
 
-  const proofUrl = PROOF[s.slug] || s.example?.proofUrl || "";
+  const primary = primaryProof(s);
   const flow = FLOW[s.lane];
 
   const LD = {
@@ -166,25 +167,45 @@ export default async function SectorPage({ params }: { params: Promise<{ sector:
         </section>
       )}
 
-      {s.example && proofUrl && (
+      {s.examples && s.examples.length > 0 && (
         <section className="border-b border-stone-200">
           <Container className="py-14 sm:py-18">
-            <Eyebrow>See a real proof</Eyebrow>
-            <H2 className="mt-3.5">{s.example.label}</H2>
-            <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">{s.example.note}</p>
-            <div className="mt-6">
-              <Btn href={proofUrl} external>Open the live proof <ArrowUpRight className="h-4 w-4" /></Btn>
+            <Eyebrow>See it in action</Eyebrow>
+            <H2 className="mt-3.5">What a proof looks like, and what you can seal</H2>
+            <div className="mt-8 grid gap-10 lg:grid-cols-[auto_1fr] lg:gap-14">
+              <div className="flex flex-col items-start gap-4">
+                <ProofPreview label={primary?.label ?? s.examples[0].label} lane={s.lane} />
+                {primary?.proofUrl ? (
+                  <Btn href={primary.proofUrl} external>Open the live proof <ArrowUpRight className="h-4 w-4" /></Btn>
+                ) : s.lane === "software" ? (
+                  <p className="text-[13px] text-stone-500">The proof is the verification itself — reproducible with stock cosign on any machine.</p>
+                ) : null}
+              </div>
+              <div>
+                <p className="text-[14px] font-medium text-stone-500">A single use case, many documents. Each of these is sealed the same way:</p>
+                <ul className="mt-4 space-y-4">
+                  {s.examples.map((ex) => (
+                    <li key={ex.label} className="border-l-2 border-stone-200 pl-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-[15px] font-semibold text-stone-900">{ex.label}</h3>
+                        {ex.proofUrl && (
+                          <a href={ex.proofUrl} target="_blank" rel="noopener noreferrer"
+                             className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11.5px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-100">
+                            Live proof <ArrowUpRight className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[14px] leading-relaxed text-stone-600">{ex.note}</p>
+                    </li>
+                  ))}
+                </ul>
+                {primary && (
+                  <p className="mt-6 text-[13px] text-stone-500">
+                    Live proofs are real documents sealed under the “Let&rsquo;s Seal Examples” organisation.
+                  </p>
+                )}
+              </div>
             </div>
-            <p className="mt-4 text-[13px] text-stone-500">A real document, sealed under the “Let&rsquo;s Seal Examples” organisation.</p>
-          </Container>
-        </section>
-      )}
-      {s.example && !proofUrl && s.lane === "software" && (
-        <section className="border-b border-stone-200">
-          <Container className="py-14 sm:py-18">
-            <Eyebrow>The proof is reproducible</Eyebrow>
-            <H2 className="mt-3.5">{s.example.label}</H2>
-            <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">{s.example.note}</p>
           </Container>
         </section>
       )}
