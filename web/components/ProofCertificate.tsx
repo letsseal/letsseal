@@ -1,4 +1,4 @@
-import { Anchor, ShieldCheck, ShieldAlert, Building2, Clock, Download, ExternalLink, FileText, Users, Mail, Link2, Contact, AlertTriangle, Award, Ban } from "lucide-react";
+import { Anchor, ShieldCheck, ShieldAlert, BadgeCheck, Building2, Clock, Download, ExternalLink, FileText, Users, Mail, Link2, Contact, AlertTriangle, Award, Ban } from "lucide-react";
 import { SealMark } from "@/components/brand/SealMark";
 import { EXPLORER_BLOCK } from "@/lib/bitcoin";
 import type { SigningTrail } from "@/lib/signing-audit";
@@ -8,6 +8,7 @@ export type ProofData = {
   sha256: string;
   onRecord: boolean;
   issuer?: string | null;
+  verification?: { verified: boolean; domain: string | null; via: string | null } | null;
   title?: string | null;
   completedAt?: string | null;
   auditEvents?: number;
@@ -168,6 +169,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+// How an issuer proved control of its domain, for display on the proof.
+function viaLabel(via: string): string {
+  return { dns: "verified via DNS", http: "verified via a website file", email: "verified via a domain admin email", operator: "verified by the operator" }[via] ?? "verified";
+}
+
 // The public "certificate of proof". For a sealed document it leads with two
 // trust layers (cryptographic seal + independent timestamp); for a bare "anchor
 // anything" timestamp it shows just the independent timestamp.
@@ -229,6 +235,28 @@ export function ProofCertificate({ data, variant = "document", gate }: {
         </div>
       </div>
 
+      {data.verification && (
+        data.verification.verified ? (
+          <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <b>Issuer verified.</b> Let&apos;s Seal confirmed this issuer controls{" "}
+              <b>{data.verification.domain}</b>
+              {data.verification.via ? <> ({viaLabel(data.verification.via)})</> : null}. The issuer&apos;s identity is that domain.
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <b>Issuer identity not verified.</b> The name shown is chosen by the sealing account — Let&apos;s Seal has
+              not confirmed who they are. This seal proves the file is <b>intact and timestamped</b>; it does not prove
+              the issuer&apos;s identity.
+            </span>
+          </div>
+        )
+      )}
+
       {!isTimestamp && data.credential && <CredentialCard c={data.credential} />}
 
       <div className={isTimestamp ? "" : "grid gap-4 md:grid-cols-2"}>
@@ -240,7 +268,18 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           </div>
           <p className="mt-1 text-xs text-muted-foreground">Shows the sealing certificate and that the file is byte-for-byte intact.</p>
           <div className="mt-3 divide-y">
-            <Row label="Issuer">{data.crypto.signer?.split(",")[0]?.replace(/^Common Name:\s*/, "") ?? data.issuer ?? "—"}</Row>
+            <Row label="Issuer">
+              <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                <span>{data.crypto.signer?.split(",")[0]?.replace(/^Common Name:\s*/, "") ?? data.issuer ?? "—"}</span>
+                {data.verification && (data.verification.verified ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                    <BadgeCheck className="h-3 w-3" />{data.verification.domain}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">unverified</span>
+                ))}
+              </span>
+            </Row>
             <Row label="Sealed">
               {data.crypto.signed_at
                 ? new Date(data.crypto.signed_at).toLocaleString()
@@ -259,11 +298,6 @@ export function ProofCertificate({ data, variant = "document", gate }: {
               </Row>
             )}
           </div>
-          {!onRecordOnly && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              The issuer name is claimed by the sealing certificate — it is <b>not</b> identity-verified by Let&apos;s Seal.
-            </p>
-          )}
         </div>
         )}
 
@@ -271,7 +305,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           <div className="flex items-center gap-2 text-sm font-medium">
             <Anchor className="h-4 w-4 text-brand" /> Independent timestamp
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Independent proof it existed by a certain date — no authority required.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Independent proof it existed by a certain date, on the public Bitcoin ledger.</p>
           {anchored ? (
             <div className="mt-3 divide-y">
               <Row label="Status">
@@ -310,7 +344,20 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             <Building2 className="h-4 w-4 text-muted-foreground" /> On record
           </div>
           <div className="mt-3 divide-y">
-            {data.issuer && <Row label="Business">{data.issuer}</Row>}
+            {data.issuer && (
+              <Row label="Business">
+                <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                  <span>{data.issuer}</span>
+                  {data.verification && (data.verification.verified ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                      <BadgeCheck className="h-3 w-3" />{data.verification.domain}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">unverified</span>
+                  ))}
+                </span>
+              </Row>
+            )}
             {data.title && <Row label="Document">{data.title}</Row>}
             {data.completedAt && <Row label="Completed">{new Date(data.completedAt).toLocaleDateString()}</Row>}
             {typeof data.auditEvents === "number" && <Row label="Audit events">{data.auditEvents}</Row>}

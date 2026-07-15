@@ -148,6 +148,13 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     sha256,
     onRecord: true,
     issuer: rec.org?.name ?? rec.envelope?.org.name ?? null,
+    verification: (() => {
+      const o = rec.org ?? rec.envelope?.org ?? null;
+      if (!o) return null;
+      return o.verifiedDomain
+        ? { verified: true as const, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null }
+        : { verified: false as const, domain: null, via: null };
+    })(),
     title: gateContent ? null : rawTitle,
     completedAt: (rec.envelope?.completedAt ?? rec.sealedAt).toISOString(),
     auditEvents: rec.envelope?._count.audit ?? 0,

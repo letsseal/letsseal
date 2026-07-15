@@ -50,6 +50,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
       kind: "document",
       sealed: true,
       issuer: doc.org?.name ?? doc.envelope?.org.name ?? null,
+      // Issuer-identity tier: the name is a self-asserted claim unless the org
+      // proved control of a globally-unique domain. Programmatic verifiers must
+      // not treat `issuer` as identity-verified unless verification.verified.
+      verification: (() => {
+        const o = doc.org ?? doc.envelope?.org ?? null;
+        if (!o) return null;
+        return o.verifiedDomain
+          ? { verified: true, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null }
+          : { verified: false, domain: null, via: null };
+      })(),
       // The document title is deliberately private for contracts/hosted docs —
       // the HTML proof page hides it from non-issuers (page.tsx gateContent). This
       // keyless twin must match: only issued credentials expose their title.

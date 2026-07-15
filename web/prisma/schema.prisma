@@ -23,6 +23,14 @@ model Organization {
   accentColor String   @default("#2563eb") // secondary/accent
   fromEmail   String?
   domain      String? // custom domain for signing links
+  // Issuer identity verification (anti-impersonation). An org's trusted identity is
+  // a globally-unique DOMAIN it proved control of; the free-text `name` is only a
+  // label until then. NULL verifiedDomain = unverified (self-asserted name) — the
+  // /d proof page marks it as such. Set via DNS/HTTP/controller-email (Phase 2);
+  // `operator` = established out-of-band by the Let's Seal operator.
+  verifiedDomain    String? // e.g. "acme.co.uk" — globally-unique identity anchor
+  domainVerifiedAt  DateTime?
+  domainVerifiedVia String? // dns | http | email | operator
   createdAt   DateTime @default(now())
   // Outbound-email abuse controls (all sending shares one SES account, so a bad
   // actor here would hurt every project on it). sendingEnabled = per-org kill
