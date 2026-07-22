@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="docs/logo.svg" width="84" height="84" alt="Let's Seal" />
   <h1>Let's Seal</h1>
   <p><strong>Seal anything.</strong></p>
   <p>The open standard for proving any file is real: unaltered, sealed by a known certificate, and in existence by a certain date.</p>
@@ -8,6 +9,8 @@
     <a href="https://letsseal.org"><img src="https://img.shields.io/badge/website-letsseal.org-0b7150?style=flat-square" alt="Website"></a>
     <a href="SPEC.md"><img src="https://img.shields.io/badge/standard-SEAL-0b7150?style=flat-square" alt="SEAL standard"></a>
     <a href="https://verify.letsseal.org"><img src="https://img.shields.io/badge/verify-free-0b7150?style=flat-square" alt="Verify free"></a>
+    <a href="https://github.com/letsseal/letsseal/releases"><img src="https://img.shields.io/github/downloads/letsseal/letsseal/total?style=flat-square&label=downloads&color=0b7150" alt="Downloads"></a>
+    <a href="https://letsseal.org"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fletsseal.org%2Fapi%2Fstats%2Fbadge&style=flat-square" alt="Proof records"></a>
   </p>
 
   <p>
