@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { Search, Plus, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/UserMenu";
-import { ThemeToggle } from "./ThemeToggle";
 
 const TITLES: Record<string, string> = {
   documents: "Documents",
   credentials: "Credentials",
   seal: "Seal & anchor",
   settings: "Settings",
+  e: "Document",
 };
 
 export function AppHeader({ slug, userName, userEmail }: { slug: string; userName?: string | null; userEmail: string }) {
@@ -39,7 +39,6 @@ export function AppHeader({ slug, userName, userEmail }: { slug: string; userNam
         <Button asChild size="sm" className="gap-1.5">
           <Link href={`/${slug}/new`}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New document</span></Link>
         </Button>
-        <ThemeToggle />
         <UserMenu name={userName} email={userEmail} />
       </div>
     </header>

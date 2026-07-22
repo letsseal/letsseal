@@ -9,6 +9,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional, Union
 from urllib.error import HTTPError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 FileInput = Union[str, bytes, os.PathLike]
@@ -87,6 +88,12 @@ class LetsSeal:
 
     def __init__(self, base_url: str = DEFAULT_BASE_URL, *, headers: Optional[dict] = None, timeout: float = 60.0):
         self.base = base_url.rstrip("/")
+        parsed = urlparse(self.base)
+        if parsed.scheme != "https" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+            raise ValueError(
+                f"base_url must use https:// for a remote host (got {self.base}); "
+                "plaintext allows result forgery and token interception."
+            )
         self.headers = headers or {}
         self.timeout = timeout
 
@@ -109,12 +116,15 @@ class LetsSeal:
         return json.loads(body)
 
     def _post_multipart(self, path: str, fields: dict, file: Optional[FileInput] = None) -> tuple[bytes, dict]:
+        def hsafe(s):
+            return "".join(c for c in str(s) if c not in '"\r\n')
         boundary = "----letsseal" + uuid.uuid4().hex
         buf = bytearray()
         for name, value in fields.items():
-            buf += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode()
+            buf += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{hsafe(name)}\"\r\n\r\n{hsafe(value)}\r\n".encode()
         if file is not None:
             content, filename = _read(file)
+            filename = hsafe(filename)
             mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
             buf += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; "
                     f"filename=\"{filename}\"\r\nContent-Type: {mime}\r\n\r\n").encode()

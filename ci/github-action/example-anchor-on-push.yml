@@ -1,0 +1,32 @@
+# Anchor every push on the public ledger, with Let's Seal.
+#
+# Drop this in at .github/workflows/seal.yml. No secrets, no account, no setup.
+# On every push it sends only the SHA-256 of your source archive (an opaque
+# hash, and nothing else) and gets back a permanent, publicly verifiable
+# timestamp on the blockchain. Your code never leaves the runner.
+#
+# Works in any repository, public or private, on any account. To point it at a
+# self-hosted instance, set a repo variable LETSSEAL_APP to your base URL.
+name: Seal
+
+on:
+  push:
+
+jobs:
+  anchor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Anchor this commit's source on the public ledger
+        env:
+          LETSSEAL_APP: ${{ vars.LETSSEAL_APP || 'https://app.letsseal.org' }}
+        run: |
+          set -euo pipefail
+          digest=$(git archive --format=tar HEAD | sha256sum | awk '{print $1}')
+          echo "source digest: $digest"
+          # Keyless, digest-only. Non-fatal: a hiccup here never fails your build.
+          curl -fsS -X POST "$LETSSEAL_APP/api/anchor" \
+            -H 'Content-Type: application/json' \
+            -d "{\"sha256\":\"$digest\"}" \
+            && echo "anchored -> $LETSSEAL_APP/d/$digest" \
+            || echo "anchor request failed (non-fatal)"

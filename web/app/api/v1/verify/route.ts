@@ -5,6 +5,8 @@ import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBl
 import { readFile, fileExists } from "@/lib/storage";
 import { withCors, preflight } from "@/lib/cors";
 import { overContentLength, tooLarge } from "@/lib/limits";
+import { rateLimited } from "@/lib/ratelimit";
+import { clientIp } from "@/lib/ip";
 
 const isXml = (b: Buffer) => {
   let i = b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf ? 3 : 0;
@@ -34,6 +36,8 @@ const isC2paMedia = (b: Buffer) => {
 export function OPTIONS() { return preflight(); }
 
 export async function POST(req: NextRequest) {
+  if (rateLimited(`v1verify:${clientIp(req)}`, 60, 60_000))
+    return withCors(NextResponse.json({ error: "too many requests" }, { status: 429 }));
   if (overContentLength(req)) return withCors(NextResponse.json({ error: "file too large" }, { status: 413 }));
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
@@ -67,6 +71,7 @@ export async function POST(req: NextRequest) {
     } else if (isPdf(bytes)) {
       v = await verifyPdf(bytes);
     } else {
+      // No .sig supplied — match a stored detached or artifact (blob) seal by hash.
       const rec = await db.sealedDocument.findUnique({ where: { sha256 }, select: { sealType: true, detachedSig: true } });
       if (rec?.sealType === "detached" && rec.detachedSig) {
         const d = await verifyDetached(bytes, Buffer.from(rec.detachedSig, "base64"));

@@ -5,6 +5,7 @@ import { generateCertificatePdf } from "@/lib/certificate-pdf";
 import { appUrl, proofUrl } from "@/lib/hosted";
 import { sendCredentialIssued } from "@/lib/mailer";
 import { canSend, recordSend } from "@/lib/send-guard";
+import { issuerIdentity, issuerLogoUrl } from "@/lib/issuer";
 
 export type IssueInput = {
   recipientName: string;
@@ -72,6 +73,8 @@ export async function issueCredential(
       emailed = await sendCredentialIssued({
         to: input.recipientEmail, recipientName: input.recipientName,
         credType: cred.credType, title: input.title, orgName: org.name,
+        verifiedDomain: await issuerIdentity(org.id),
+        logoUrl: issuerLogoUrl({ slug: org.slug, logoUrl: org.logoUrl ?? null }),
         brandColor: org.brandColor ?? undefined, replyTo: org.fromEmail ?? undefined, link,
       });
       if (emailed) await recordSend(org.id, input.recipientEmail, "credential");

@@ -5,6 +5,7 @@ import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, sealIden
 import { stampVerifyBadge } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 import { appendToLog } from "@/lib/translog";
+import { buildBlobCosignBundle, buildAttestCosignBundle } from "@/lib/cosign-tlog";
 
 async function logSeal(sha256: string, sealType: string, certCN: string): Promise<void> {
   try {
@@ -181,6 +182,7 @@ export type HostedBlobSeal = {
   anchorState: string; // none | pending | confirmed
   proofUrl: string;
   proofCode: string | null;
+  bundle: unknown | null; // stock-cosign v0.3 bundle (tlog-backed), or null on failure
 };
 
 // cosign-compatible artifact seal for a business: a raw ECDSA signature over the
@@ -199,6 +201,18 @@ export async function hostedSealBlob(
   await saveFile(`hosted/${sha}/artifact.sig`, Buffer.from(r.sig_b64));
   await saveFile(`hosted/${sha}/artifact.pem`, Buffer.from(r.cert_pem));
   await saveFile(`hosted/${sha}/artifact.chain.pem`, Buffer.from(r.chain_pem));
+
+  // Build the stock-cosign bundle backed by our own transparency log. This logs
+  // the leaf (a Rekor hashedrekord body) and yields a bundle that verifies with
+  // `cosign verify-blob --trusted-root <ours>` WITHOUT --insecure-ignore-tlog.
+  // Best-effort: a hiccup must never fail the seal — the sidecars still verify.
+  let cosignBundle: unknown = null;
+  try {
+    cosignBundle = await buildBlobCosignBundle({ artifactSha256: sha, sigB64: r.sig_b64, certPem: r.cert_pem });
+    await saveFile(`hosted/${sha}/artifact.cosign.bundle`, Buffer.from(JSON.stringify(cosignBundle)));
+  } catch (e) {
+    console.error("cosign tlog bundle failed (sidecars still valid):", e instanceof Error ? e.message : e);
+  }
 
   let otsProof: string | null = null;
   let anchorState = "none";
@@ -238,6 +252,7 @@ export async function hostedSealBlob(
     sha256: sha, sig: r.sig_b64, certPem: r.cert_pem, chainPem: r.chain_pem,
     certCN: r.cert_cn || org.name, identity: r.identity,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
+    bundle: cosignBundle,
   };
 }
 
@@ -345,8 +360,21 @@ export async function hostedSealAttestation(
     predicateType: opts.predicateType, subjectName: opts.subjectName ?? opts.title ?? "artifact",
   });
 
-  const bundleStr = JSON.stringify(r.bundle);
-  await saveFile(`hosted/${sha}/attestation.bundle`, Buffer.from(bundleStr));
+  // Upgrade the signing service's DSSE bundle to a tlog-native one backed by our
+  // own transparency log: a `dsse` v0.0.1 Rekor entry so the bundle verifies with
+  // `cosign verify-blob-attestation --trusted-root <ours>` WITHOUT
+  // --insecure-ignore-tlog. Best-effort — on a hiccup we fall back to the
+  // signing service's bundle (which still verifies with --key / ignore-tlog).
+  let bundle: unknown = r.bundle;
+  try {
+    bundle = await buildAttestCosignBundle({
+      artifactSha256: sha, dsse: r.dsse as { payload: string; payloadType: string; signatures: { sig: string }[] }, certPem: r.cert_pem,
+    });
+  } catch (e) {
+    console.error("cosign tlog attest bundle failed (falling back to --key bundle):", e instanceof Error ? e.message : e);
+  }
+
+  await saveFile(`hosted/${sha}/attestation.bundle`, Buffer.from(JSON.stringify(bundle)));
   // Persist leaf + chain (not just the leaf): the public portal verifies an
   // attestation by-hash through /verify/attest, which needs the full chain to
   // establish trust to our root. Stock cosign (--key) ignores the chain, so a
@@ -390,7 +418,7 @@ export async function hostedSealAttestation(
 
   await logSeal(sha, "attestation", r.cert_cn || org.name);
   return {
-    sha256: sha, bundle: r.bundle, pubkey: r.pubkey_pem, certPem: r.cert_pem,
+    sha256: sha, bundle, pubkey: r.pubkey_pem, certPem: r.cert_pem,
     predicateType: r.predicate_type, certCN: r.cert_cn || org.name,
     anchorState, proofUrl: proofUrl(rec.id), proofCode: rec.proofCode ?? null,
   };

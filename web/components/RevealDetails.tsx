@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Lock, Upload, Loader2, FileText, Users, Mail, Link2, UserCheck, AlertCircle } from "lucide-react";
 
 type Trail = {
-  signers: { name: string; channel: string; email: string | null; signedAt: string | null }[];
+  signers: { name: string; title: string | null; department: string | null; channel: string; email: string | null; signedAt: string | null }[];
   entries: { action: string; actorName: string; at: string }[];
   sharedSession: boolean;
   chainIntact: boolean;
@@ -58,6 +58,11 @@ export function RevealDetails({ hash, hasTrail }: { hash: string; hasTrail: bool
                   <div key={i} className="flex items-center justify-between gap-3 rounded-lg border bg-background/50 px-3 py-2 text-sm">
                     <div className="min-w-0">
                       <div className="font-medium">{s.name}</div>
+                      {(s.title || s.department) && (
+                        <div className="text-xs text-muted-foreground">
+                          {[s.title, s.department].filter(Boolean).join(", ")}
+                        </div>
+                      )}
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Icon className="h-3 w-3" />{s.email ? s.email : "no email on file"}
                       </div>

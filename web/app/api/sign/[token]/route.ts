@@ -9,12 +9,25 @@ import { sendEnvelopeCompleted, sendEnvelopeCompletedSender } from "@/lib/mailer
 import { recordSend } from "@/lib/send-guard";
 import { advanceSequence } from "@/lib/envelope-routing";
 import { clientIp } from "@/lib/ip";
+import { attemptCountAsync, recordFailureAsync } from "@/lib/ratelimit";
 import { ctEqual } from "@/lib/ct";
 import { isSuspended } from "@/lib/org-guard";
+import { issuerIdentity, issuerLogoUrl } from "@/lib/issuer";
 
 const suppliedCode = (req: NextRequest) =>
   req.nextUrl.searchParams.get("code") ?? req.headers.get("x-access-code");
 
+const CODE_FAILS = 8;
+const CODE_WINDOW = 15 * 60_000;
+async function codeLocked(token: string, ip: string): Promise<boolean> {
+  return (await attemptCountAsync(`code:${token}`)) >= CODE_FAILS || (await attemptCountAsync(`code:ip:${ip}`)) >= CODE_FAILS * 5;
+}
+async function codeFailed(token: string, ip: string): Promise<void> {
+  await recordFailureAsync(`code:${token}`, CODE_WINDOW);
+  await recordFailureAsync(`code:ip:${ip}`, CODE_WINDOW);
+}
+
+// GET: signer view payload (envelope + this signer's fields), by token.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const signer = await db.signer.findUnique({
@@ -23,17 +36,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   });
   if (!signer) return NextResponse.json({ error: "invalid link" }, { status: 404 });
 
-  if (signer.accessCode && !ctEqual(signer.accessCode, suppliedCode(req))) {
-    return NextResponse.json({
-      signer: { id: signer.id, name: signer.name, kind: signer.kind, status: signer.status, hasAccessCode: true },
-      needsAccessCode: true,
-    });
+  // The access code gates VIEWING, not just submission. If one is set, require a
+  // valid code (constant-time) before returning any envelope content or recording
+  // a view — a leaked/forwarded link alone must not expose the document.
+  if (signer.accessCode) {
+    const supplied = suppliedCode(req);
+    const ip = clientIp(req);
+    if (await codeLocked(signer.token, ip))
+      return NextResponse.json({ error: "too many attempts, try again later" }, { status: 429 });
+    if (!ctEqual(signer.accessCode, supplied)) {
+      if (supplied != null) await codeFailed(signer.token, ip);
+      return NextResponse.json({
+        signer: { id: signer.id, name: signer.name, kind: signer.kind, status: signer.status, hasAccessCode: true },
+        needsAccessCode: true,
+      });
+    }
   }
 
+  // Record the "open" step from this signer's own session — the first half of
+  // control-of-channel attribution (they reached their unique link), captured
+  // with ip/ua for the tamper-evident trail and same-session detection.
   if (signer.status === "pending") {
     const ip = clientIp(req);
     const ua = req.headers.get("user-agent") ?? "";
-    await db.signer.update({ where: { id: signer.id }, data: { status: "viewed" } });
+    await db.signer.update({ where: { id: signer.id }, data: { status: "viewed", viewedAt: new Date() } });
     await appendAudit(signer.envelope.id, signer.id, "viewed", { ip, userAgent: ua, details: signer.name });
   }
 
@@ -47,6 +73,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       org: { name: signer.envelope.org.name, brandColor: signer.envelope.org.brandColor },
       fields: signer.envelope.fields.map((f) => ({
         id: f.id, type: f.type, label: f.label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h,
+        // Only expose this signer's own values (and shared/unassigned display
+        // fields). Other signers' captured input — typed PII, signature-image
+        // PNGs — stays withheld so one token holder can't harvest or forge them.
         value: (f.signerId === signer.id || f.signerId === null) ? f.value : null,
         signerId: f.signerId, signerName: f.signer?.name ?? null,
         mine: f.signerId === signer.id,
@@ -55,8 +84,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   });
 }
 
-const MAX_SIGN_JSON_BYTES = 2_000_000; 
-const MAX_FIELD_VALUE = 200_000; 
+// POST: submit this signer's field values; seal when everyone has signed.
+// Signature payloads are small (field values + a data-URI signature image). Cap
+// the JSON body so a signer token can't be used to buffer/persist huge blobs.
+const MAX_SIGN_JSON_BYTES = 2_000_000; // 2 MB
+const MAX_FIELD_VALUE = 200_000; // per-field ceiling on the persisted value
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -73,9 +105,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (!signer) return NextResponse.json({ error: "invalid link" }, { status: 404 });
   if (signer.status === "signed")
     return NextResponse.json({ error: "already signed" }, { status: 409 });
-  if (signer.accessCode && !ctEqual(signer.accessCode, accessCode))
-    return NextResponse.json({ error: "bad access code" }, { status: 403 });
+  if (signer.accessCode) {
+    const ip = clientIp(req);
+    if (await codeLocked(signer.token, ip))
+      return NextResponse.json({ error: "too many attempts, try again later" }, { status: 429 });
+    if (!ctEqual(signer.accessCode, accessCode)) {
+      if (accessCode != null) await codeFailed(signer.token, ip);
+      return NextResponse.json({ error: "bad access code" }, { status: 403 });
+    }
+  }
 
+  // Sequential envelopes: reject an out-of-turn signature even from a valid token
+  // (later-order tokens aren't emailed until their turn, but a leaked/guessed one
+  // must not let a signer jump the order the sender relied on).
   if (signer.envelope.sequential) {
     const ahead = await db.signer.count({
       where: {
@@ -91,6 +133,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const ip = clientIp(req);
   const ua = req.headers.get("user-agent") ?? "";
 
+  // Save each field value belonging to this signer.
   for (const [fieldId, value] of Object.entries(values ?? {})) {
     const field = await db.field.findUnique({ where: { id: fieldId } });
     if (!field || field.signerId !== signer.id) continue;
@@ -100,14 +143,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   await db.signer.update({ where: { id: signer.id }, data: { status: "signed", signedAt: new Date() } });
   await appendAudit(signer.envelope.id, signer.id, "signed", { ip, userAgent: ua, details: signer.name });
 
+  // All *signing* recipients done? (cc/viewer are passive and never block.)
   const remaining = await db.signer.count({
     where: { envelopeId: signer.envelope.id, role: { in: ["signer", "in_person"] }, status: { not: "signed" } },
   });
   if (remaining > 0) {
+    // Sequential envelopes: releasing this signature may unlock the next signer.
     await advanceSequence(signer.envelope.id);
     return NextResponse.json({ ok: true, completed: false });
   }
 
+  // Impersonation/abuse takedown: a suspended issuer must not mint a new seal under
+  // its disputed identity, even now that every party has signed. The signatures are
+  // recorded (audit trail); the sealed document is withheld until the org is
+  // reinstated, at which point the last signer re-submitting completes it.
   if (isSuspended(signer.envelope.org)) {
     return NextResponse.json(
       { error: "This organisation is suspended; the document cannot be finalised." },
@@ -136,19 +185,30 @@ async function completeAndSeal(envelopeId: string, orgSlug: string, ip: string, 
     const { width, height } = page.getSize();
     const x = f.x * width;
     const boxH = f.h * height;
-    const y = height - (f.y + f.h) * height; 
+    const y = height - (f.y + f.h) * height; // convert top-left -> bottom-left
+    // A malformed value (bad base64 image, or text with glyphs outside the
+    // font's WinAnsi range) must not fail the whole seal — draw per-field and
+    // skip anything that throws.
     try {
       if (f.type === "signature" && f.value.startsWith("data:image")) {
         const png = await doc.embedPng(Buffer.from(f.value.split(",")[1], "base64"));
         page.drawImage(png, { x, y, width: f.w * width, height: boxH });
+        // DocuSign-style attribution stamp: "Signed by:" above the mark and a
+        // short signature hash below it. The hash is a real digest of the signer
+        // + signing time + field, so it uniquely identifies this signature event.
         const signer = f.signerId ? signerById.get(f.signerId) : null;
         const sigHash = createHash("sha256")
           .update(`${f.signerId ?? ""}:${signer?.signedAt?.toISOString() ?? ""}:${f.id}`)
           .digest("hex").slice(0, 18).toUpperCase();
         const grey = rgb(0.46, 0.46, 0.5);
+        // Optional organizational attribution under the name, e.g. "Senior Director, Finance".
+        const attribution = [signer?.title, signer?.department].filter(Boolean).join(", ");
         try {
           page.drawText(`Signed by:${signer?.name ? " " + signer.name.slice(0, 40) : ""}`,
-            { x, y: y + boxH + 1.5, size: 5, font, color: grey });
+            { x, y: y + boxH + (attribution ? 7.5 : 1.5), size: 5, font, color: grey });
+          if (attribution) {
+            page.drawText(attribution.slice(0, 48), { x, y: y + boxH + 1.5, size: 4.5, font, color: grey });
+          }
           page.drawText(`${sigHash}…`, { x, y: Math.max(y - 6, 2), size: 5, font, color: grey });
         } catch (err) { console.error("sig stamp skipped:", err); }
       } else {
@@ -205,6 +265,9 @@ async function completeAndSeal(envelopeId: string, orgSlug: string, ip: string, 
   // gets a direct, tokened download link that works from the inbox (no account).
   // Best-effort: a mail hiccup (or unconfigured SMTP) never fails the seal.
   try {
+    // The verified issuer badge + org logo shown in the email, resolved once for all copies.
+    const verifiedDomain = await issuerIdentity(env.orgId);
+    const logoUrl = issuerLogoUrl(env.org);
     // 1. Each remote signer → their own tokened direct download.
     const signers = await db.signer.findMany({
       where: { envelopeId, email: { not: null } },
@@ -217,6 +280,8 @@ async function completeAndSeal(envelopeId: string, orgSlug: string, ip: string, 
           signerName: s.name,
           envelopeTitle: env.title,
           orgName: env.org.name,
+          verifiedDomain,
+          logoUrl,
           brandColor: env.org.brandColor ?? undefined,
           replyTo: env.org.fromEmail ?? undefined,
           downloadUrl: `${base}/api/file/${envelopeId}?variant=sealed&token=${s.token}`,

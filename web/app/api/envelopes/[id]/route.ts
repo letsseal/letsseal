@@ -3,9 +3,12 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { appendAudit } from "@/lib/audit";
 import { apiUser, userOwnsEnvelope } from "@/lib/auth-helpers";
+import { checkOrgRole } from "@/lib/rbac";
+import { orgSuspendedResponse } from "@/lib/org-guard";
 import { isMailConfigured } from "@/lib/mailer";
 import { isSigningRole } from "@/lib/signers";
 import { inviteSigner } from "@/lib/envelope-routing";
+import { issuerFrom, issuerLogoUrl } from "@/lib/issuer";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,19 +26,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const userId = await apiUser();
-  if (!userId || !(await userOwnsEnvelope(userId, id)))
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const env = await db.envelope.findUnique({ where: { id }, include: { org: { include: { tenant: true } } } });
+  if (!env) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const chk = await checkOrgRole(userId, env.org.slug, "signer");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const suspended = orgSuspendedResponse(env.org);
+  if (suspended) return suspended;
   const body = await req.json();
+  const title: string | null = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 200) : null;
   const message: string | null = typeof body.message === "string" && body.message.trim() ? body.message.trim().slice(0, 2000) : null;
   const sequential: boolean = !!body.sequential;
-  const signersIn: { name: string; email?: string; role?: string; accessCode?: string }[] =
+  const signersIn: { name: string; email?: string; role?: string; accessCode?: string; title?: string; department?: string }[] =
     body.signers ?? [];
   const fieldsIn: {
     type: string; label?: string; page: number; x: number; y: number; w: number; h: number; signerIndex: number;
   }[] = body.fields ?? [];
-
-  const env = await db.envelope.findUnique({ where: { id }, include: { org: true } });
-  if (!env) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   await db.field.deleteMany({ where: { envelopeId: id } });
   await db.signer.deleteMany({ where: { envelopeId: id } });
@@ -50,6 +56,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         envelopeId: id,
         name: s.name,
         email: s.email || null,
+        title: s.title?.trim() ? s.title.trim().slice(0, 120) : null,
+        department: s.department?.trim() ? s.department.trim().slice(0, 120) : null,
         kind: role === "in_person" ? "in_person" : "remote",
         role,
         order: i + 1,
@@ -75,13 +83,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
   }
 
-  await db.envelope.update({ where: { id }, data: { status: "sent", message, sequential } });
+  await db.envelope.update({ where: { id }, data: { status: "sent", message, sequential, ...(title ? { title } : {}) } });
   await appendAudit(id, "system", "sent", { details: `${createdSigners.length} recipients${sequential ? " · sequential" : ""}` });
 
   const base = process.env.APP_URL ?? "http://localhost:3000";
   const envForInvite = {
-    id, title: env.title, message,
-    org: { id: env.org.id, name: env.org.name, brandColor: env.org.brandColor, fromEmail: env.org.fromEmail },
+    // title, not env.title: env was read before the update above, so it still holds
+    // the pre-edit value. Emailing that is how recipients ended up with "Untitled".
+    id, title: title ?? env.title, message,
+    org: {
+      id: env.org.id, name: env.org.name, brandColor: env.org.brandColor, fromEmail: env.org.fromEmail,
+      verifiedDomain: issuerFrom(env.org),
+      logoUrl: issuerLogoUrl(env.org),
+    },
   };
   // Who gets invited right now: all signing recipients (parallel), or only the
   // first order group (sequential). cc/viewer are passive — they get the sealed

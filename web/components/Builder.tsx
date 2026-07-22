@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import PdfCanvas, { FieldBox } from "./PdfCanvas";
 import { recipientColor, FIELD_TYPES, RECIPIENT_ROLES, roleMeta, isSigningRole } from "@/lib/signers";
 
-type Signer = { name: string; email: string; role: string; accessCode: string };
+type Signer = { name: string; email: string; role: string; accessCode: string; title: string; department: string };
 type SentSigner = { name: string; email: string | null; role: string; order: number; accessCode: string | null; emailed: boolean; status: string; link: string | null };
 type Field = FieldBox & { id: string };
 
@@ -26,16 +26,31 @@ const PALETTE_ICON: Record<string, React.ComponentType<{ className?: string }>> 
 
 const genId = () => (globalThis.crypto?.randomUUID?.() ?? String(Math.random())).slice(0, 12);
 
+function titleFromFilename(name: string): string {
+  return name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el?.tagName) return false;
+  return ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) || el.isContentEditable;
+}
+
 export default function Builder({
   slug, orgName, brandColor, existingEnvelopeId,
 }: { slug: string; orgName: string; brandColor: string; existingEnvelopeId: string | null }) {
   const [envelopeId, setEnvelopeId] = useState<string | null>(existingEnvelopeId);
-  const [title, setTitle] = useState("Untitled document");
+  const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
-  const [signers, setSigners] = useState<Signer[]>([{ name: "", email: "", role: "signer", accessCode: "" }]);
+  const [signers, setSigners] = useState<Signer[]>([{ name: "", email: "", role: "signer", accessCode: "", title: "", department: "" }]);
   const [sequential, setSequential] = useState(false);
   const [armedType, setArmedType] = useState<string | null>(null);
   const [activeSigner, setActiveSigner] = useState(0);
@@ -45,6 +60,7 @@ export default function Builder({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return;
       if (e.key === "Escape") { setArmedType(null); setSelectedId(null); }
       if ((e.key === "Backspace" || e.key === "Delete") && selectedId) {
         setFields((p) => p.filter((f) => f.id !== selectedId)); setSelectedId(null);
@@ -65,8 +81,8 @@ export default function Builder({
       setSequential(!!env.sequential);
       setFileUrl(`/api/file/${existingEnvelopeId}?t=${Date.now()}`);
       const sList: Signer[] = env.signers?.length
-        ? env.signers.map((s: any) => ({ name: s.name, email: s.email ?? "", role: s.role ?? "signer", accessCode: s.accessCode ?? "" }))
-        : [{ name: "", email: "", role: "signer", accessCode: "" }];
+        ? env.signers.map((s: any) => ({ name: s.name, email: s.email ?? "", role: s.role ?? "signer", accessCode: s.accessCode ?? "", title: s.title ?? "", department: s.department ?? "" }))
+        : [{ name: "", email: "", role: "signer", accessCode: "", title: "", department: "" }];
       setSigners(sList);
       const idOf = (sid: string | null) => env.signers?.findIndex((s: any) => s.id === sid);
       setFields((env.fields ?? []).map((f: any) => ({
@@ -78,8 +94,11 @@ export default function Builder({
 
   async function handleUpload(file: File) {
     setUploading(true);
+    // Anything the user already typed wins; otherwise take the filename.
+    const named = title.trim() || titleFromFilename(file.name) || "Untitled document";
+    setTitle(named);
     const form = new FormData();
-    form.append("orgSlug", slug); form.append("title", title); form.append("file", file);
+    form.append("orgSlug", slug); form.append("title", named); form.append("file", file);
     const res = await fetch("/api/envelopes", { method: "POST", body: form });
     setUploading(false);
     if (!res.ok) { toast.error((await res.json()).error ?? "Upload failed"); return; }
@@ -103,14 +122,18 @@ export default function Builder({
 
   async function send() {
     if (!envelopeId) return;
+    if (!title.trim()) { toast.error("Give the document a title."); return; }
     if (signers.some((s) => !s.name.trim())) { toast.error("Every recipient needs a name."); return; }
     if (!signers.some((s) => isSigningRole(s.role))) { toast.error("Add at least one signer (Needs to Sign or In-Person)."); return; }
     if (fields.length === 0) { toast.error("Place at least one field on the document."); return; }
     setSending(true);
     const payload = {
+      // Sent on every save: the title box is edited AFTER upload far more often
+      // than before it, and until this was included those edits never persisted.
+      title: title.trim() || undefined,
       message: message.trim() || undefined,
       sequential,
-      signers: signers.map((s) => ({ name: s.name, email: s.email || undefined, role: s.role, accessCode: s.accessCode || undefined })),
+      signers: signers.map((s) => ({ name: s.name, email: s.email || undefined, role: s.role, accessCode: s.accessCode || undefined, title: s.title || undefined, department: s.department || undefined })),
       fields: fields.map((f) => ({ type: f.type, label: f.label?.trim() || undefined, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h, signerIndex: f.signerIndex ?? 0 })),
     };
     const res = await fetch(`/api/envelopes/${envelopeId}`, {
@@ -124,10 +147,26 @@ export default function Builder({
   const fieldCountFor = (i: number) => fields.filter((f) => f.signerIndex === i).length;
   const selectedField = fields.find((f) => f.id === selectedId) ?? null;
 
-  // Changing a recipient to a non-signing role (cc / viewer) drops their fields.
+  // Drop a recipient, their fields, and re-index everyone above them. The active
+  // selection has to shift with the list, or the next field you place silently
+  // lands on a different recipient than the one highlighted.
+  function removeSigner(i: number) {
+    setSigners((p) => p.filter((_, j) => j !== i));
+    setFields((p) => p.filter((f) => f.signerIndex !== i)
+                      .map((f) => ({ ...f, signerIndex: (f.signerIndex ?? 0) > i ? (f.signerIndex ?? 0) - 1 : f.signerIndex })));
+    setActiveSigner((a) => (a > i ? a - 1 : a === i ? Math.max(0, i - 1) : a));
+    if (selectedField?.signerIndex === i) setSelectedId(null);
+  }
+
   function changeRole(i: number, role: string) {
     setSigners((p) => p.map((x, j) => (j === i ? { ...x, role } : x)));
-    if (!isSigningRole(role)) { setFields((p) => p.filter((f) => f.signerIndex !== i)); if (selectedField?.signerIndex === i) setSelectedId(null); }
+    if (isSigningRole(role)) return;
+    const lost = fieldCountFor(i);
+    setFields((p) => p.filter((f) => f.signerIndex !== i));
+    if (selectedField?.signerIndex === i) setSelectedId(null);
+    // Say it out loud. Losing placed fields to a dropdown change with no notice
+    // reads as a bug, because from the drafter's side it is indistinguishable from one.
+    if (lost) toast.warning(`${roleMeta(role).label} recipients don't sign, so their ${lost} placed field${lost > 1 ? "s were" : " was"} removed.`);
   }
 
   if (sent) return <SentView sent={sent} slug={slug} orgName={orgName} title={title} envelopeId={envelopeId!} />;
@@ -141,6 +180,7 @@ export default function Builder({
         <div className="flex items-center gap-2 min-w-0">
           <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
           <Input value={title} onChange={(e) => setTitle(e.target.value)}
+                 placeholder="Document title"
                  className="h-8 border-transparent hover:border-input focus-visible:border-input font-medium w-64" />
         </div>
         <Badge variant="secondary" className="gap-1.5 font-normal">
@@ -188,7 +228,7 @@ export default function Builder({
                       <span className="text-xs font-medium text-muted-foreground truncate">{roleMeta(s.role).label}</span>
                       {signing && <span className="text-[10px] ml-auto text-muted-foreground shrink-0">{fieldCountFor(i)} fields</span>}
                       {signers.length > 1 && (
-                        <button onClick={(e) => { e.stopPropagation(); setSigners((p) => p.filter((_, j) => j !== i)); setFields((p) => p.filter((f) => f.signerIndex !== i).map((f) => ({ ...f, signerIndex: (f.signerIndex ?? 0) > i ? (f.signerIndex ?? 0) - 1 : f.signerIndex }))); if (activeSigner >= signers.length - 1) setActiveSigner(0); }}
+                        <button onClick={(e) => { e.stopPropagation(); removeSigner(i); }}
                                 className={`text-muted-foreground hover:text-destructive shrink-0 ${signing ? "" : "ml-auto"}`}><Trash2 className="h-3 w-3" /></button>
                       )}
                     </div>
@@ -205,6 +245,16 @@ export default function Builder({
                             className="mt-1.5 h-8 w-full rounded-md border border-input bg-white px-2 text-xs text-foreground">
                       {RECIPIENT_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                     </select>
+                    <div className="mt-1.5 flex gap-1.5">
+                      <Input placeholder="Title (optional)" value={s.title}
+                             onClick={(e) => e.stopPropagation()}
+                             onChange={(e) => setSigners((p) => p.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
+                             className="h-7 text-xs" />
+                      <Input placeholder="Department (optional)" value={s.department}
+                             onClick={(e) => e.stopPropagation()}
+                             onChange={(e) => setSigners((p) => p.map((x, j) => j === i ? { ...x, department: e.target.value } : x))}
+                             className="h-7 text-xs" />
+                    </div>
                     {signing && !s.email && (
                       <Input placeholder="Access code (optional)" value={s.accessCode}
                              onClick={(e) => e.stopPropagation()}
@@ -215,7 +265,7 @@ export default function Builder({
                 );
               })}
               <Button variant="outline" size="sm" className="w-full gap-1.5 mt-1"
-                      onClick={() => { setSigners((p) => [...p, { name: "", email: "", role: "signer", accessCode: "" }]); setActiveSigner(signers.length); setArmedType(null); }}>
+                      onClick={() => { setSigners((p) => [...p, { name: "", email: "", role: "signer", accessCode: "", title: "", department: "" }]); setActiveSigner(signers.length); setArmedType(null); }}>
                 <Plus className="h-3.5 w-3.5" /> Add recipient
               </Button>
             </Section>

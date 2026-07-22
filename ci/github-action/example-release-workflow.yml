@@ -1,9 +1,16 @@
-# Example: anchor every release artifact to Bitcoin on tag, and publish the proof
-# manifest as a release asset. Drop this in .github/workflows/ in your repo.
+# Example: prove every release artifact on tag. A cosign-compatible signature plus
+# SLSA provenance, anchored to the public ledger, then attach the proofs to the
+# GitHub Release. Drop this in .github/workflows/ in your repo.
+#
+# Setup: add repo secret LETSSEAL_API_KEY = an sk_live_ key whose org has a
+# code-signing cert. (For a plain ledger timestamp with no key, use mode: anchor.)
 name: Seal release
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
 
 jobs:
   seal:
@@ -13,19 +20,23 @@ jobs:
 
       # ... your build steps produce artifacts in dist/ ...
 
-      - name: Anchor artifacts (hashes only — files never leave the runner)
+      - name: Sign + attest artifacts (digests only, files never leave the runner)
         id: seal
         uses: letsseal/letsseal/ci/github-action@main
         with:
-          mode: anchor
+          mode: sign
           files: |
             dist/**/*.tar.gz
-            dist/**/*.zip
             dist/**/*.whl
           app: https://app.letsseal.org
-          token: ${{ secrets.LETSSEAL_API_KEY }}   # optional for anchor
+          token: ${{ secrets.LETSSEAL_API_KEY }}
 
-      - name: Attach proof manifest to the release
-        uses: softprops/action-gh-release@v2
+      # Tlog-native bundles (.cosign.bundle + .att.bundle) sit next to each
+      # artifact; ship them so downstream users verify with stock cosign against
+      # our trusted root (curl <app>/trusted_root.json), no --insecure-ignore-tlog.
+      - name: Attach artifacts + proofs to the release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: ${{ steps.seal.outputs.manifest-path }}
+          files: |
+            dist/**
+            ${{ steps.seal.outputs.manifest-path }}

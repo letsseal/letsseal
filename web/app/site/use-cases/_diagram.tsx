@@ -4,9 +4,9 @@ export function SealFlow({ input, form }: { input: string; form: string }) {
   const stages = [
     { icon: FileText, k: "Your file", d: input, tone: "ink" },
     { icon: Stamp, k: "Seal", d: `Signed over every byte · ${form}`, tone: "blue" },
-    { icon: Anchor, k: "Anchor", d: "Bitcoin timestamp + public transparency log", tone: "blue" },
+    { icon: Anchor, k: "Anchor", d: "Blockchain timestamp + public transparency log", tone: "blue" },
     { icon: Globe, k: "Proof page", d: "A permanent /d/… link travels with the file", tone: "ink" },
-    { icon: ShieldCheck, k: "Anyone verifies", d: "Free, public, offline-capable — for anyone", tone: "green" },
+    { icon: ShieldCheck, k: "Anyone verifies", d: "Free, public, offline-capable, for anyone", tone: "green" },
   ] as const;
 
   return (
@@ -51,7 +51,7 @@ export function SealFlow({ input, form }: { input: string; form: string }) {
       </div>
       <figcaption className="mt-3 text-center text-[13px] text-stone-500">
         The proof travels inside the file. Verification stands on the published root, the transparency log, and the
-        Bitcoin ledger — so a court, a bank, or a counterparty can check it independently, forever.
+        blockchain, so a court, a bank, or a counterparty can check it independently, forever.
       </figcaption>
     </figure>
   );

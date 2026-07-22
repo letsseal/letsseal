@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiUser, requireOrg } from "@/lib/auth-helpers";
+import { apiUser } from "@/lib/auth-helpers";
+import { checkOrgRole } from "@/lib/rbac";
 import { startChallenge, clearVerification } from "@/lib/domain-verify";
 import { sendDomainVerification } from "@/lib/mailer";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const userId = await apiUser();
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const org = await requireOrg(userId, slug);
-  if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const chk = await checkOrgRole(userId, slug, "admin");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const org = chk.access.org;
 
   const body = await req.json().catch(() => ({}));
   const method = body.method === "email" ? "email" : "dns";
@@ -34,9 +35,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const userId = await apiUser();
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const org = await requireOrg(userId, slug);
-  if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const chk = await checkOrgRole(userId, slug, "admin");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const org = chk.access.org;
   await clearVerification(org.id);
   return NextResponse.json({ ok: true });
 }

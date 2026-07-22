@@ -44,7 +44,8 @@ def sign_xml(xml_bytes: bytes, p12_path: str, p12_password: str) -> tuple[bytes,
     from signxml import XMLSigner, SignatureMethod, SignatureConstructionMethod
 
     key, chain, cn = _load_signer(p12_path, p12_password)
-    root = etree.fromstring(xml_bytes)
+    _p = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False)
+    root = etree.fromstring(xml_bytes, _p)
     signer = XMLSigner(
         method=SignatureConstructionMethod.enveloped,
         signature_algorithm=SignatureMethod.ECDSA_SHA256,
@@ -106,7 +107,8 @@ def verify_xml(xml_bytes: bytes, ca_root_path: str) -> dict:
     from signxml import XMLVerifier, InvalidDigest, InvalidSignature, InvalidCertificate, InvalidInput
 
     try:
-        root = etree.fromstring(xml_bytes)
+        _p = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False)
+        root = etree.fromstring(xml_bytes, _p)
     except Exception:
         return {"sealed": False, "xmldsig": True, "valid": False, "trusted": False,
                 "signer": "", "reason": "not well-formed XML"}

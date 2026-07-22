@@ -6,18 +6,21 @@ import { basename, join, relative } from "node:path";
 const inp = (name, def = "") =>
   process.env[`INPUT_${name.toUpperCase().replace(/[ -]/g, "_")}`]?.trim() ?? def;
 
-const MODE = inp("mode", "anchor").toLowerCase(); // anchor | seal | verify
+const MODE = inp("mode", "anchor").toLowerCase(); // anchor | sign | seal | verify
 const APP = (inp("app") || process.env.SEALBOT_APP || "").replace(/\/$/, "");
 const TOKEN = inp("token");
 const ORG = inp("org");
 const OUTDIR = inp("output-dir");
 const FAIL_ON_TAMPER = !/^(false|0|no)$/i.test(inp("fail-on-tamper", "true"));
+const DO_ANCHOR = !/^(false|0|no)$/i.test(inp("anchor", "true"));   // sign: also anchor the digest
+const DO_ATTEST = !/^(false|0|no)$/i.test(inp("attest", "true"));   // sign: also emit SLSA provenance
 const FILES = inp("files");
 
 function fail(msg) { console.error(`::error::${msg}`); process.exit(1); }
 if (!APP) fail("`app` (your Let's Seal base URL, e.g. https://app.letsseal.org) is required.");
-if (!["anchor", "seal", "verify"].includes(MODE)) fail(`unknown mode '${MODE}' (anchor | seal | verify)`);
+if (!["anchor", "sign", "seal", "verify"].includes(MODE)) fail(`unknown mode '${MODE}' (anchor | sign | seal | verify)`);
 if (MODE === "seal" && (!TOKEN || !ORG)) fail("mode 'seal' needs `token` and `org`.");
+if (MODE === "sign" && !TOKEN) fail("mode 'sign' needs `token` (an API key whose org has a code-signing cert).");
 
 // ---- minimal glob (no deps): supports *, **, and literal paths ----
 // `**/` matches zero or more directory segments; `**` any; `*` within a segment.
@@ -84,6 +87,88 @@ async function sealFile(path) {
   };
 }
 
+// SLSA v1.0 provenance predicate, filled from the CI build context. The whole
+// point of provenance is that the builder describes the build — so we read the
+// repo, commit, ref, workflow, and run straight from the GitHub Actions env
+// (all optional, so a local/non-GHA run still produces a valid, if sparser,
+// statement). The API maps predicateType "slsaprovenance" → slsa.dev/provenance/v1.
+function slsaPredicate(path) {
+  const e = process.env;
+  const server = (e.GITHUB_SERVER_URL || "https://github.com").replace(/\/$/, "");
+  const repo = e.GITHUB_REPOSITORY;                 // owner/name
+  const repoUri = repo ? `git+${server}/${repo}` : undefined;
+  const srcRef = repoUri && e.GITHUB_REF ? `${repoUri}@${e.GITHUB_REF}` : repoUri;
+  return {
+    buildDefinition: {
+      buildType: "https://letsseal.org/provenance/github-actions/v1",
+      externalParameters: {
+        artifact: basename(path),
+        ...(srcRef ? { source: srcRef } : {}),
+        ...(e.GITHUB_WORKFLOW_REF ? { workflow: e.GITHUB_WORKFLOW_REF } : {}),
+      },
+      internalParameters: {
+        ...(e.GITHUB_EVENT_NAME ? { eventName: e.GITHUB_EVENT_NAME } : {}),
+        runnerEnvironment: e.GITHUB_ACTIONS ? "github-hosted" : "self-hosted",
+      },
+      resolvedDependencies: repoUri && e.GITHUB_SHA ? [{ uri: repoUri, digest: { gitCommit: e.GITHUB_SHA } }] : [],
+    },
+    runDetails: {
+      builder: { id: e.GITHUB_WORKFLOW_REF ? `${server}/${e.GITHUB_WORKFLOW_REF}` : "https://letsseal.org/provenance/builder/github-actions" },
+      metadata: {
+        ...(e.GITHUB_RUN_ID ? { invocationId: `${server}/${repo}/actions/runs/${e.GITHUB_RUN_ID}/attempts/${e.GITHUB_RUN_ATTEMPT || "1"}` } : {}),
+      },
+    },
+  };
+}
+
+// Sign a build artifact digest-only under the org's code-signing cert, plus (by
+// default) a SLSA provenance attestation. The artifact never leaves the runner —
+// only its SHA-256 is sent. The API returns tlog-native Sigstore bundles backed
+// by Let's Seal's own transparency log, so consumers verify with stock cosign
+// against our trusted root WITHOUT --insecure-ignore-tlog:
+//   cosign verify-blob            --bundle <file>.cosign.bundle --trusted-root <(curl -s <APP>/trusted_root.json) ...
+//   cosign verify-blob-attestation --bundle <file>.att.bundle    --trusted-root <(curl -s <APP>/trusted_root.json) ...
+// Writes <file>.cosign.bundle (+ <file>.att.bundle). If a bundle is unavailable
+// (a transient log hiccup), falls back to the legacy .sig/.pem/.chain.pem
+// sidecars so signing never silently produces nothing.
+async function signFile(path) {
+  const digest = sha256(await readFile(path));
+  const base = OUTDIR ? join(OUTDIR, basename(path)) : path;
+  const jsonHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}` };
+  const nl = (s) => (typeof s === "string" ? s : JSON.stringify(s));
+
+  const bRes = await fetch(`${APP}/api/v1/seal/blob?anchor=${DO_ANCHOR ? 1 : 0}`, {
+    method: "POST", headers: jsonHeaders,
+    body: JSON.stringify({ sha256: digest, title: basename(path) }),
+  });
+  if (!bRes.ok) throw new Error(`seal/blob ${bRes.status} ${await bRes.text()}`);
+  const b = await bRes.json();
+  const out = { file: relative(process.cwd(), path), sha256: digest, identity: b.identity, certCN: b.certCN, proof: b.proofUrl, state: b.anchorState, ok: true };
+  if (b.bundle) {
+    await writeFile(`${base}.cosign.bundle`, nl(b.bundle).replace(/\n?$/, "\n"));
+    out.bundle = relative(process.cwd(), `${base}.cosign.bundle`);
+  } else {
+    // Fallback: no tlog bundle this time — emit the cosign sidecars so the artifact
+    // is still verifiable (with --certificate/--signature + --insecure-ignore-tlog).
+    await writeFile(`${base}.sig`, nl(b.sig).replace(/\n?$/, "\n"));
+    await writeFile(`${base}.pem`, nl(b.certPem).replace(/\n?$/, "\n"));
+    await writeFile(`${base}.chain.pem`, nl(b.chainPem).replace(/\n?$/, "\n"));
+    out.bundle = null;
+  }
+
+  if (DO_ATTEST) {
+    const aRes = await fetch(`${APP}/api/v1/attest?anchor=${DO_ANCHOR ? 1 : 0}`, {
+      method: "POST", headers: jsonHeaders,
+      body: JSON.stringify({ sha256: digest, predicate: slsaPredicate(path), predicateType: "slsaprovenance", subjectName: basename(path), title: `${basename(path)} (SLSA provenance)` }),
+    });
+    if (!aRes.ok) throw new Error(`attest ${aRes.status} ${await aRes.text()}`);
+    const a = await aRes.json();
+    await writeFile(`${base}.att.bundle`, nl(a.bundle).replace(/\n?$/, "\n"));
+    out.attestation = a.predicateType;
+  }
+  return out;
+}
+
 async function verifyFile(path) {
   const form = new FormData();
   form.append("file", new Blob([await readFile(path)]), basename(path));
@@ -106,7 +191,7 @@ async function main() {
   if (files.length === 0) fail(`no files matched \`files\`: ${JSON.stringify(FILES)}`);
   console.log(`sealbot · ${MODE} · ${files.length} file(s) · ${APP}`);
 
-  const run = MODE === "seal" ? sealFile : MODE === "verify" ? verifyFile : anchorFile;
+  const run = MODE === "seal" ? sealFile : MODE === "sign" ? signFile : MODE === "verify" ? verifyFile : anchorFile;
   const results = [];
   for (const f of files) {
     try { const r = await run(f); results.push(r); console.log(`  ✓ ${MODE} ${r.file}${r.proof ? " → " + r.proof : ""}`); }

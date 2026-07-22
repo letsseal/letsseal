@@ -3,7 +3,7 @@ import { SealMark } from "@/components/brand/SealMark";
 import { Check, X } from "lucide-react";
 
 export const metadata = {
-  title: "The badge — Let's Seal",
+  title: "The badge, Let's Seal",
   description:
     "One recognisable mark, used consistently and always verifiable. How to display the Let's Seal verified badge, embed a live verify widget, and the usage rules that keep it honest.",
 };
@@ -19,16 +19,16 @@ const CHECKER_SNIPPET = `<!-- Drop-a-PDF checker -->
 <script src="https://app.letsseal.org/embed.js" async></script>`;
 
 const DO = [
-  "Always make the badge open the live verdict — clicking or scanning lands on the real proof.",
+  "Always make the badge open the live verdict. Clicking or scanning lands on the real proof.",
   "Keep the mark in Trust Blue (#2563eb); use it at a legible size with clear space around it.",
   "Pair it with the document's fingerprint or a /d/<hash> link, so anyone can check the file itself.",
   "Say what's true: “Sealed & unaltered”, “Issued by <name>”, “Verify at letsseal.org”.",
 ];
 
 const DONT = [
-  "Don't present the badge as proof on its own — a copied image is not a seal. Verify the file.",
+  "Don't present the badge as proof on its own. A copied image is not a seal. Verify the file.",
   "Don't recolour, redraw, or add effects to the mark, or pair it with a different tick.",
-  "Don't imply notarisation or that identity was verified — a seal proves integrity + time, not who.",
+  "Don't imply notarisation or that identity was verified. A seal proves integrity + time, not who.",
   "Don't use it as static decoration with no link to a live, checkable proof.",
 ];
 
@@ -38,7 +38,7 @@ export default function BadgePage() {
       <PageHead
         eyebrow="The badge"
         title="One mark. Everywhere. Always verifiable."
-        lede="Every Let's Seal document carries the same mark — stamped into the PDF, on its proof page, and in the embeddable widget. Consistency is what makes it recognisable; the rule that it always links to a live verdict is what keeps it honest."
+        lede="Every Let's Seal document carries the same mark, stamped into the PDF, on its proof page, and in the embeddable widget. Consistency is what makes it recognisable; the rule that it always links to a live verdict is what keeps it honest."
       />
 
       <section className="border-b border-stone-200">
@@ -46,7 +46,7 @@ export default function BadgePage() {
           <Eyebrow>The mark</Eyebrow>
           <H2 className="mt-3.5">The verified seal</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            A blue verified-badge with a check — “sealed &amp; verified” in one glyph. Deliberately{" "}
+            A blue verified-badge with a check, “sealed &amp; verified” in one glyph. Deliberately{" "}
             <strong>blue</strong>, because Adobe&rsquo;s paid AATL seal owns the green tick and we&rsquo;re the free,
             open alternative.
           </p>
@@ -62,7 +62,7 @@ export default function BadgePage() {
                 <SealMark className="h-7 w-7" color={BRAND_BLUE} />
                 <span className={`${serif} text-[20px] font-semibold tracking-tight text-stone-900`}>Verified · Let&rsquo;s Seal</span>
               </div>
-              <div className="mt-2 text-[12.5px] text-stone-400">The lockup — mark + wordmark</div>
+              <div className="mt-2 text-[12.5px] text-stone-400">The lockup, mark + wordmark</div>
             </div>
             <div className="text-[14px] text-stone-600">
               <div><span className="font-semibold text-stone-900">Trust Blue</span> · <code className="font-mono">#2563eb</code></div>
@@ -78,7 +78,7 @@ export default function BadgePage() {
           <H2 className="mt-3.5">A live verify badge, in one line</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
             The widget renders in a shadow DOM (no clash with your styles) and calls the public, keyless verify API.
-            It always shows a <em>live</em> verdict — never a static image.
+            It always shows a <em>live</em> verdict, never a static image.
           </p>
           <div className="mt-8 grid gap-6 lg:grid-cols-2">
             <div>

@@ -2,7 +2,7 @@ import { PageHead, Container, H2, serif, CodeBlock, LinkArrow } from "../_compon
 import { GettingStartedAccordion } from "../_components/getting-started";
 
 export const metadata = {
-  title: "Get started — Let's Seal",
+  title: "Get started, Let's Seal",
   description:
     "Seal your first document in minutes. Use the hosted app, the sealbot CLI, CI/CD, or run the whole stack yourself.",
 };
@@ -11,13 +11,13 @@ const TIERS = [
   {
     tier: "Use ours",
     h: "Hosted",
-    p: "Drop in any file — PDF, image, XML, email, archive — or run one command, and get a sealed, anchored copy with a public proof page anyone can check.",
+    p: "Drop in any file, PDF, image, XML, email, archive, or run one command, and get a sealed, anchored copy with a public proof page anyone can check.",
     who: "Best for: trying it out, one-off documents, small teams.",
   },
   {
     tier: "Run your own",
     h: "Self-hosted",
-    p: "Host the whole stack and hold your own keys. Your seals stay verifiable forever — the proof lives on Bitcoin and the public transparency log.",
+    p: "Host the whole stack and hold your own keys. Your seals stay verifiable forever. The proof lives on the blockchain and the public transparency log.",
     who: "Best for: organisations issuing at scale who want to own their CA and their keys.",
   },
 ];
@@ -28,7 +28,7 @@ export default function GettingStartedPage() {
       <PageHead
         eyebrow="Getting started"
         title="Seal your first document in minutes."
-        lede="Everything here works today, for free. Pick the path that fits — hosted app, command line, CI pipeline, or your own server."
+        lede="Everything here works today, for free. Pick the path that fits, hosted app, command line, CI pipeline, or your own server."
       />
 
       <section className="border-b border-stone-200">
@@ -52,7 +52,7 @@ export default function GettingStartedPage() {
         <Container className="py-14 sm:py-20">
           <H2>Choose your path</H2>
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            Expand any step below. Each is self-contained — you don&rsquo;t need the others.
+            Expand any step below. Each is self-contained. You don&rsquo;t need the others.
           </p>
           <div className="mt-8">
             <GettingStartedAccordion />
@@ -66,7 +66,7 @@ export default function GettingStartedPage() {
             <div>
               <H2>Install sealbot</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                sealbot is the open command-line tool for sealing, anchoring, and verifying anything — files, PDFs,
+                sealbot is the open command-line tool for sealing, anchoring, and verifying anything, files, PDFs,
                 media, and software artifacts. It talks to the hosted service by default, or to your own instance with
                 one flag.
               </p>

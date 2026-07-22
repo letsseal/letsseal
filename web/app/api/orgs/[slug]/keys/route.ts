@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { apiUser, requireOrg } from "@/lib/auth-helpers";
+import { apiUser } from "@/lib/auth-helpers";
+import { checkOrgRole } from "@/lib/rbac";
 import { generateApiKey } from "@/lib/api-auth";
 
 const VALID_SCOPES = ["seal", "verify", "anchor"];
@@ -8,9 +9,9 @@ const VALID_SCOPES = ["seal", "verify", "anchor"];
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const userId = await apiUser();
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const org = await requireOrg(userId, slug);
-  if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const chk = await checkOrgRole(userId, slug, "admin");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const org = chk.access.org;
 
   const keys = await db.apiKey.findMany({
     where: { orgId: org.id },
@@ -23,9 +24,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const userId = await apiUser();
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const org = await requireOrg(userId, slug);
-  if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const chk = await checkOrgRole(userId, slug, "admin");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const org = chk.access.org;
 
   const body = await req.json().catch(() => ({}));
   const name = String(body.name ?? "").trim().slice(0, 60) || "API key";

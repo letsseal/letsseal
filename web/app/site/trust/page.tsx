@@ -7,7 +7,7 @@ import {
 import { getNetworkStats } from "@/lib/stats";
 
 export const metadata = {
-  title: "Root of trust — Let's Seal",
+  title: "Root of trust, Let's Seal",
   description:
     "The published Let's Seal root certificate. Every seal chains to it; verification pins it. Download the cert, check the fingerprint, and verify any document yourself.",
 };
@@ -22,7 +22,7 @@ export default async function TrustPage() {
       <PageHead
         eyebrow="Root of trust"
         title="One published root. Every seal chains to it."
-        lede="A Let's Seal document is authentic because its seal chains to this one root certificate, and its date is anchored to a public ledger. Both are published and fixed — so anyone can verify a document against a known anchor, independently, with nothing of ours running."
+        lede="A Let's Seal document is authentic because its seal chains to this one root certificate, and its date is anchored to a public ledger. Both are published and fixed, so anyone can verify a document against a known anchor, independently, with nothing of ours running."
       />
 
       <section className="border-b border-stone-200">
@@ -30,7 +30,7 @@ export default async function TrustPage() {
           <Eyebrow>The certificate</Eyebrow>
           <H2 className="mt-3.5">Let&rsquo;s Seal Root CA</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            This is the public root certificate — the cert, never the private key. It is deliberately{" "}
+            This is the public root certificate, the cert, never the private key. It is deliberately{" "}
             <em>not</em> in any operating-system or Adobe trust store (that&rsquo;s the point: no pay-to-play trust
             list). Instead you pin it here and verify against it directly.
           </p>
@@ -56,7 +56,7 @@ export default async function TrustPage() {
                 The root signs one <strong>intermediate</strong>, which signs each business&rsquo;s{" "}
                 <strong>signing certificate</strong>. When you verify a document, its PAdES signature is checked up
                 that chain to this root. A valid chain means the seal was issued through Let&rsquo;s Seal and the file
-                is byte-for-byte intact — it does <em>not</em> assert the issuer&rsquo;s real-world identity.
+                is byte-for-byte intact. It does <em>not</em> assert the issuer&rsquo;s real-world identity.
               </p>
             </Card>
           </div>
@@ -87,7 +87,7 @@ export default async function TrustPage() {
             </div>
             <div>
               <div className="text-[13px] font-semibold text-stone-500">2 · The date (independent timestamp)</div>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-stone-600">Run the stock OpenTimestamps client against the public Bitcoin ledger — no Let&rsquo;s Seal server involved:</p>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-stone-600">Run the stock OpenTimestamps client against the public ledger, no Let&rsquo;s Seal server involved:</p>
               <div className="mt-3"><CodeBlock>ots verify your-file.pdf.ots</CodeBlock></div>
             </div>
           </div>
@@ -103,8 +103,8 @@ export default async function TrustPage() {
                 <div className="text-[15px] font-semibold text-stone-900">Anchored to a public ledger, live</div>
                 <p className="mt-1 text-[14px] text-stone-600">
                   {stats.latestBlock
-                    ? <>Most recent proof anchored in <strong>Bitcoin block #{stats.latestBlock.toLocaleString()}</strong>.</>
-                    : <>Proofs are anchored to Bitcoin via OpenTimestamps as they confirm.</>}
+                    ? <>Most recent proof anchored in <strong>block #{stats.latestBlock.toLocaleString()}</strong>.</>
+                    : <>Proofs are anchored to the blockchain via OpenTimestamps as they confirm.</>}
                 </p>
               </div>
             </div>

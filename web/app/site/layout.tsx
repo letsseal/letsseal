@@ -12,9 +12,9 @@ const serif = Newsreader({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://letsseal.org"),
-  title: "Let's Seal — the open standard for sealing anything",
+  title: "Let's Seal, the open standard for sealing anything",
   description:
-    "The open standard for proving any file is authentic: unaltered, sealed by a known certificate, and in existence by a certain date. One standard for every kind of file — documents, images, email, code, containers. Free for everyone, verifiable by anyone, forever.",
+    "The open standard for proving any file is authentic: unaltered, sealed by a known certificate, and in existence by a certain date. One standard for every kind of file, documents, images, email, code, containers. Free for everyone, verifiable by anyone, forever.",
 };
 
 const SITE_LD = {
@@ -26,7 +26,7 @@ const SITE_LD = {
       name: "Let's Seal",
       url: "https://letsseal.org",
       description:
-        "The open standard for sealing anything, so anyone can prove a file is authentic — unaltered, sealed by a known certificate, and in existence by a certain date.",
+        "The open standard for sealing anything, so anyone can prove a file is authentic, unaltered, sealed by a known certificate, and in existence by a certain date.",
     },
     {
       "@type": "WebSite",

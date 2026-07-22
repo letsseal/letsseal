@@ -14,7 +14,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ sector: string }> }): Promise<Metadata> {
   const { sector } = await params;
   const s = getSector(sector);
-  if (!s) return { title: "Use cases — Let's Seal" };
+  if (!s) return { title: "Use cases, Let's Seal" };
   const url = `https://letsseal.org/site/use-cases/${s.slug}`;
   return {
     title: `${s.h1} · Let's Seal`,
@@ -118,7 +118,7 @@ export default async function SectorPage({ params }: { params: Promise<{ sector:
           <Eyebrow>How it works</Eyebrow>
           <H2 className="mt-3.5">From your file to a proof anyone can check</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            The same pipeline every time — the seal and the timestamp travel with the file, so the proof is
+            The same pipeline every time. The seal and the timestamp travel with the file, so the proof is
             self-contained.
           </p>
           <div className="mt-8">
@@ -131,7 +131,7 @@ export default async function SectorPage({ params }: { params: Promise<{ sector:
         <section className="border-b border-stone-200">
           <Container className="py-14 sm:py-18">
             <Eyebrow>Step by step · the web app</Eyebrow>
-            <H2 className="mt-3.5">Seal it in the app — no setup</H2>
+            <H2 className="mt-3.5">Seal it in the app, no setup</H2>
             <ol className="mt-8 space-y-6">
               {s.webSteps.map((step, i) => (
                 <li key={step.h} className="flex gap-5">
@@ -156,7 +156,7 @@ export default async function SectorPage({ params }: { params: Promise<{ sector:
             <H2 className="mt-3.5">Automate it from your terminal or CI</H2>
             <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
               The <code className="rounded bg-stone-200/70 px-1 py-0.5 font-mono text-[13px]">sealbot</code> CLI does the
-              same thing, scriptably — one command per file, straight into your pipeline.
+              same thing, scriptably, one command per file, straight into your pipeline.
             </p>
             <div className="mt-6">
               <CodeBlock>{s.cli}</CodeBlock>
@@ -178,7 +178,7 @@ export default async function SectorPage({ params }: { params: Promise<{ sector:
                 {primary?.proofUrl ? (
                   <Btn href={primary.proofUrl} external>Open the live proof <ArrowUpRight className="h-4 w-4" /></Btn>
                 ) : s.lane === "software" ? (
-                  <p className="text-[13px] text-stone-500">The proof is the verification itself — reproducible with stock cosign on any machine.</p>
+                  <p className="text-[13px] text-stone-500">The proof is the verification itself, reproducible with stock cosign on any machine.</p>
                 ) : null}
               </div>
               <div>

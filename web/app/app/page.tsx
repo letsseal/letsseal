@@ -12,6 +12,37 @@ export default async function AppDashboard() {
   const user = await requireUser();
   const orgs = await getUserOrgs(user.id);
 
+  type Org = (typeof orgs)[number];
+  const byTenant = new Map<string, { name: string; enterprise: boolean; orgs: Org[] }>();
+  for (const o of orgs) {
+    const key = o.tenant?.id ?? o.id;
+    const g = byTenant.get(key) ?? { name: o.tenant?.name ?? o.name, enterprise: o.tenant?.enterprise ?? false, orgs: [] };
+    g.orgs.push(o);
+    byTenant.set(key, g);
+  }
+  const brands = [...byTenant.values()].filter((g) => g.orgs.length > 1);
+  const singles = [...byTenant.values()].filter((g) => g.orgs.length === 1).flatMap((g) => g.orgs);
+
+  const OrgCard = ({ o }: { o: Org }) => (
+    <Link href={`/${o.slug}`}
+          className="group relative flex flex-col justify-between rounded-2xl border bg-card p-5 transition hover:border-foreground/20 hover:shadow-sm">
+      <div className="flex items-start justify-between">
+        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl text-lg font-semibold text-white"
+              style={{ background: o.brandColor }}>
+          {o.logoUrl ? <img src={o.logoUrl} alt="" className="h-full w-full object-cover" /> : o.name[0]}
+        </span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+      </div>
+      <div className="mt-6">
+        <div className="font-medium leading-tight">{o.name}</div>
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FileText className="h-3.5 w-3.5" />
+          {o._count.envelopes} envelope{o._count.envelopes === 1 ? "" : "s"}
+        </div>
+      </div>
+    </Link>
+  );
+
   return (
     <div className="min-h-screen">
       <TopBar right={<UserMenu name={user.name} email={user.email} />} />
@@ -36,26 +67,23 @@ export default async function AppDashboard() {
             <div className="mt-5 flex justify-center"><NewBusinessDialog /></div>
           </div>
         ) : (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {orgs.map((o) => (
-              <Link key={o.id} href={`/${o.slug}`}
-                    className="group relative flex flex-col justify-between rounded-2xl border bg-card p-5 transition hover:border-foreground/20 hover:shadow-sm">
-                <div className="flex items-start justify-between">
-                  <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl text-lg font-semibold text-white"
-                        style={{ background: o.brandColor }}>
-                    {o.logoUrl ? <img src={o.logoUrl} alt="" className="h-full w-full object-cover" /> : o.name[0]}
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+          <div className="mt-8 space-y-8">
+            {brands.map((b) => (
+              <section key={b.name}>
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <Building2 className="h-3.5 w-3.5" /> {b.name}
+                  <span className="font-normal normal-case">· {b.orgs.length} entities</span>
                 </div>
-                <div className="mt-6">
-                  <div className="font-medium leading-tight">{o.name}</div>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5" />
-                    {o._count.envelopes} envelope{o._count.envelopes === 1 ? "" : "s"}
-                  </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {b.orgs.map((o) => <OrgCard key={o.id} o={o} />)}
                 </div>
-              </Link>
+              </section>
             ))}
+            {singles.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {singles.map((o) => <OrgCard key={o.id} o={o} />)}
+              </div>
+            )}
           </div>
         )}
 

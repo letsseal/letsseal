@@ -3,9 +3,9 @@ import { Check } from "lucide-react";
 import { getNetworkStats } from "@/lib/stats";
 
 export const metadata = {
-  title: "Open — Let's Seal",
+  title: "Open, Let's Seal",
   description:
-    "Open source, open standards, open ledger. How Let's Seal stays permanent and independent — with live, honest usage counts.",
+    "Open source, open standards, open ledger. How Let's Seal stays permanent and independent, with live, honest usage counts.",
 };
 
 export const revalidate = 300;
@@ -13,15 +13,15 @@ export const revalidate = 300;
 const OPEN = [
   {
     h: "Open source",
-    p: "Every part — CLI, SDKs, web app, signing service — is Apache-2.0 licensed on GitHub. Read it, fork it, run it.",
+    p: "Every part, CLI, SDKs, web app, signing service, is Apache-2.0 licensed on GitHub. Read it, fork it, run it.",
   },
   {
     h: "Open standards",
-    p: "PAdES signatures, X.509 certificates, SHA-256, OpenTimestamps — established, audited, and yours to verify against.",
+    p: "PAdES signatures, X.509 certificates, SHA-256, OpenTimestamps, established, audited, and yours to verify against.",
   },
   {
     h: "Open ledger",
-    p: "Anchors live on Bitcoin's public blockchain, and every seal is recorded in a public, append-only transparency log. Verification stands on its own, anywhere, forever.",
+    p: "Anchors live on the public blockchain, and every seal is recorded in a public, append-only transparency log. Verification stands on its own, anywhere, forever.",
   },
   {
     h: "Run it yourself, keep your keys",
@@ -31,11 +31,11 @@ const OPEN = [
 
 export default async function OpenPage() {
   const stats = await getNetworkStats();
+  const proofRecords = stats.documentsSealed + stats.standaloneTimestamps;
   const STATS = [
-    { n: stats.documentsSealed.toLocaleString(), l: "Documents sealed" },
-    { n: stats.organizations.toLocaleString(), l: "Businesses issuing" },
-    { n: stats.standaloneTimestamps.toLocaleString(), l: "Standalone timestamps" },
-    { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "—", l: "Latest Bitcoin anchor" },
+    { n: proofRecords.toLocaleString(), l: "Proof records" },
+    { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "-", l: "Latest block anchor" },
+    { n: "£0", l: "Charged, to anyone, ever" },
   ];
   return (
     <>
@@ -67,7 +67,7 @@ export default async function OpenPage() {
             <div>
               <H2>Run the whole thing yourself</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                Clone, configure, deploy. You get your own signing keys and full control — issue seals no one can
+                Clone, configure, deploy. You get your own signing keys and full control. Issue seals no one can
                 revoke or paywall.
               </p>
               <div className="mt-5">
@@ -89,12 +89,12 @@ cp .env.example .env   # add your CA + config
           <span className="text-xs font-semibold uppercase tracking-[0.13em] text-stone-400">Transparency</span>
           <H2 className="mt-3.5">By the numbers, live</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            Live counts from the network&rsquo;s own public proof records — the same ones anyone can pull from a{" "}
+            Live counts from the network&rsquo;s own public proof records, the same ones anyone can pull from a{" "}
             <code className="rounded bg-stone-100 px-1 py-0.5 text-[13px]">/d/&lt;hash&gt;</code> proof page. No
             telemetry, no phone-home. Every number is real, and it climbs as the network grows.
           </p>
 
-          <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
             {STATS.map((s) => (
               <div key={s.l}>
                 <div className={`${serif} text-[32px] font-medium leading-none tracking-tight`}>{s.n}</div>
@@ -107,15 +107,14 @@ cp .env.example .env   # add your CA + config
             <Card>
               <div className="text-[13px] font-semibold text-blue-700">What the numbers are</div>
               <ul className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-stone-600">
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> A live count of sealed documents on record</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Businesses issuing under the shared root</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Standalone timestamps and the latest Bitcoin anchor</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> Every public proof record: sealed files and standalone timestamps</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> The latest block anchor on the public ledger</li>
               </ul>
             </Card>
             <Card>
               <div className="text-[13px] font-semibold text-stone-500">What they are not</div>
               <ul className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-stone-600">
-                <li>No document contents or filenames — only the count</li>
+                <li>No document contents or filenames, only the count</li>
                 <li>No names, emails, accounts, or IP addresses</li>
                 <li>Not aggregated from anyone else&rsquo;s server</li>
               </ul>
@@ -125,7 +124,7 @@ cp .env.example .env   # add your CA + config
           <div className="mt-8 rounded-2xl border border-stone-200 bg-stone-50 p-6">
             <div className="text-[15px] font-semibold text-stone-900">No phone-home to turn off</div>
             <p className="mt-2 text-[14.5px] leading-relaxed text-stone-600">
-              These counts come from this network&rsquo;s own public proof records — nothing is collected from you to
+              These counts come from this network&rsquo;s own public proof records. Nothing is collected from you to
               produce them. A self-hosted instance counts its own records locally and reports nothing back to us;
               there is no telemetry to disable because there is none to begin with.
             </p>

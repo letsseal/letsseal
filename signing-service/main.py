@@ -147,6 +147,16 @@ app = FastAPI(
     openapi_url=None if _PROD else "/openapi.json",
 )
 
+MAX_BODY_BYTES = 32 * 1024 * 1024
+
+
+@app.middleware("http")
+async def _cap_body_size(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
+        return JSONResponse({"detail": "request body too large"}, status_code=413)
+    return await call_next(request)
+
 
 
 class HealthResponse(BaseModel):
@@ -599,8 +609,8 @@ async def seal_identity(payload: SealIdentityRequest):
 
     try:
         who, res = await run_in_threadpool(run)
-    except IdentityError as e:
-        logger.warning("identity proof rejected (%s): %s", provider, e)
+    except IdentityError:
+        logger.warning("identity proof rejected for provider %s", provider)
         raise HTTPException(401, "identity proof did not verify")
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -743,6 +753,68 @@ async def log_cert_ep():
     except Exception:
         logger.exception("log cert fetch failed")
         raise HTTPException(500, "log cert fetch failed")
+
+
+@app.get("/log/keyid", operation_id="logKeyId", tags=["log"],
+         summary="The transparency-log key ID (SHA-256 of SPKI) + SPKI",
+         dependencies=[Depends(require_auth)])
+async def log_keyid_ep():
+    """The log key's ID as cosign derives it — for the bundle logId.keyId and the
+    published trusted_root. No key material."""
+    from translog import log_key_id
+    try:
+        return JSONResponse(await run_in_threadpool(log_key_id, _log_p12(), P12_PASS))
+    except Exception:
+        logger.exception("log key id fetch failed")
+        raise HTTPException(500, "log key id fetch failed")
+
+
+class SignCheckpointRequest(BaseModel):
+    origin: str = Field(..., description='Checkpoint origin line ("<host> - <treeID>").')
+    tree_size: int = Field(..., ge=0)
+    root_hash: str = Field(..., description="Lowercase hex SHA-256 Merkle root.")
+
+
+@app.post("/log/checkpoint/sign", operation_id="signCheckpoint", tags=["log"],
+          summary="Sign a Rekor-v1 checkpoint (cosign-verifiable signed note)",
+          dependencies=[Depends(require_auth)])
+async def sign_checkpoint_ep(payload: SignCheckpointRequest):
+    """Sign a transparency-dev checkpoint note with the log key — the cosign-facing
+    form of the STH. Internal; the web app owns the tree and passes (size, root)."""
+    from translog import sign_checkpoint
+    try:
+        res = await run_in_threadpool(sign_checkpoint, payload.origin, payload.tree_size,
+                                      str(payload.root_hash), _log_p12(), P12_PASS)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("checkpoint signing failed")
+        raise HTTPException(500, "checkpoint signing failed")
+    return JSONResponse(res)
+
+
+class SignSetRequest(BaseModel):
+    body_b64: str = Field(..., description="base64 of the entry canonicalizedBody.")
+    integrated_time: int = Field(..., ge=0)
+    log_index: int = Field(..., ge=0)
+
+
+@app.post("/log/set/sign", operation_id="signSet", tags=["log"],
+          summary="Sign a Rekor SignedEntryTimestamp (integrated-time attestation)",
+          dependencies=[Depends(require_auth)])
+async def sign_set_ep(payload: SignSetRequest):
+    """Sign a SET with the log key — supplies cosign's trusted integrated timestamp
+    for a log entry. Internal."""
+    from translog import sign_set
+    try:
+        res = await run_in_threadpool(sign_set, payload.body_b64, payload.integrated_time,
+                                      payload.log_index, _log_p12(), P12_PASS)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("SET signing failed")
+        raise HTTPException(500, "SET signing failed")
+    return JSONResponse(res)
 
 
 @app.post("/seal/c2pa", operation_id="sealC2pa", tags=["sealing"],

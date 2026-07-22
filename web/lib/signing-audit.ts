@@ -5,6 +5,8 @@ export type TrailEntry = { action: string; actorName: string; at: string; ip: st
 
 export type SignerAttribution = {
   name: string;
+  title: string | null;      
+  department: string | null; 
   channel: "email" | "link" | "in_person"; 
   email: string | null;
   viewedAt: string | null;
@@ -42,6 +44,8 @@ export async function getSigningTrail(envelopeId: string): Promise<SigningTrail>
     const signed = events.find((e) => e.actor === s.id && e.action === "signed");
     return {
       name: s.name,
+      title: s.title ?? null,
+      department: s.department ?? null,
       channel: invited ? "email" : s.email ? "link" : "in_person",
       email: s.email,
       viewedAt: viewed?.createdAt.toISOString() ?? null,

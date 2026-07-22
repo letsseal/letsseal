@@ -126,6 +126,11 @@ function SigningTrailCard({ trail }: { trail: SigningTrail }) {
             <div key={i} className="flex items-center justify-between gap-3 rounded-lg border bg-background/50 px-3 py-2 text-sm">
               <div className="min-w-0">
                 <div className="font-medium">{s.name}</div>
+                {(s.title || s.department) && (
+                  <div className="text-xs text-muted-foreground">
+                    {[s.title, s.department].filter(Boolean).join(", ")}
+                  </div>
+                )}
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Icon className="h-3 w-3" /> {ch.label}{s.email ? ` · ${s.email}` : ""}
                 </div>
@@ -226,7 +231,15 @@ export function ProofCertificate({ data, variant = "document", gate }: {
     <div className="space-y-4">
       <div className="rounded-2xl border bg-card p-6">
         <div className="flex items-center gap-4">
-          <SealMark className="h-14 w-14 shrink-0" color={(isTimestamp ? anchorOk : sealOk) ? "var(--brand)" : "#a1a1aa"} />
+          <SealMark className="h-14 w-14 shrink-0" color={
+            isTimestamp
+              ? (anchorOk ? "var(--brand)" : "#a1a1aa")
+              : onRecordOnly
+                // On record, but no live integrity re-check here: amber, so the
+                // brand-coloured seal stays reserved for a live trusted+intact result.
+                ? (sealed ? "#d97706" : "#a1a1aa")
+                : (authentic ? "var(--brand)" : "#a1a1aa")
+          } />
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight">
               {isTimestamp
@@ -331,7 +344,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           <div className="flex items-center gap-2 text-sm font-medium">
             <Anchor className="h-4 w-4 text-brand" /> Independent timestamp
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Independent proof it existed by a certain date, on the public Bitcoin ledger.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Independent proof it existed by a certain date, on the public ledger.</p>
           {anchored ? (
             <div className="mt-3 divide-y">
               <Row label="Status">
@@ -506,7 +519,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           <p className="mt-3 text-xs text-muted-foreground">
             Verify it yourself. Download the <b>.ots proof</b> and run{" "}
             <code className="rounded bg-background px-1 py-0.5 font-mono">ots verify {isTimestamp ? "your-file" : "your-file.pdf"}</code>{" "}
-            to confirm the anchor against Bitcoin — the proof stands on the public ledger. Let&apos;s Seal holds no
+            to confirm the anchor against the blockchain. The proof stands on the public ledger. Let&apos;s Seal holds no
             cryptocurrency and you never touch a coin or a wallet — we use the public ledger the way a notary uses a
             public register, to stamp a record no one can alter.
           </p>
@@ -522,7 +535,7 @@ export function ProofCertificate({ data, variant = "document", gate }: {
               The log can only ever be appended to — never edited or deleted, and anyone can prove it. Fetch this
               entry&apos;s <a href={`/api/log/proof?sha256=${data.sha256}`} className="underline">inclusion proof</a>{" "}
               and check it against the signed <a href="/api/log/sth" className="underline">tree head</a>; the head&apos;s
-              root is itself anchored to Bitcoin.
+              root is itself anchored to the blockchain.
             </p>
           </div>
         )}

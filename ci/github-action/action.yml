@@ -1,11 +1,11 @@
 name: "sealbot"
-description: "sealbot — anchor, seal, or verify build artifacts in CI against Let's Seal. Permanent, publicly verifiable proof of authenticity and date."
+description: "sealbot — anchor, sign, seal, or verify build artifacts in CI against Let's Seal. Permanent, publicly verifiable proof of authenticity, provenance, and date."
 branding:
   icon: shield
   color: blue
 inputs:
   mode:
-    description: "anchor (hash-only, artifacts never upload) | seal (PDFs) | verify"
+    description: "anchor (hash-only Bitcoin timestamp) | sign (cosign-compatible signature + SLSA provenance) | seal (PDFs) | verify"
     required: false
     default: "anchor"
   files:
@@ -15,7 +15,7 @@ inputs:
     description: "Your Let's Seal base URL, e.g. https://app.letsseal.org"
     required: true
   token:
-    description: "API key (sk_live_…) for the authenticated /api/v1 tier. Required for 'seal'; optional for 'anchor'."
+    description: "API key (sk_live_…) for the authenticated /api/v1 tier. Required for 'sign' and 'seal'; optional for 'anchor'."
     required: false
     default: ""
   org:
@@ -23,9 +23,17 @@ inputs:
     required: false
     default: ""
   output-dir:
-    description: "Where to write sealed PDFs (mode=seal). Defaults to alongside each source file."
+    description: "Where to write outputs (sealed PDFs for 'seal'; .cosign.bundle + .att.bundle for 'sign'). Defaults to alongside each source file."
     required: false
     default: ""
+  anchor:
+    description: "For mode=sign: also anchor each artifact's digest to Bitcoin + the transparency log. Default true."
+    required: false
+    default: "true"
+  attest:
+    description: "For mode=sign: also emit a SLSA provenance attestation (built from the CI context) alongside the signature. Default true."
+    required: false
+    default: "true"
   fail-on-tamper:
     description: "For mode=verify: fail the job if any file is unsealed or altered."
     required: false
@@ -36,5 +44,5 @@ outputs:
   count:
     description: "Number of files processed."
 runs:
-  using: "node20"
+  using: "node24"
   main: "index.mjs"

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ShieldCheck, PenLine, Award, Bitcoin, ArrowUpRight, TrendingUp } from "lucide-react";
+import { ShieldCheck, PenLine, Award, Anchor, ArrowUpRight, TrendingUp } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { DocTable } from "@/components/app-shell/DocTable";
@@ -47,7 +47,7 @@ export default async function Dashboard({ params }: { params: Promise<{ org: str
     { label: "Documents sealed", value: sealedTotal, icon: ShieldCheck, trend: sealedWeek > 0 ? `+${sealedWeek} this week` : "all time" },
     { label: "Awaiting signature", value: awaiting, icon: PenLine, sub: sentToday > 0 ? `${sentToday} sent today` : "none pending" },
     { label: "Credentials issued", value: credTotal, icon: Award, trend: credWeek > 0 ? `+${credWeek} this week` : "all time" },
-    { label: "Anchors confirmed", value: anchorsConfirmed, icon: Bitcoin, sub: anchorsPending > 0 ? `${anchorsPending} confirming` : "all confirmed" },
+    { label: "Anchors confirmed", value: anchorsConfirmed, icon: Anchor, sub: anchorsPending > 0 ? `${anchorsPending} confirming` : "all confirmed" },
   ];
 
   const rows = buildDocRows(org);
@@ -113,7 +113,7 @@ export default async function Dashboard({ params }: { params: Promise<{ org: str
                 </div>
               </div>
               <Link href={anchoredRow.href} className="mt-4 flex items-center gap-1.5 text-xs font-medium text-orange-600">
-                <Bitcoin className="h-3.5 w-3.5" /> Anchored to Bitcoin · #{anchoredRow.anchor!.block}
+                <Anchor className="h-3.5 w-3.5" /> Anchored to the blockchain · #{anchoredRow.anchor!.block}
               </Link>
             </div>
           )}

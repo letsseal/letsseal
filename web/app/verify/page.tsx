@@ -138,7 +138,7 @@ export default function Verify() {
               document is byte-for-byte what was sealed, and who sealed it.
             </Pillar>
             <Pillar icon={Anchor} title="Independent timestamp">
-              A decentralised OpenTimestamps anchor on the Bitcoin ledger — free, permanent proof of
+              A decentralised OpenTimestamps anchor on the blockchain. Free, permanent proof of
               when it existed, on a public ledger no one controls.
             </Pillar>
             <Pillar icon={Globe} title="Check it yourself">

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       {
         sha256: r.sha256, sig: r.sig, certPem: r.certPem, chainPem: r.chainPem,
         certCN: r.certCN, identity: r.identity, anchorState: r.anchorState,
-        proofUrl: r.proofUrl, proofCode: r.proofCode,
+        proofUrl: r.proofUrl, proofCode: r.proofCode, bundle: r.bundle,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

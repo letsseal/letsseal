@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "./db";
+import { resolveOrgAccess, orgRoleAtLeast, type OrgRole } from "./rbac";
 
 export async function requireUser() {
   const session = await auth();
@@ -10,24 +11,58 @@ export async function requireUser() {
 
 export async function getUserOrgs(userId: string) {
   return db.organization.findMany({
+    where: {
+      OR: [
+        { memberships: { some: { userId } } },
+        { tenant: { memberships: { some: { userId, role: { in: ["owner", "admin"] } } } } },
+      ],
+    },
+    orderBy: { name: "asc" },
+    include: { _count: { select: { envelopes: true } }, tenant: { select: { id: true, slug: true, name: true, enterprise: true } } },
+  });
+}
+
+export async function getUserTenants(userId: string) {
+  return db.tenant.findMany({
     where: { memberships: { some: { userId } } },
     orderBy: { name: "asc" },
-    include: { _count: { select: { envelopes: true } } },
+    include: {
+      memberships: { where: { userId }, select: { role: true } },
+      organizations: { orderBy: { name: "asc" }, select: { id: true, slug: true, name: true } },
+    },
   });
 }
 
 export async function requireOrg(userId: string, slug: string) {
-  const org = await db.organization.findFirst({
-    where: { slug, memberships: { some: { userId } } },
+  const access = await resolveOrgAccess(userId, slug);
+  if (!access) return null;
+  return db.organization.findUnique({
+    where: { id: access.org.id },
+    include: {
+      tenant: {
+        select: {
+          id: true, slug: true, name: true, enterprise: true,
+          verifiedDomain: true, domainVerifiedAt: true, domainVerifiedVia: true,
+        },
+      },
+    },
   });
-  return org; 
 }
 
+export async function requireOrgRole(userId: string, slug: string, min: OrgRole) {
+  const access = await resolveOrgAccess(userId, slug);
+  if (!access) redirect("/app");
+  if (!orgRoleAtLeast(access.orgRole, min)) redirect(`/${slug}`);
+  return access;
+}
+
+// For API routes: returns the user id or null (caller returns 401).
 export async function apiUser() {
   const session = await auth();
   return session?.user?.id ?? null;
 }
 
+// For API routes: assert membership in the org that owns an envelope.
 export async function userOwnsEnvelope(userId: string, envelopeId: string) {
   const env = await db.envelope.findUnique({
     where: { id: envelopeId },

@@ -37,12 +37,18 @@
     ".ft{margin-top:12px;font-size:11px;color:#8a92a0}";
 
   function independent(app, otsUrl, isPdf) {
-    var d = el("details", null, [el("summary", null, ["Verify independently — don't take our word for it"])]);
-    var body = el("div", { style: "margin-top:6px;line-height:1.5" });
-    body.innerHTML =
+    var d = el("details", null, [el("summary", null, ["Verify independently, don't take our word for it"])]);
+    var body = el("div", { style: "margin-top:6px;line-height:1.5" }, [
       "This document's timestamp is anchored to Bitcoin and its certificate chain is embedded in the PDF, " +
-      "so it can be verified without Let's Seal or this site" +
-      (otsUrl ? ": download the <a href='" + otsUrl + "'>.ots proof</a> and run <code>ots verify " + (isPdf ? "your-file.pdf" : "your-file") + "</code>." : ".");
+      "so it can be verified without Let's Seal or this site",
+    ]);
+    if (otsUrl) {
+      body.appendChild(document.createTextNode(": download the "));
+      body.appendChild(el("a", { href: otsUrl }, [".ots proof"]));
+      body.appendChild(document.createTextNode(" and run "));
+      body.appendChild(el("code", null, ["ots verify " + (isPdf ? "your-file.pdf" : "your-file")]));
+    }
+    body.appendChild(document.createTextNode("."));
     d.appendChild(body);
     return d;
   }

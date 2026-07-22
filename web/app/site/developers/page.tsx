@@ -2,9 +2,9 @@ import { PageHead, Container, H2, serif, CodeBlock, Card, LinkArrow } from "../_
 import { Terminal, Boxes, GitBranch, Webhook } from "lucide-react";
 
 export const metadata = {
-  title: "Developers — Let's Seal",
+  title: "Developers, Let's Seal",
   description:
-    "Seal anything — files, PDFs, images, XML, email, and software artifacts — from the CLI, CI/CD, the HTTP API, or the SDKs. Anyone verifies publicly. Everything is open source, Apache-2.0.",
+    "Seal anything, files, PDFs, images, XML, email, and software artifacts, from the CLI, CI/CD, the HTTP API, or the SDKs. Anyone verifies publicly. Everything is open source, Apache-2.0.",
 };
 
 const SDKS = [
@@ -20,7 +20,7 @@ export default function DevelopersPage() {
       <PageHead
         eyebrow="Developers"
         title="Seal and verify from anywhere in your stack."
-        lede="A CLI, a GitHub Action, an HTTP API, and SDKs — all open source, Apache-2.0. Seal any file behind your API key or your own instance; anyone verifies publicly."
+        lede="A CLI, a GitHub Action, an HTTP API, and SDKs, all open source, Apache-2.0. Seal any file behind your API key or your own instance; anyone verifies publicly."
       />
 
       <section className="border-b border-stone-200">
@@ -32,8 +32,8 @@ export default function DevelopersPage() {
               </div>
               <H2 className="mt-5">sealbot, the CLI</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                The core tool for humans and scripts alike. Seal, anchor, and verify anything — PDFs, images, XML,
-                email, or any file — from your terminal. <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[13px]">sealbot seal</code> picks
+                The core tool for humans and scripts alike. Seal, anchor, and verify anything, PDFs, images, XML,
+                email, or any file, from your terminal. <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[13px]">sealbot seal</code> picks
                 the right form for each file type. Point it at the hosted service or your own instance with <code className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[13px]">--api</code>.
               </p>
               <div className="mt-5 flex flex-col gap-2.5">
@@ -52,8 +52,8 @@ export default function DevelopersPage() {
                 <span className="text-emerald-400">$</span> sealbot seal *.pdf --api https://seal.acme.internal
               </CodeBlock>
               <p className="text-[13px] text-stone-500">
-                Verification is public — anyone re-hashes the file and checks the signature, the transparency log, and
-                the Bitcoin anchor.
+                Verification is public. Anyone re-hashes the file and checks the signature, the transparency log, and
+                the blockchain anchor.
               </p>
             </div>
           </div>
@@ -106,7 +106,7 @@ export default function DevelopersPage() {
           </div>
           <p className="mt-6 text-[14px] leading-relaxed text-stone-500">
             The verify endpoint is public and unauthenticated by design. The seal endpoint holds signing keys and is
-            protected — on the hosted service it&rsquo;s tied to your account; when self-hosting it never leaves your
+            protected. On the hosted service it&rsquo;s tied to your account; when self-hosting it never leaves your
             network.
           </p>
         </Container>

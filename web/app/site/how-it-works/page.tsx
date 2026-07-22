@@ -2,9 +2,9 @@ import { PageHead, Container, H2, serif, Card, LinkArrow } from "../_components/
 import { FileCheck2, Fingerprint, Anchor, ShieldCheck, Check } from "lucide-react";
 
 export const metadata = {
-  title: "How it works — Let's Seal",
+  title: "How it works, Let's Seal",
   description:
-    "How a seal is made and how anyone can check it: a cryptographic signature over the whole file, anchored to Bitcoin, verifiable by anyone — free and instant.",
+    "How a seal is made and how anyone can check it: a cryptographic signature over the whole file, anchored to the blockchain, verifiable by anyone, free and instant.",
 };
 
 const STEPS = [
@@ -12,25 +12,25 @@ const STEPS = [
     n: "01",
     icon: Fingerprint,
     h: "Fingerprint the whole file",
-    p: "We take a SHA-256 hash of the entire file — a 64-character fingerprint that changes completely if a single byte changes. This is what gets protected.",
+    p: "We take a SHA-256 hash of the entire file, a 64-character fingerprint that changes completely if a single byte changes. This is what gets protected.",
   },
   {
     n: "02",
     icon: FileCheck2,
     h: "Seal it",
-    p: "A seal covers the whole file, chaining to a published root — as PAdES for PDFs, C2PA for images and media, XML-DSig for XML, S/MIME for email, or a detached CMS signature for any other file. Tamper with any covered byte afterward and the seal no longer matches.",
+    p: "A seal covers the whole file, chaining to a published root, as PAdES for PDFs, C2PA for images and media, XML-DSig for XML, S/MIME for email, or a detached CMS signature for any other file. Tamper with any covered byte afterward and the seal no longer matches.",
   },
   {
     n: "03",
     icon: Anchor,
-    h: "Anchor it to Bitcoin",
-    p: "The fingerprint is timestamped into the Bitcoin blockchain via OpenTimestamps, and recorded in a public, append-only transparency log. That gives independent, permanent proof the file existed at that moment.",
+    h: "Anchor it to the blockchain",
+    p: "The fingerprint is timestamped into the blockchain via OpenTimestamps, and recorded in a public, append-only transparency log. That gives independent, permanent proof the file existed at that moment.",
   },
   {
     n: "04",
     icon: ShieldCheck,
-    h: "Anyone verifies — keyless",
-    p: "To check a file, anyone re-hashes it and confirms the seal, the transparency-log entry, and the Bitcoin anchor — free and instant, open to everyone. If it matches, it's authentic and unchanged.",
+    h: "Anyone verifies, keyless",
+    p: "To check a file, anyone re-hashes it and confirms the seal, the transparency-log entry, and the blockchain anchor, free and instant, open to everyone. If it matches, it's authentic and unchanged.",
   },
 ];
 
@@ -40,7 +40,7 @@ export default function HowItWorksPage() {
       <PageHead
         eyebrow="How it works"
         title="Proof, not trust."
-        lede="A seal is proof carried by the file itself: a signature over every byte, anchored to Bitcoin. Here's exactly how it's made, and how anyone can check it for free."
+        lede="A seal is proof carried by the file itself: a signature over every byte, anchored to the blockchain. Here's exactly how it's made, and how anyone can check it for free."
       />
 
       <section className="border-b border-stone-200">
@@ -77,11 +77,11 @@ export default function HowItWorksPage() {
             <Card>
               <div className="text-[13px] font-semibold uppercase tracking-wider text-stone-400">Edit the signed bytes</div>
               <p className="mt-2 text-[14.5px] leading-relaxed text-stone-600">
-                Change the amount, a name, a date — anything covered by the signature — and the fingerprint no longer
+                Change the amount, a name, a date, anything covered by the signature, and the fingerprint no longer
                 matches. Verification fails immediately.
               </p>
               <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-[13px] font-semibold text-red-700 ring-1 ring-inset ring-red-100">
-                Tampered — verification fails
+                Tampered. Verification fails
               </div>
             </Card>
             <Card>
@@ -91,13 +91,13 @@ export default function HowItWorksPage() {
                 longer covers the whole file. We require full-file coverage, so this is flagged too.
               </p>
               <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-[13px] font-semibold text-red-700 ring-1 ring-inset ring-red-100">
-                Not intact — coverage broken
+                Not intact, coverage broken
               </div>
             </Card>
           </div>
           <p className="mt-6 max-w-2xl text-[14px] leading-relaxed text-stone-500">
             A document only shows as authentic when it is byte-for-byte identical to what was sealed. Copying a visual
-            badge onto a different file doesn&rsquo;t work either — you verify the <em>file</em>, not a picture of a seal.
+            badge onto a different file doesn&rsquo;t work either. You verify the <em>file</em>, not a picture of a seal.
           </p>
         </Container>
       </section>
@@ -106,12 +106,12 @@ export default function HowItWorksPage() {
         <Container className="py-14 sm:py-18">
           <H2>What a seal proves</H2>
           <ul className="mt-6 max-w-2xl space-y-3 text-[16px] leading-relaxed text-stone-700">
-            <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> The document existed at a specific time, anchored to Bitcoin.</li>
+            <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> The document existed at a specific time, anchored to the blockchain.</li>
             <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> It hasn&rsquo;t changed by a single byte since.</li>
             <li className="flex gap-3"><Check className="mt-1 h-5 w-5 shrink-0 text-blue-600" /> Every document from the same issuer traces to the same seal.</li>
           </ul>
           <p className="mt-6 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            A seal proves the document — its integrity and its moment in time. It ties that document to whoever
+            A seal proves the document, its integrity and its moment in time. It ties that document to whoever
             controlled the sealing channel: attribution by control, and every proof page states exactly that.
           </p>
           <div className="mt-6">

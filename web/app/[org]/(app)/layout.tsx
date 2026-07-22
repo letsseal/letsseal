@@ -23,6 +23,7 @@ export default async function AppShellLayout({
       name: true,
       slug: true,
       brandColor: true,
+      tenant: { select: { name: true, enterprise: true } },
       _count: { select: { envelopes: true, sealedDocuments: true, credentials: true } },
     },
   });
@@ -32,7 +33,14 @@ export default async function AppShellLayout({
 
   return (
     <div className="grid min-h-screen md:grid-cols-[248px_1fr]">
-      <Sidebar slug={org.slug} orgName={org.name} brandColor={org.brandColor} docCount={docCount} />
+      <Sidebar
+        slug={org.slug}
+        orgName={org.name}
+        brandColor={org.brandColor}
+        docCount={docCount}
+        enterprise={org.tenant?.enterprise ?? false}
+        accountName={org.tenant?.name}
+      />
       <div className="flex min-h-screen min-w-0 flex-col">
         <AppHeader slug={org.slug} userName={user.name} userEmail={user.email} />
         {!acct?.emailVerified && <VerifyBanner email={user.email} />}

@@ -2,7 +2,7 @@ import { PageHead, Container, H2, serif, LinkArrow } from "../_components/ui";
 import { XowxWordmark } from "../_components/xowx-wordmark";
 
 export const metadata = {
-  title: "Mission — Let's Seal",
+  title: "Mission, Let's Seal",
   description:
     "Proof that a document is real should belong to everyone. A public-benefit project making document authenticity free, open, and permanent.",
 };
@@ -10,19 +10,19 @@ export const metadata = {
 const PRINCIPLES = [
   {
     h: "Authenticity is infrastructure",
-    p: "Knowing a document is genuine shouldn't depend on paying a vendor, trusting a brand, or hoping a server stays online. It should be a property of the document itself — checkable by anyone, anywhere.",
+    p: "Knowing a document is genuine shouldn't depend on paying a vendor, trusting a brand, or hoping a server stays online. It should be a property of the document itself, checkable by anyone, anywhere.",
   },
   {
     h: "Proof that stands on its own",
-    p: "A seal is permanent proof — issued once, yours forever. Verification is keyless and public, so anyone can check any seal, free and instantly. Even if this project vanished, every seal ever made stays verifiable.",
+    p: "A seal is permanent proof, issued once, yours forever. Verification is keyless and public, so anyone can check any seal, free and instantly. Even if this project vanished, every seal ever made stays verifiable.",
   },
   {
     h: "Open, all the way down",
-    p: "The code is open source. The formats are open standards — PAdES signatures, X.509 certificates, OpenTimestamps. The anchor is Bitcoin's public ledger. Nothing here is ours to lock up.",
+    p: "The code is open source. The formats are open standards, PAdES signatures, X.509 certificates, OpenTimestamps. The anchor is a public ledger. Nothing here is ours to lock up.",
   },
   {
     h: "Free, and it stays free",
-    p: "Sealing is free. Verifying is free. It will not become free-for-now-then-metered. Sustainability, if we need it, comes from optional hosted convenience — never from charging for the truth.",
+    p: "Sealing is free. Verifying is free. It will not become free-for-now-then-metered. Sustainability, if we need it, comes from optional hosted convenience, never from charging for the truth.",
   },
 ];
 
@@ -39,7 +39,7 @@ export default function MissionPage() {
         <Container className="py-14 sm:py-20">
           <div className="max-w-2xl space-y-6 text-[17px] leading-[1.7] text-stone-700">
             <p>
-              Every day, decisions turn on documents — a contract, a diploma, an invoice, a permit, a medical record.
+              Every day, decisions turn on documents, a contract, a diploma, an invoice, a permit, a medical record.
               And every day it gets easier to fabricate one that looks perfect. The usual answer is to trust a logo: a
               green badge, a paid seal, a name you&rsquo;re supposed to recognise.
             </p>
@@ -75,7 +75,7 @@ export default function MissionPage() {
             <div>
               <H2>Run by a foundation, not a startup.</H2>
               <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed text-stone-600">
-                Let&rsquo;s Seal is stewarded by Experimental Open Works — a home for free, public-benefit
+                Let&rsquo;s Seal is stewarded by Experimental Open Works, a home for free, public-benefit
                 infrastructure, the way ISRG runs Let&rsquo;s Encrypt. No investors, no exit, no plan to enclose it
                 later. It&rsquo;s built to outlive us.
               </p>
@@ -97,7 +97,7 @@ export default function MissionPage() {
             <div className="max-w-md">
               <H2>See how it holds up</H2>
               <p className="mt-3 text-[15px] leading-relaxed text-stone-600">
-                Proof, not trust — that&rsquo;s the point. Read exactly how a seal is made and how anyone can check it.
+                Proof, not trust. That&rsquo;s the point. Read exactly how a seal is made and how anyone can check it.
               </p>
             </div>
             <div className="flex flex-col gap-3">

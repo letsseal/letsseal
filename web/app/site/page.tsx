@@ -7,10 +7,10 @@ export const revalidate = 300;
 
 export default async function SiteHome() {
   const stats = await getNetworkStats();
+  const proofRecords = stats.documentsSealed + stats.standaloneTimestamps;
   const STATS = [
-    { n: stats.documentsSealed.toLocaleString(), l: "Documents sealed" },
-    { n: stats.organizations.toLocaleString(), l: "Businesses issuing" },
-    { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "—", l: "Latest Bitcoin anchor" },
+    { n: proofRecords.toLocaleString(), l: "Proof records" },
+    { n: stats.latestBlock ? `#${stats.latestBlock.toLocaleString()}` : "-", l: "Latest blockchain anchor" },
     { n: "£0", l: "Charged, to anyone, ever" },
   ];
   const HOME_LD = {
@@ -21,7 +21,7 @@ export default async function SiteHome() {
     operatingSystem: "Web, CLI, self-hosted",
     url: "https://letsseal.org",
     description:
-      "The open standard for sealing anything — prove any file is authentic, unaltered, and in existence by a certain date. One standard for documents, images, email, code and containers; verifiable by anyone, forever.",
+      "The open standard for sealing anything. Prove any file is authentic, unaltered, and in existence by a certain date. One standard for documents, images, email, code and containers; verifiable by anyone, forever.",
     offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
     isAccessibleForFree: true,
     license: "https://opensource.org/licenses/Apache-2.0",
@@ -36,7 +36,7 @@ export default async function SiteHome() {
             Seal anything.
           </h1>
           <p className="mt-6 max-w-[620px] text-[clamp(17px,1.8vw,20px)] leading-relaxed text-stone-600">
-            The open standard for proving any file is real — unaltered, sealed by a known certificate, and in existence
+            The open standard for proving any file is real, unaltered, sealed by a known certificate, and in existence
             by a certain date. One standard for every kind of file: documents, images, email, code, containers.
             Verifiable by anyone, forever. The proof travels with the file and stands on its own.
           </p>
@@ -111,7 +111,7 @@ export default async function SiteHome() {
           </H2>
           <p className="mt-4 max-w-2xl text-[15.5px] leading-relaxed text-stone-600">
             Let&rsquo;s Seal publishes <strong>SEAL</strong> (<em>Sealed Evidence, Anchored to a Ledger</em>): the open
-            standard for what a proof is and how anyone verifies one — for every kind of file, in one self-contained
+            standard for what a proof is and how anyone verifies one, for every kind of file, in one self-contained
             artifact pinned to a published root. Anyone can implement it, and every conforming proof checks the same way.
             That&rsquo;s what makes it a network.
           </p>
@@ -124,7 +124,7 @@ export default async function SiteHome() {
 
       <section className="border-b border-stone-200 bg-stone-100/60">
         <Container className="py-14">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
             {STATS.map((s) => (
               <div key={s.l}>
                 <div className={`${serif} text-[32px] font-medium leading-none tracking-tight`}>{s.n}</div>

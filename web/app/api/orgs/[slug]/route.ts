@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { apiUser, requireOrg } from "@/lib/auth-helpers";
+import { apiUser } from "@/lib/auth-helpers";
+import { checkOrgRole } from "@/lib/rbac";
 import { orgNameProblem } from "@/lib/org-name";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -9,10 +10,9 @@ const MAX_LOGO_BYTES = 400_000;
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const userId = await apiUser();
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const org = await requireOrg(userId, slug);
-  if (!org) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const chk = await checkOrgRole(userId, slug, "admin");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const org = chk.access.org;
 
   const body = await req.json();
   const data: Record<string, string | null> = {};

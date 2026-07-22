@@ -31,7 +31,10 @@ async function syncCert(slug, name, domain) {
 }
 
 async function orgBySlug(slug) {
-  const o = await db.organization.findUnique({ where: { slug } });
+  const o = await db.organization.findUnique({
+    where: { slug },
+    include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } },
+  });
   if (!o) { console.error(`No org with slug "${slug}".`); process.exit(1); }
   return o;
 }
@@ -59,7 +62,7 @@ async function show(slug) {
   const o = await orgBySlug(slug);
   console.log(`${o.name} (${o.slug})`);
   console.log(`  status: ${o.status}${o.suspendedReason ? `  reason: ${o.suspendedReason}` : ""}`);
-  console.log(`  verifiedDomain: ${o.verifiedDomain ?? "—"} (${o.domainVerifiedVia ?? "n/a"})`);
+  console.log(`  verifiedDomain (brand): ${o.tenant?.verifiedDomain ?? "-"} (${o.tenant?.domainVerifiedVia ?? "n/a"})`);
   const n = await db.abuseReport.count({ where: { orgId: o.id } });
   const open = await db.abuseReport.count({ where: { orgId: o.id, status: "open" } });
   console.log(`  reports: ${n} total, ${open} open`);
@@ -88,8 +91,8 @@ async function reinstate(slug) {
     data: { status: "active", suspendedAt: null, suspendedReason: null },
   });
   console.log(`Reinstated ${o.name} (${o.slug}).`);
-  // Re-bind the cert SAN only if the org still holds a verified domain.
-  await syncCert(o.slug, o.name, o.verifiedDomain ?? null);
+  // Re-bind the cert SAN only if the brand still holds a verified domain.
+  await syncCert(o.slug, o.name, o.tenant?.verifiedDomain ?? null);
 }
 
 async function handleReport(id, status, note) {

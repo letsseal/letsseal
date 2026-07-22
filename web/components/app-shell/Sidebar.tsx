@@ -2,22 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Award, Stamp, BadgeCheck, Fingerprint, Code2, Settings, ChevronsUpDown } from "lucide-react";
-
-function SealMark({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" className={className} aria-hidden>
-      <circle cx="16" cy="14" r="9" fill="#2563EB" />
-      <path d="M12 14l3 3 5-6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11 21l-2 7 7-3 7 3-2-7" fill="#2563EB" />
-    </svg>
-  );
-}
+import { LayoutDashboard, FileText, Award, Stamp, BadgeCheck, Fingerprint, Code2, Settings, ChevronsUpDown, Building2 } from "lucide-react";
+import { SealMark } from "@/components/brand/SealMark";
 
 export function Sidebar({
-  slug, orgName, brandColor, docCount,
+  slug, orgName, brandColor, docCount, enterprise = false, accountName,
 }: {
   slug: string; orgName: string; brandColor: string; docCount: number;
+  enterprise?: boolean; accountName?: string;
 }) {
   const pathname = usePathname();
   const nav = [
@@ -27,6 +19,8 @@ export function Sidebar({
     { label: "Seal & anchor", href: `/${slug}/seal`, icon: Stamp },
     { label: "Identity seal", href: `/${slug}/identity`, icon: Fingerprint },
     { label: "Verify", href: `/verify`, icon: BadgeCheck },
+    // Enterprise accounts get the account/entity + member management surface.
+    ...(enterprise ? [{ label: "Account", href: `/${slug}/account`, icon: Building2 }] : []),
   ];
   const dev = [
     { label: "API keys", href: `/${slug}/settings#api-keys`, icon: Code2 },
@@ -37,9 +31,9 @@ export function Sidebar({
 
   return (
     <aside className="hidden flex-col border-r bg-secondary/50 md:flex">
-      <div className="flex h-[68px] items-center gap-2.5 px-5">
-        <SealMark className="h-7 w-7" />
-        <span className="text-[17px] font-semibold tracking-tight">Let&rsquo;s Seal</span>
+      <div className="flex h-[68px] items-center gap-0.5 px-5">
+        <SealMark className="h-[1em] w-[1em]" />
+        <span className="text-[17px] font-bold tracking-[-0.05em]">LetsSeal</span>
       </div>
 
       <nav className="flex-1 px-3 py-2">
@@ -96,7 +90,9 @@ export function Sidebar({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-semibold leading-tight">{orgName}</span>
-            <span className="block truncate text-[11px] text-muted-foreground">Free plan · switch org</span>
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {enterprise && accountName ? `${accountName} · switch` : "Switch account"}
+            </span>
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Link>

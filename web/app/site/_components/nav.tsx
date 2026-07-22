@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ArrowUpRight } from "lucide-react";
+import { SealMark } from "@/components/brand/SealMark";
 
 export const NAV = [
   { href: "/site/how-it-works", label: "How it works" },
@@ -11,18 +12,9 @@ export const NAV = [
   { href: "/site/standard", label: "Standard" },
   { href: "/site/developers", label: "Developers" },
   { href: "/site/open", label: "Open" },
+  { href: "/site/blog", label: "Blog" },
   { href: "/site/docs", label: "Docs" },
 ];
-
-function SealMark({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" className={className} aria-hidden>
-      <circle cx="16" cy="14" r="9" fill="#2563EB" />
-      <path d="M12 14l3 3 5-6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11 21l-2 7 7-3 7 3-2-7" fill="#2563EB" />
-    </svg>
-  );
-}
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -32,9 +24,9 @@ export function SiteNav() {
   return (
     <header className="sticky top-0 z-40 bg-stone-50/80 backdrop-blur-md">
       <div className="mx-auto flex h-[68px] max-w-6xl items-center gap-7 px-6">
-        <Link href="/site" className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <SealMark className="h-7 w-7" />
-          <span className="text-[19px]">Let&rsquo;s Seal</span>
+        <Link href="/site" className="flex items-center gap-0.5 font-bold tracking-[-0.05em]">
+          <SealMark className="h-[1em] w-[1em]" />
+          <span className="text-[19px]">LetsSeal</span>
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">

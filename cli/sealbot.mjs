@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile, writeFile, appendFile, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, appendFile, readdir, stat, chmod } from "node:fs/promises";
 import { basename, join, relative, extname } from "node:path";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -20,6 +20,16 @@ function svc(extra = {}) {
   return TOKEN ? { Authorization: `Bearer ${TOKEN}`, ...extra } : { ...extra };
 }
 function die(msg) { console.error(`error: ${msg}`); process.exit(1); }
+// Require https for any non-localhost endpoint. `verify` trusts the service's
+// verdict, so a plaintext channel would let a network attacker forge "verified"
+// for a tampered file; the same channel also carries the bearer token.
+function assertSecure(url, what) {
+  let u;
+  try { u = new URL(url); } catch { die(`invalid ${what} URL: ${url}`); }
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(u.hostname);
+  if (u.protocol !== "https:" && !local)
+    die(`${what} must use https:// for a remote host (got ${u.protocol}//${u.hostname}); plaintext lets a network attacker forge the result.`);
+}
 async function toBlob(path) {
   const buf = await readFile(path).catch(() => die(`cannot read ${path}`));
   return new Blob([buf]);
@@ -84,6 +94,7 @@ async function issue() {
   // the CA only ever sees (and signs) the CSR.
   try {
     await exec("openssl", ["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", keyPath]);
+    await chmod(keyPath, 0o600).catch(() => {}); // owner-only: it's a private key
     const { stdout: csr } = await exec("openssl", ["req", "-new", "-key", keyPath, "-subj", `/CN=${cn}/O=${cn}/C=GB`]);
     const res = await fetch(`${API}/cert/sign`, {
       method: "POST", headers: svc({ "Content-Type": "application/json" }),
@@ -333,4 +344,6 @@ const [cmd, arg] = positionals;
 const cmds = { anchor, notarize, verify, seal, upgrade, issue, watch };
 if (!cmd || cmd === "help" || cmd === "--help") { console.log(HELP); process.exit(0); }
 if (!cmds[cmd]) die(`unknown command '${cmd}'. Run 'sealbot help'.`);
+assertSecure(API, "signing service (--api / SEALBOT_API)");
+assertSecure(APP, "hosted app (--app / SEALBOT_APP)");
 await cmds[cmd](arg);

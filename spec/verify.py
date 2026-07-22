@@ -22,6 +22,7 @@ import os
 import hashlib
 import subprocess
 import tempfile
+from datetime import datetime, timezone
 from io import BytesIO
 
 from asn1crypto import pem, x509
@@ -63,7 +64,7 @@ def _load(pem_bytes):
     return x509.Certificate.load(der)
 
 
-def verify_seal(pdf_bytes):
+def verify_seal(pdf_bytes, at_time=None, check_revocation=False):
     reader = PdfFileReader(BytesIO(pdf_bytes))
     sigs = reader.embedded_signatures
     if not sigs:
@@ -71,8 +72,9 @@ def verify_seal(pdf_bytes):
     vc = ValidationContext(
         trust_roots=[_load(ROOT_CA_PEM)],
         other_certs=[_load(INTERMEDIATE_CA_PEM)],
-        allow_fetching=False,
-        revocation_mode="soft-fail",
+        allow_fetching=check_revocation,
+        revocation_mode="hard-fail" if check_revocation else "soft-fail",
+        moment=at_time,
     )
     status = validate_pdf_signature(sigs[0], vc)
     coverage = getattr(status.coverage, "name", str(status.coverage))
@@ -103,20 +105,26 @@ def _detached_signer(sig_path):
         return ""
 
 
-def verify_detached(file_path, sig_path, timeout=30):
+def verify_detached(file_path, sig_path, at_time=None, timeout=30):
     """Verify a detached CAdES/CMS seal (file.sig) over `file_path` against the
     published root, with stock openssl. The signer's chain is embedded in the
     sig, so pinning the root is enough. Two checks mirror the PAdES path: the
-    signature alone (valid) and the chain to the root (trusted)."""
+    signature alone (valid) and the chain to the root (trusted).
+
+    Cert validity is checked at `at_time` (unix seconds, the anchor's proven
+    block time when supplied), else at the current time. This replaces the old
+    blanket time bypass, which let an expired or leaked leaf validate forever."""
     with tempfile.NamedTemporaryFile("wb", suffix=".pem", delete=False) as rf:
         rf.write(ROOT_CA_PEM)
         root = rf.name
+
+    time_args = ["-attime", str(int(at_time))] if at_time else []
 
     def _openssl(*extra):
         try:
             r = subprocess.run(
                 ["openssl", "cms", "-verify", "-inform", "DER", "-in", sig_path,
-                 "-content", file_path, "-no_check_time", "-binary", "-out", os.devnull, *extra],
+                 "-content", file_path, "-binary", "-out", os.devnull, *time_args, *extra],
                 capture_output=True, text=True, timeout=timeout,
             )
             return r.returncode == 0 and "verification successful" in (r.stdout + r.stderr).lower()
@@ -162,6 +170,9 @@ def main():
     file_path = args[0]
     sig_path = next((a for a in args[1:] if a.endswith(".sig")), None)
     ots_path = next((a for a in args[1:] if a.endswith(".ots")), None)
+    at_unix = int(args[args.index("--attime") + 1]) if "--attime" in args else None
+    check_rev = "--check-revocation" in args
+    at_moment = datetime.fromtimestamp(at_unix, tz=timezone.utc) if at_unix else None
     file_bytes = open(file_path, "rb").read()
     is_pdf = file_bytes[:5] == b"%PDF-"
     if sig_path is None and not is_pdf and os.path.exists(file_path + ".sig"):
@@ -173,13 +184,13 @@ def main():
     print(f"sha256   {hashlib.sha256(file_bytes).hexdigest()}")
 
     if is_pdf:
-        s = verify_seal(file_bytes)
+        s = verify_seal(file_bytes, at_time=at_moment, check_revocation=check_rev)
         if not s["sealed"]:
             print("\nRESULT   NOT A SEAL — no signature found.")
             sys.exit(1)
         kind = s["coverage"]
     elif sig_path:
-        s = verify_detached(file_path, sig_path)
+        s = verify_detached(file_path, sig_path, at_time=at_unix)
         kind = "detached CMS"
     else:
         print("\nRESULT   NOT A SEAL — no PAdES signature and no .sig sidecar.")
@@ -188,6 +199,8 @@ def main():
     authentic = s["valid"] and s["trusted"] and s["entire_file"]
     print(f"issuer   {s['signer']}")
     print(f"seal     valid={s['valid']}  trusted={s['trusted']}  entire_file={s['entire_file']}  ({kind})")
+    print(f"checked  cert validity {'at anchor time ' + str(at_unix) if at_unix else 'at current time'}"
+          + ("  with revocation" if check_rev else ""))
 
     if ots_path and os.path.exists(ots_path):
         anchor = verify_anchor(file_path, ots_path)

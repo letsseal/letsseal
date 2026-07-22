@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ export default function AuthForm({
   mode, providers,
 }: { mode: "signin" | "signup"; providers: { id: string; label: string }[] }) {
   const router = useRouter();
+  const rawNext = useSearchParams().get("next");
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/app";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -57,7 +59,7 @@ export default function AuthForm({
         setLoading(false);
         return;
       }
-      router.push("/app");
+      router.push(next);
       router.refresh();
     } catch {
       setError("Something went wrong.");
@@ -156,7 +158,7 @@ export default function AuthForm({
                   key={p.id}
                   variant="outline"
                   className="w-full"
-                  onClick={() => signIn(p.id, { redirectTo: "/app" })}
+                  onClick={() => signIn(p.id, { redirectTo: next })}
                 >
                   <ProviderIcon id={p.id} className="h-4 w-4 mr-2" />
                   Continue with {p.label}

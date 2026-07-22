@@ -41,8 +41,22 @@ fn env_or(flag_name: &str, env_name: &str, default: &str) -> String {
     flag(flag_name).or_else(|| std::env::var(env_name).ok()).unwrap_or_else(|| default.to_string())
 }
 
-fn api() -> String { env_or("api", "SEALBOT_API", "http://127.0.0.1:8081") }
-fn app() -> String { env_or("app", "SEALBOT_APP", "http://localhost:3000") }
+// Require https for any non-localhost endpoint. verify trusts the service's
+// verdict and every keyed call carries the bearer token, so a plaintext channel
+// to a remote host would let a network attacker forge results or steal the token.
+fn assert_secure(url: &str, what: &str) -> String {
+    let lower = url.to_ascii_lowercase();
+    let is_local = lower.starts_with("http://localhost")
+        || lower.starts_with("http://127.0.0.1")
+        || lower.starts_with("http://[::1]");
+    if lower.starts_with("http://") && !is_local {
+        die(&format!("{what} must use https:// for a remote host (got {url}); plaintext lets a network attacker forge the result."));
+    }
+    url.to_string()
+}
+
+fn api() -> String { assert_secure(&env_or("api", "SEALBOT_API", "http://127.0.0.1:8081"), "signing service (--api / SEALBOT_API)") }
+fn app() -> String { assert_secure(&env_or("app", "SEALBOT_APP", "http://localhost:3000"), "hosted app (--app / SEALBOT_APP)") }
 // The signing service is localhost-bound but still requires a shared bearer.
 fn token() -> String { env_or("token", "SEALBOT_TOKEN", "") }
 
@@ -83,13 +97,16 @@ fn post_json(url: &str, body: serde_json::Value, auth: bool) -> Result<serde_jso
 }
 
 fn post_multipart(url: &str, fields: &[(&str, &str)], filename: &str, bytes: &[u8], auth: bool) -> Result<ureq::Response, String> {
+    // Strip CR/LF/quote from anything interpolated into multipart headers so a
+    // crafted filename or field value can't inject extra parts (e.g. override org_slug).
+    fn hsafe(s: &str) -> String { s.chars().filter(|c| !matches!(c, '"' | '\r' | '\n')).collect() }
     let boundary = "----letssealFormBoundary8x2f9q";
     let mut body: Vec<u8> = Vec::new();
     for (k, v) in fields {
-        body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n").as_bytes());
+        body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{}\"\r\n\r\n{}\r\n", hsafe(k), hsafe(v)).as_bytes());
     }
     body.extend_from_slice(format!(
-        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{}\"\r\nContent-Type: application/octet-stream\r\n\r\n", hsafe(filename)
     ).as_bytes());
     body.extend_from_slice(bytes);
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
@@ -736,7 +753,7 @@ fn sign_blob(file: &str) {
     println!("  verify sealbot verify {file}   (or any cosign install:)");
     println!("         cosign verify-blob --certificate {pem_out} --certificate-chain {chain_out} \\");
     println!("           --signature {sig_out} --certificate-identity {identity} \\");
-    println!("           --certificate-oidc-issuer-regexp '.*' --insecure-ignore-tlog --insecure-ignore-sct {file}");
+    println!("           --certificate-oidc-issuer-regexp '.*' {file}");
     show_sibling_anchor(file);
 }
 
@@ -789,9 +806,9 @@ fn sign_image(image: &str) {
     println!("  by     {cn}   [{identity}]");
     println!("  sig    pushed as {}/{}:{tag}", r.registry, r.repo);
     println!("  verify cosign verify --certificate-identity {identity} \\");
-    println!("           --certificate-oidc-issuer-regexp '.*' --insecure-ignore-tlog \\");
+    println!("           --certificate-oidc-issuer-regexp '.*' \\");
     println!("           {}/{}@{img_digest}", r.registry, r.repo);
-    println!("         (or with our published key: cosign verify --key <letsseal.pub> --insecure-ignore-tlog <image>)");
+    println!("         (or with our published key: cosign verify --key <letsseal.pub> <image>)");
 }
 
 // Sign an SBOM / provenance attestation about a file: a DSSE/in-toto envelope
@@ -825,7 +842,7 @@ fn attest_file(file: &str) {
     println!("  sha256  {digest}  (file itself was NOT uploaded)");
     println!("  bundle  {bundle_out}   key {pub_out}");
     println!("  verify  cosign verify-blob-attestation --bundle {bundle_out} --key {pub_out} \\");
-    println!("            --type {ptype} --insecure-ignore-tlog --check-claims=true {file}");
+    println!("            --type {ptype} --check-claims=true {file}");
 }
 
 // Attach a signed SBOM / provenance attestation TO an OCI image so
@@ -870,10 +887,10 @@ fn attest_image(image: &str) {
     println!("  digest {img_digest}");
     println!("  by     {cn}   [{identity}]");
     println!("  att    pushed as {}/{}:{tag}", r.registry, r.repo);
-    println!("  verify cosign verify-attestation --type {ptype} --insecure-ignore-tlog \\");
+    println!("  verify cosign verify-attestation --type {ptype} \\");
     println!("           --certificate-identity {identity} --certificate-oidc-issuer-regexp '.*' \\");
     println!("           {}/{}@{img_digest}", r.registry, r.repo);
-    println!("         (or with our published key: cosign verify-attestation --key <letsseal.pub> --type {ptype} --insecure-ignore-tlog <image>)");
+    println!("         (or with our published key: cosign verify-attestation --key <letsseal.pub> --type {ptype} <image>)");
 }
 
 fn issue() {
@@ -886,6 +903,12 @@ fn issue() {
     if !Command::new("openssl").args(["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", &key_path])
         .status().map(|s| s.success()).unwrap_or(false) {
         die("openssl not found (needed to generate the key locally)");
+    }
+    // Restrict the private key to owner-only (openssl writes with the umask, often 0644).
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600));
     }
     let csr = Command::new("openssl").args(["req", "-new", "-key", &key_path, "-subj", &format!("/CN={cn}/O={cn}/C=GB")])
         .output().unwrap_or_else(|_| die("openssl req failed"));

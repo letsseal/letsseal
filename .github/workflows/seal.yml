@@ -1,0 +1,24 @@
+# Anchor every push on the public ledger, with Let's Seal. Keyless and
+# digest-only: only the SHA-256 of the source archive leaves the runner.
+name: Seal
+
+on:
+  push:
+
+jobs:
+  anchor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Anchor this commit's source on the public ledger
+        env:
+          LETSSEAL_APP: ${{ vars.LETSSEAL_APP || 'https://app.letsseal.org' }}
+        run: |
+          set -euo pipefail
+          digest=$(git archive --format=tar HEAD | sha256sum | awk '{print $1}')
+          echo "source digest: $digest"
+          curl -fsS -X POST "$LETSSEAL_APP/api/anchor" \
+            -H 'Content-Type: application/json' \
+            -d "{\"sha256\":\"$digest\"}" \
+            && echo "anchored -> $LETSSEAL_APP/d/$digest" \
+            || echo "anchor request failed (non-fatal)"

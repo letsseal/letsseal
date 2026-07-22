@@ -26,6 +26,7 @@ import re
 import subprocess
 import tempfile
 import urllib.request
+from urllib.parse import urlparse
 
 OTS_BIN = os.path.join(os.path.dirname(__file__), ".venv", "bin", "ots")
 
@@ -59,6 +60,16 @@ _CALENDARS = [
     "https://finney.calendar.eternitywall.com",
     "https://btc.calendar.catallaxy.com",
 ]
+
+_CALENDAR_HOSTS = {urlparse(c).netloc for c in _CALENDARS}
+
+
+def _allowed_calendar(url: str) -> bool:
+    try:
+        u = urlparse(url)
+    except Exception:
+        return False
+    return u.scheme == "https" and u.netloc in _CALENDAR_HOSTS
 
 
 def stamp_digest(hex_digest: str, timeout: int = 20) -> dict:
@@ -197,6 +208,10 @@ def upgrade(ots_b64: str) -> dict:
         p = os.path.join(d, "doc.ots")
         with open(p, "wb") as f:
             f.write(ots)
+        pending = re.findall(r"PendingAttestation\('([^']+)'\)", _run(["info", p]).stdout)
+        bad = sorted({u for u in pending if not _allowed_calendar(u)})
+        if bad:
+            raise ValueError(f"refusing to upgrade: proof references non-allowlisted calendar(s): {bad}")
         _run(["upgrade", p])
         with open(p, "rb") as f:
             new_ots = f.read()

@@ -35,6 +35,29 @@ export async function appendToLog(e: { sha256: string; sealType: string; certCN:
   }
 }
 
+export async function appendRekorLeaf(sha256: string, canonicalBody: string, sealType = "blob"):
+  Promise<{ idx: number; leafHash: string }> {
+  const sha = sha256.trim().toLowerCase();
+  const lh = leafHash(Buffer.from(canonicalBody)).toString("hex");
+  const existing = await db.logEntry.findUnique({ where: { leafHash: lh }, select: { idx: true, leafHash: true } });
+  if (existing) return existing;
+  try {
+    return await db.logEntry.create({
+      data: { leafHash: lh, payload: canonicalBody, sha256: sha, sealType },
+      select: { idx: true, leafHash: true },
+    });
+  } catch {
+    const row = await db.logEntry.findUnique({ where: { leafHash: lh }, select: { idx: true, leafHash: true } });
+    if (row) return row;
+    throw new Error("rekor leaf append failed");
+  }
+}
+
+export async function treeSnapshot(): Promise<{ leaves: Buffer[]; rows: { idx: number; leafHash: string }[]; root: Buffer }> {
+  const { leaves, rows } = await orderedLeaves();
+  return { leaves, rows, root: merkleRoot(leaves) };
+}
+
 async function orderedLeaves(): Promise<{ leaves: Buffer[]; rows: { idx: number; leafHash: string }[] }> {
   const rows = await db.logEntry.findMany({ orderBy: { idx: "asc" }, select: { idx: true, leafHash: true } });
   return { leaves: rows.map((r) => Buffer.from(r.leafHash, "hex")), rows };
@@ -77,7 +100,7 @@ export type InclusionProof = {
   index: number; treeSize: number; leafHash: string; rootHash: string; proof: string[];
 };
 
-export async function getInclusionProof(opts: { leafHash?: string; sha256?: string }):
+export async function getInclusionProof(opts: { leafHash?: string; sha256?: string; treeSize?: number }):
   Promise<InclusionProof | null> {
   const { leaves, rows } = await orderedLeaves();
   let pos = -1;
@@ -87,22 +110,41 @@ export async function getInclusionProof(opts: { leafHash?: string; sha256?: stri
     if (row) pos = rows.findIndex((r) => r.leafHash === row.leafHash);
   }
   if (pos < 0) return null;
+  const size = opts.treeSize ?? leaves.length;
+  if (!Number.isInteger(size) || size < 1 || size > leaves.length) {
+    throw new RangeError(`treeSize must be an integer in 1..${leaves.length}`);
+  }
+  if (pos >= size) throw new RangeError(`leaf is at index ${pos}, not present in a tree of size ${size}`);
+  const sub = leaves.slice(0, size);
   return {
-    index: pos, treeSize: leaves.length, leafHash: rows[pos].leafHash,
-    rootHash: merkleRoot(leaves).toString("hex"),
-    proof: inclusionProof(leaves, pos).map((b) => b.toString("hex")),
+    index: pos, treeSize: size, leafHash: rows[pos].leafHash,
+    rootHash: merkleRoot(sub).toString("hex"),
+    proof: inclusionProof(sub, pos).map((b) => b.toString("hex")),
   };
 }
 
+// Consistency proof that tree size `first` is a prefix of size `second`. `second`
+// must not exceed the current tree size: clamping it would return a proof that
+// silently describes a smaller tree than the caller asked for.
 export async function getConsistencyProof(first: number, second: number): Promise<string[]> {
   const { leaves } = await orderedLeaves();
-  const sliced = leaves.slice(0, Math.min(second, leaves.length));
+  if (second > leaves.length) {
+    throw new RangeError(`second (${second}) exceeds the current tree size (${leaves.length})`);
+  }
+  const sliced = leaves.slice(0, second);
   return consistencyProof(sliced, first).map((b) => b.toString("hex"));
 }
 
+// Anchor the log's own integrity to Bitcoin: ensure a current Signed Tree Head
+// exists, anchor the latest head's root via OpenTimestamps, and advance any
+// pending head toward confirmation. Called from the anchor cron — so the whole
+// log (via its Merkle root) gets a public, decentralised timestamp. Returns a
+// small summary for logging. Best-effort; failures are swallowed by the caller.
 export async function anchorTreeHeads(): Promise<{ anchored: number; upgraded: number; treeSize: number }> {
+  // 1. make sure the current tree size is represented by a signed head.
   const sth = await getSignedTreeHead();
 
+  // 2. anchor the latest head if it isn't anchored yet (commits to the whole log).
   let anchored = 0;
   const latest = await db.treeHead.findFirst({ orderBy: { treeSize: "desc" } });
   if (latest && latest.anchorState === "none" && latest.treeSize > 0) {
@@ -113,9 +155,10 @@ export async function anchorTreeHeads(): Promise<{ anchored: number; upgraded: n
         data: { otsProof: a.ots_b64, anchorState: a.status.state },
       });
       anchored = 1;
-    } catch {  }
+    } catch { /* calendar hiccup — retry next tick */ }
   }
 
+  // 3. upgrade pending heads toward Bitcoin confirmation.
   let upgraded = 0;
   const pending = await db.treeHead.findMany({ where: { anchorState: "pending" } });
   for (const th of pending) {
@@ -129,7 +172,7 @@ export async function anchorTreeHeads(): Promise<{ anchored: number; upgraded: n
         });
         upgraded++;
       }
-    } catch {  }
+    } catch { /* still pending / offline */ }
   }
 
   return { anchored, upgraded, treeSize: sth.treeSize };

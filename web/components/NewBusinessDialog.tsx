@@ -13,11 +13,17 @@ import {
 
 const SWATCHES = ["#111827", "#2563eb", "#059669", "#db2777", "#ea580c", "#7c3aed"];
 
-export default function NewBusinessDialog() {
+export default function NewBusinessDialog({
+  tenantId, triggerLabel = "New business", title = "Create a business",
+  description = "Each business gets its own branding and cryptographic signing certificate.",
+}: {
+  tenantId?: string; triggerLabel?: string; title?: string; description?: string;
+} = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [brandColor, setBrandColor] = useState(SWATCHES[0]);
+  const [multiEntity, setMultiEntity] = useState(false); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +34,7 @@ export default function NewBusinessDialog() {
     try {
       const res = await fetch("/api/orgs", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, brandColor }),
+        body: JSON.stringify({ name, brandColor, ...(tenantId ? { tenantId } : { enterprise: multiEntity }) }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Could not create business"); setLoading(false); return; }
@@ -45,14 +51,12 @@ export default function NewBusinessDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2"><Plus className="h-4 w-4" /> New business</Button>
+        <Button className="gap-2"><Plus className="h-4 w-4" /> {triggerLabel}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create a business</DialogTitle>
-          <DialogDescription>
-            Each business gets its own branding and cryptographic signing certificate.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form onSubmit={create} className="space-y-4">
           <div className="space-y-1.5">
@@ -71,6 +75,27 @@ export default function NewBusinessDialog() {
               ))}
             </div>
           </div>
+
+          {!tenantId && (
+            <div className="space-y-1.5">
+              <Label>What are you setting up?</Label>
+              <div className="grid gap-2">
+                <button type="button" onClick={() => setMultiEntity(false)}
+                        className={`rounded-lg border p-3 text-left transition ${!multiEntity ? "border-foreground/40 bg-secondary/60" : "hover:bg-secondary/40"}`}>
+                  <div className="text-sm font-medium">One business</div>
+                  <div className="text-xs text-muted-foreground">A single company. You can add more separate businesses later.</div>
+                </button>
+                <button type="button" onClick={() => setMultiEntity(true)}
+                        className={`rounded-lg border p-3 text-left transition ${multiEntity ? "border-foreground/40 bg-secondary/60" : "hover:bg-secondary/40"}`}>
+                  <div className="text-sm font-medium">A brand with several entities</div>
+                  <div className="text-xs text-muted-foreground">
+                    One brand that runs multiple legal companies (e.g. a UK Ltd and a GmbH) sharing one verified
+                    domain. Turns on the account &amp; team tools. You can also enable this later in Settings.
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>

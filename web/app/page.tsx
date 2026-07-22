@@ -20,7 +20,7 @@ const FEATURES = [
 
 const COMPARISON: { label: string; ours: string; theirs: string; oursWin: boolean }[] = [
   { label: "Cost", ours: "Free", theirs: "Per-seal / per-envelope fees", oursWin: true },
-  { label: "Proof of date", ours: "Independent public ledger (Bitcoin)", theirs: "The vendor's own timestamp", oursWin: true },
+  { label: "Proof of date", ours: "Independent public ledger", theirs: "The vendor's own timestamp", oursWin: true },
   { label: "Verify outside their app", ours: "Public page + .ots file, offline", theirs: "Trust indicator inside Adobe Reader", oursWin: true },
   { label: "A printed copy stays verifiable", ours: "Yes — QR on every page", theirs: "No", oursWin: true },
   { label: "Self-host", ours: "Yes", theirs: "No", oursWin: true },
@@ -169,7 +169,7 @@ export default async function Landing() {
         <h2 className="mt-4 text-2xl font-semibold tracking-tight text-ink">You never have to take our word for it</h2>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
           Every sealed document has a public proof page and a downloadable OpenTimestamps proof you can check
-          against Bitcoin yourself — the proof stands on its own, forever.
+          against the blockchain yourself. The proof stands on its own, forever.
         </p>
         <div className="mt-6">
           <Button asChild variant="outline"><Link href={LIVE_PROOF} target="_blank">Open a live proof →</Link></Button>

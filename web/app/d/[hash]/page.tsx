@@ -41,7 +41,8 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   const { hash } = await params;
   const ref = hash.toLowerCase();
 
-  const include = { envelope: { include: { org: true, _count: { select: { audit: true } } } }, org: true } as const;
+  const orgInc = { include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } } } as const;
+  const include = { envelope: { include: { org: orgInc, _count: { select: { audit: true } } } }, org: orgInc } as const;
   let rec = isHash(ref)
     ? await db.sealedDocument.findUnique({ where: { sha256: ref }, include })
     : await db.sealedDocument.findUnique({ where: { envelopeId: hash }, include });
@@ -151,8 +152,9 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     verification: (() => {
       const o = rec.org ?? rec.envelope?.org ?? null;
       if (!o) return null;
-      return o.verifiedDomain
-        ? { verified: true as const, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null }
+      const dom = o.tenant?.verifiedDomain ?? null;
+      return dom
+        ? { verified: true as const, domain: dom, via: o.tenant?.domainVerifiedVia ?? null }
         : { verified: false as const, domain: null, via: null };
     })(),
     suspended: (rec.org ?? rec.envelope?.org)?.status === "suspended",

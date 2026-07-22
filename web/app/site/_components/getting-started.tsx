@@ -18,7 +18,7 @@ const ITEMS: Item[] = [
     body: (
       <div className="space-y-4">
         <p>
-          The fastest way to try it. Seal a document so anyone can prove it&rsquo;s genuine and unchanged — free, no
+          The fastest way to try it. Seal a document so anyone can prove it&rsquo;s genuine and unchanged, free, no
           account needed to verify.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -34,7 +34,7 @@ const ITEMS: Item[] = [
             <pre className="mt-2 overflow-x-auto rounded-lg bg-stone-900 px-3 py-2 font-mono text-[12.5px] text-stone-100">
               <span className="text-emerald-400">$</span> sealbot seal invoice.pdf
             </pre>
-            <p className="mt-2 text-[12px] text-stone-500">→ sealed · anchored to Bitcoin · public proof link</p>
+            <p className="mt-2 text-[12px] text-stone-500">→ sealed · anchored to the blockchain · public proof link</p>
           </div>
         </div>
       </div>
@@ -66,15 +66,15 @@ const ITEMS: Item[] = [
     body: (
       <div className="space-y-3">
         <p>
-          Host the whole stack yourself and keep your own keys — issue seals no one can revoke or paywall. Even if
-          letsseal.org disappeared, your seals stay verifiable, because the proof lives on Bitcoin.
+          Host the whole stack yourself and keep your own keys, issue seals no one can revoke or paywall. Even if
+          letsseal.org disappeared, your seals stay verifiable, because the proof lives on the blockchain.
         </p>
         <pre className="overflow-x-auto rounded-xl bg-stone-900 px-4 py-3 font-mono text-[12.5px] leading-relaxed text-stone-100">
 {`git clone https://github.com/letsseal/letsseal
 cd letsseal && ./deploy.sh`}
         </pre>
         <p className="text-[13px] text-stone-500">
-          Anonymous, aggregate usage stats are on by default (counts only — never document content or personal data)
+          Anonymous, aggregate usage stats are on by default (counts only, never document content or personal data)
           and can be turned off with one flag. <a href="/site/open" className="font-semibold text-blue-600">More on that →</a>
         </p>
       </div>

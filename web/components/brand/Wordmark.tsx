@@ -8,16 +8,16 @@ export function Wordmark({
   className,
 }: { href?: string | null; size?: "sm" | "md" | "lg"; className?: string }) {
   const s = {
-    sm: { mark: "h-6 w-6", text: "text-sm" },
-    md: { mark: "h-8 w-8", text: "text-lg" },
-    lg: { mark: "h-10 w-10", text: "text-2xl" },
+    sm: { mark: "h-[1em] w-[1em]", text: "text-sm" },
+    md: { mark: "h-[1em] w-[1em]", text: "text-lg" },
+    lg: { mark: "h-[1em] w-[1em]", text: "text-2xl" },
   }[size];
 
   const inner = (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
+    <span className={cn("inline-flex items-center gap-0.5", className)}>
       <SealMark className={s.mark} color="var(--brand)" emboss="#ffffff" />
-      <span className={cn("font-semibold tracking-tight text-ink", s.text)}>
-        Let&apos;s&nbsp;Seal
+      <span className={cn("font-bold tracking-[-0.05em] text-ink", s.text)}>
+        LetsSeal
       </span>
     </span>
   );

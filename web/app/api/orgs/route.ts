@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiUser } from "@/lib/auth-helpers";
+import { checkTenantAdmin } from "@/lib/rbac";
 import { issueOrgCert } from "@/lib/signing";
 import { orgNameProblem } from "@/lib/org-name";
 
@@ -20,12 +21,18 @@ export async function POST(req: NextRequest) {
   const userId = await apiUser();
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { name, brandColor, accentColor } = await req.json();
+  const { name, brandColor, accentColor, tenantId, enterprise } = await req.json();
   const trimmed = String(name ?? "").trim();
   const nameProblem = orgNameProblem(trimmed);
   if (nameProblem) return NextResponse.json({ error: nameProblem }, { status: 400 });
   const brand = cleanHex(brandColor);
   const accent = cleanHex(accentColor);
+
+  let attachTenantId = typeof tenantId === "string" && tenantId ? tenantId : null;
+  if (attachTenantId) {
+    const chk = await checkTenantAdmin(userId, attachTenantId);
+    if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  }
 
   const base = slugify(trimmed);
   if (!base) return NextResponse.json({ error: "Name must contain letters or numbers" }, { status: 400 });
@@ -50,10 +57,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // New separate business → mint a tenant (brand) for it, with the creator as owner.
+  // `enterprise` intent (from the signup/new-business choice) turns on multi-entity +
+  // team features immediately, so the Account surface is there from the start.
+  if (!attachTenantId) {
+    let tSlug = slug;
+    for (let n = 2; await db.tenant.findUnique({ where: { slug: tSlug } }); n++) tSlug = `${slug}-${n}`;
+    const tenant = await db.tenant.create({
+      data: { slug: tSlug, name: trimmed, enterprise: enterprise === true, memberships: { create: { userId, role: "owner" } } },
+    });
+    attachTenantId = tenant.id;
+  }
+
   const org = await db.organization.create({
     data: {
       slug,
       name: trimmed,
+      tenantId: attachTenantId,
       ...(brand ? { brandColor: brand } : {}),
       ...(accent ? { accentColor: accent } : {}),
       memberships: { create: { userId, role: "owner" } },

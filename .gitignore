@@ -34,3 +34,13 @@ uploads/
 .env
 .env.local
 /tmp/
+
+# operator-only mirror-sync tooling (never ships)
+scripts/mirror/
+
+# Local test scratch: adversarial cert fixtures + audit notes (never commit).
+/s.p7
+/c.bin
+/s*.crt
+/s*.csr
+/audit/

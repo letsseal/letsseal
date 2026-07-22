@@ -16,7 +16,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
 
   const doc = await db.sealedDocument.findUnique({
     where: { sha256 },
-    include: { org: true, envelope: { include: { org: true } } },
+    include: {
+      org: { include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } } },
+      envelope: { include: { org: { include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } } } } },
+    },
   });
   const anchor = doc ? null : await db.anchor.findUnique({ where: { sha256 } });
   if (!doc && !anchor) return json({ error: "no proof on record for this digest" }, { status: 404 });
@@ -59,8 +62,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
         // A suspended issuer (impersonation/abuse takedown) never reports verified —
         // programmatic consumers get the safe answer plus an explicit flag.
         const suspended = o.status === "suspended";
-        if (o.verifiedDomain && !suspended) {
-          return { verified: true, domain: o.verifiedDomain, via: o.domainVerifiedVia ?? null, suspended: false };
+        const dom = o.tenant?.verifiedDomain ?? null;
+        if (dom && !suspended) {
+          return { verified: true, domain: dom, via: o.tenant?.domainVerifiedVia ?? null, suspended: false };
         }
         return { verified: false, domain: null, via: null, suspended };
       })(),

@@ -7,9 +7,19 @@ type HashableEvent = {
   actor: string; action: string; ip: string | null; userAgent: string | null; createdAt: Date;
 };
 
+function requireKey(): string {
+  if (!AUDIT_KEY) throw new Error("audit chain requires AUDIT_HMAC_SECRET (or AUTH_SECRET) to be set");
+  return AUDIT_KEY;
+}
+
+function auditHashV3(prevHash: string, envelopeId: string, e: HashableEvent): string {
+  const body = [prevHash, envelopeId, e.actor, e.action, e.ip ?? "", e.userAgent ?? "", e.createdAt.toISOString()].join("\x1f");
+  return "v3:" + createHmac("sha256", requireKey()).update(body).digest("hex");
+}
+
 function auditHashV2(prevHash: string, e: HashableEvent): string {
   const body = [prevHash, e.actor, e.action, e.ip ?? "", e.userAgent ?? "", e.createdAt.toISOString()].join("\x1f");
-  return "v2:" + createHmac("sha256", AUDIT_KEY).update(body).digest("hex");
+  return "v2:" + createHmac("sha256", requireKey()).update(body).digest("hex");
 }
 
 export async function appendAudit(
@@ -36,7 +46,7 @@ export async function appendAudit(
   });
   return db.auditEvent.update({
     where: { id: row.id },
-    data: { hash: auditHashV2(prevHash, row) },
+    data: { hash: auditHashV3(prevHash, envelopeId, row) },
   });
 }
 
@@ -48,7 +58,13 @@ export async function verifyAuditChain(envelopeId: string): Promise<boolean> {
   let prevHash = "";
   for (const e of events) {
     if ((e.prevHash ?? "") !== prevHash) return false;
-    if (e.hash.startsWith("v2:") && auditHashV2(prevHash, e) !== e.hash) return false;
+    if (e.hash.startsWith("v3:")) {
+      if (auditHashV3(prevHash, envelopeId, e) !== e.hash) return false;
+    } else if (e.hash.startsWith("v2:")) {
+      if (auditHashV2(prevHash, e) !== e.hash) return false;
+    } else {
+      return false; 
+    }
     prevHash = e.hash;
   }
   return true;

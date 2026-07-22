@@ -4,7 +4,8 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
 import { appendAudit } from "@/lib/audit";
-import { apiUser, requireOrg } from "@/lib/auth-helpers";
+import { apiUser } from "@/lib/auth-helpers";
+import { checkOrgRole } from "@/lib/rbac";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
 export async function POST(req: NextRequest) {
@@ -17,8 +18,9 @@ export async function POST(req: NextRequest) {
   const title = String(form.get("title") ?? "Untitled");
   const file = form.get("file");
 
-  const org = await requireOrg(userId, orgSlug);
-  if (!org) return NextResponse.json({ error: "unknown org" }, { status: 404 });
+  const chk = await checkOrgRole(userId, orgSlug, "signer");
+  if (!chk.ok) return NextResponse.json({ error: chk.error }, { status: chk.status });
+  const org = chk.access.org;
   if (!(file instanceof File)) return NextResponse.json({ error: "no file" }, { status: 400 });
   if (tooLarge(file)) return NextResponse.json({ error: "file too large" }, { status: 413 });
 

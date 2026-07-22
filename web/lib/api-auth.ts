@@ -38,6 +38,7 @@ function shouldTouch(keyId: string): boolean {
 
 export type ApiKeyContext = {
   org: { id: string; slug: string; name: string };
+  tenant: { id: string; slug: string; name: string; enterprise: boolean } | null;
   keyId: string;
   scopes: string[];
 };
@@ -56,7 +57,14 @@ export async function authApiKey(req: NextRequest, scope?: string): Promise<Auth
 
   const key = await db.apiKey.findUnique({
     where: { hash: hashSecret(m[1].trim()) },
-    include: { org: { select: { id: true, slug: true, name: true, status: true } } },
+    include: {
+      org: {
+        select: {
+          id: true, slug: true, name: true, status: true,
+          tenant: { select: { id: true, slug: true, name: true, enterprise: true } },
+        },
+      },
+    },
   });
   if (!key || key.revokedAt) return fail(401, "invalid or revoked API key");
   if (key.org.status === "suspended") return fail(403, "this organisation is suspended");
@@ -70,5 +78,6 @@ export async function authApiKey(req: NextRequest, scope?: string): Promise<Auth
     db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
   }
 
-  return { ok: true, ctx: { org: key.org, keyId: key.id, scopes } };
+  const { tenant, ...org } = key.org;
+  return { ok: true, ctx: { org, tenant: tenant ?? null, keyId: key.id, scopes } };
 }

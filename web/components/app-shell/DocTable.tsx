@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Stamp, Award, Bitcoin, Clock } from "lucide-react";
+import { FileText, Stamp, Award, Anchor, Clock } from "lucide-react";
 import { type DocRow, relativeDate } from "@/lib/org-docs";
 
 const TONE: Record<string, string> = {
@@ -74,7 +74,7 @@ export function DocTable({ rows, emptyText }: { rows: DocRow[]; emptyText: strin
                 </td>
                 <td className="px-3 py-3.5 text-xs">
                   {r.anchor?.state === "confirmed" ? (
-                    <span className="inline-flex items-center gap-1.5 text-orange-600"><Bitcoin className="h-3.5 w-3.5" />#{r.anchor.block}</span>
+                    <span className="inline-flex items-center gap-1.5 text-orange-600"><Anchor className="h-3.5 w-3.5" />#{r.anchor.block}</span>
                   ) : r.anchor?.state === "pending" ? (
                     <span className="inline-flex items-center gap-1.5 text-amber-600"><Clock className="h-3.5 w-3.5" />Confirming…</span>
                   ) : (

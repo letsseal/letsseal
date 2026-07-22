@@ -108,6 +108,13 @@ impl Client {
         }
         let mut req = ureq::get(&url);
         if let (Some(u), Some(p)) = (&self.user, &self.pass) {
+            // Only hand Basic credentials to an https auth realm. A hostile registry
+            // can dictate the realm in its 401, so an http (or attacker) realm would
+            // otherwise harvest the registry password in cleartext.
+            if !realm.to_ascii_lowercase().starts_with("https://") {
+                eprintln!("sealbot: refusing to send registry credentials to a non-https auth realm ({realm})");
+                return None;
+            }
             req = req.set("Authorization", &format!("Basic {}", b64(format!("{u}:{p}").as_bytes())));
         }
         let resp = req.call().ok()?;
@@ -156,17 +163,26 @@ impl Client {
         Err("registry request failed".into())
     }
 
-    /// Resolve a reference to its manifest digest (the thing cosign signs).
+    /// Resolve a reference to its manifest digest (the thing cosign signs). The
+    /// digest is ALWAYS recomputed from the served manifest bytes; the registry's
+    /// Docker-Content-Digest header and any digest pinned in the ref must match it,
+    /// so a hostile/MITM'd registry cannot get us to sign content we did not hash.
     pub fn resolve_digest(&mut self, r: &ImageRef) -> Result<String, String> {
         let url = format!("{}/manifests/{}", r.base(), r.reference);
         let resp = self.send("GET", &url, &r.repo, &[("Accept", MANIFEST_ACCEPT)], None)?;
-        // The registry-reported digest is authoritative; fall back to hashing.
-        if let Some(d) = resp.header("Docker-Content-Digest") {
-            return Ok(d.to_string());
-        }
+        let header_digest = resp.header("Docker-Content-Digest").map(|s| s.to_string());
         let mut buf = Vec::new();
         resp.into_reader().read_to_end(&mut buf).map_err(|e| e.to_string())?;
-        Ok(sha256_digest(&buf))
+        let computed = sha256_digest(&buf);
+        if let Some(h) = &header_digest {
+            if !h.eq_ignore_ascii_case(&computed) {
+                return Err(format!("registry manifest digest mismatch: header {h} vs computed {computed}"));
+            }
+        }
+        if r.reference.starts_with("sha256:") && !r.reference.eq_ignore_ascii_case(&computed) {
+            return Err(format!("requested {} but registry served a manifest hashing to {computed}", r.reference));
+        }
+        Ok(computed)
     }
 
     pub fn blob_exists(&mut self, r: &ImageRef, digest: &str) -> bool {

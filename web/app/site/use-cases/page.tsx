@@ -5,9 +5,9 @@ import { SECTORS, JOBS, FORMS } from "./_data";
 import { ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Use cases — who seals files, and how · Let's Seal",
+  title: "Use cases, who seals files, and how · Let's Seal",
   description:
-    "How every sector uses Let's Seal to prove a file is authentic, unaltered, from a known issuer, and existed at a point in time — law, insurance, software, compliance, and more. Free, open, verifiable by anyone.",
+    "How every sector uses Let's Seal to prove a file is authentic, unaltered, from a known issuer, and existed at a point in time, law, insurance, software, compliance, and more. Free, open, verifiable by anyone.",
   alternates: { canonical: "https://letsseal.org/site/use-cases" },
 };
 
@@ -28,7 +28,7 @@ export default function UseCasesHub() {
       <PageHead
         eyebrow="Use cases"
         title="Who needs a seal? Almost everyone who issues a file."
-        lede="Let's Seal proves any file is authentic, unaltered, from a known issuer, and existed at a point in time — verifiable by anyone, for free. Here's how that lands in your sector, step by step, in the app and from the CLI."
+        lede="Let's Seal proves any file is authentic, unaltered, from a known issuer, and existed at a point in time, verifiable by anyone, for free. Here's how that lands in your sector, step by step, in the app and from the CLI."
       />
 
       <section className="border-b border-stone-200">
@@ -52,7 +52,7 @@ export default function UseCasesHub() {
           <Eyebrow>By sector</Eyebrow>
           <H2 className="mt-3.5">Find your sector</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            Each guide walks the sector through sealing and verifying its own documents — with a workflow diagram, the
+            Each guide walks the sector through sealing and verifying its own documents, with a workflow diagram, the
             web-app and CLI steps, worked examples, and a live proof. Don&rsquo;t see yours? The same seal fits any file.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -97,7 +97,7 @@ export default function UseCasesHub() {
           <Eyebrow>Cross-sector</Eyebrow>
           <H2 className="mt-3.5">Ten reasons anyone seals a file</H2>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-600">
-            Every guide above is some combination of these jobs — delivered in the file&rsquo;s own native format.
+            Every guide above is some combination of these jobs, delivered in the file&rsquo;s own native format.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {JOBS.map((j) => (
@@ -122,7 +122,7 @@ export default function UseCasesHub() {
             </h2>
             <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-stone-300">
               The biggest lane: organisations that already generate statements, certificates, policies, invoices, and
-              reports. Sealing drops into the existing pipeline — API, CLI, or a watched folder — so every file leaves
+              reports. Sealing drops into the existing pipeline, API, CLI, or a watched folder, so every file leaves
               already sealed, timestamped, and carrying a proof link. The recipient gets a normal document that also
               verifies.
             </p>

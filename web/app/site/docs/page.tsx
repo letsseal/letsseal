@@ -2,7 +2,7 @@ import { PageHead, Container, H2, Card, LinkArrow } from "../_components/ui";
 import { Rocket, Terminal, Boxes, ShieldCheck, Server, BookOpen } from "lucide-react";
 
 export const metadata = {
-  title: "Docs — Let's Seal",
+  title: "Docs, Let's Seal",
   description: "Documentation for Let's Seal: quickstarts, the sealbot CLI, the API and SDKs, verification, and self-hosting.",
 };
 
@@ -33,7 +33,7 @@ const SECTIONS = [
     h: "Verification",
     p: "How public verification works, for anyone.",
     href: "/site/how-it-works",
-    links: ["Coverage", "Transparency log", "Bitcoin anchor", "Proof pages"],
+    links: ["Coverage", "Transparency log", "Blockchain anchor", "Proof pages"],
   },
   {
     icon: Server,

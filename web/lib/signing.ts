@@ -227,6 +227,37 @@ export async function getLogCert(): Promise<LogCertResult> {
   return res.json();
 }
 
+export type LogKeyIdResult = { key_id_b64: string; key_id_hex: string; spki_b64: string };
+
+// The log key's ID (SHA-256 of its DER SPKI), as cosign derives it — used for the
+// bundle logId.keyId and the published trusted_root. Static; caller caches.
+export async function getLogKeyId(): Promise<LogKeyIdResult> {
+  const res = await fetch(`${SERVICE}/log/keyid`, { headers: svcHeaders() });
+  if (!res.ok) throw new Error(`log key id fetch failed: ${res.status}`);
+  return res.json();
+}
+
+// Sign a Rekor-v1 checkpoint (the cosign-facing signed-note form of the STH) with
+// the log key. `origin` is "<host> - <treeID>".
+export async function signCheckpoint(origin: string, treeSize: number, rootHash: string): Promise<{ envelope: string }> {
+  const res = await fetch(`${SERVICE}/log/checkpoint/sign`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ origin, tree_size: treeSize, root_hash: rootHash }),
+  });
+  if (!res.ok) throw new Error(`checkpoint sign failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+// Sign a Rekor SignedEntryTimestamp (supplies cosign's trusted integrated time).
+export async function signSet(bodyB64: string, integratedTime: number, logIndex: number): Promise<{ set_b64: string; log_id_hex: string }> {
+  const res = await fetch(`${SERVICE}/log/set/sign`, {
+    method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ body_b64: bodyB64, integrated_time: integratedTime, log_index: logIndex }),
+  });
+  if (!res.ok) throw new Error(`SET sign failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
 export type C2paSealResult = { image: Buffer; sha256: string; certCN: string; format: string };
 
 // Embed a signed C2PA (Content Credentials) manifest into an image. The image is
