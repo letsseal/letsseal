@@ -142,40 +142,9 @@ The verdict is deliberately strict. A cryptographically valid signature from a c
 
 ## How a seal is made and checked
 
-The life of a seal: made once, evidenced and anchored, served back, and checkable by anyone, forever.
+The life of a seal: made once, evidenced and anchored to the public ledger, served back, and checkable by anyone, forever.
 
-```
-─── 1 · SEAL ──────────────────────────────────────────────────
-  your file  →  hash it (SHA-256)  →  sign with your org cert
-                                       (chains to the SEAL root)
-        │
-        ▼
-─── 2 · EVIDENCE ──────────────────────────────────────────────
-  the seal is embedded in the file, native to its format, and
-  the entry is written to the public transparency log
-  (RFC 6962, append-only, its own root anchored too)
-        │
-        ▼
-─── 3 · ANCHOR ────────────────────────────────────────────────
-  the file's hash is timestamped on the public ledger
-  (OpenTimestamps → Bitcoin): proof it existed by a date,
-  with no trust in Let's Seal
-        │
-        ▼
-─── 4 · SERVE ─────────────────────────────────────────────────
-  the proof travels inside the file itself, and a public proof
-  page is published at /d/<id> that anyone can open
-        │
-        ▼
-─── 5 · CHECK  (any time, by anyone, no Let's Seal server) ────
-  pin the published root once, then verify offline, forever:
-    ├─→ signature chains to the root, and the bytes still match
-    ├─→ ledger anchor confirmed on Bitcoin   (ots verify)
-    └─→ inclusion proof checks against the signed tree head
-                             │
-                             ▼
-           Authentic = valid ∧ intact ∧ trusted
-```
+<p align="center"><img src="docs/diagrams/seal-lifecycle.svg" width="920" alt="The life of a seal: you seal a file, it is evidenced and anchored to the public ledger, served back, and anyone can verify it forever. Authentic = valid and intact and trusted."></p>
 
 ## Verify it yourself, free
 
@@ -230,26 +199,7 @@ See them all at [letsseal.org/use-cases](https://letsseal.org/use-cases).
 
 ## Architecture
 
-```
-─── ISSUANCE ─────────────────────────────────────────────────
-  ca/                    root CA (offline) ─┐
-                                            ├─→ intermediate CA
-  signing-service/       holds the         ─┘    (the SEAL root of trust)
-  (FastAPI, localhost)   intermediate key
-        │  issues per-org signing certs; embeds PAdES / C2PA /
-        │  XML / S-MIME / detached / code seals
-        ▼
-─── DELIVERY ──────────────────────────────────────────────────
-  web/  (Next.js)        dashboard · hosted API (/api/v1) ·
-        │                verification portal · marketing site
-        ├─→ anchor each seal's hash to the public ledger (OpenTimestamps)
-        ├─→ append each seal to the transparency log (RFC 6962)
-        └─→ publish proof pages at /d/<id>
-        ▼
-─── VERIFY  (anyone, no Let's Seal server) ────────────────────
-  verify.letsseal.org  ·  any PAdES / C2PA / XML validator  ·
-  openssl  ·  ots verify (Bitcoin)  ·  the reference verifier
-```
+<p align="center"><img src="docs/diagrams/architecture.svg" width="920" alt="Let's Seal architecture: issuance (root CA to intermediate CA to the localhost signing service), delivery (the web app anchors each seal to the public ledger, appends it to the transparency log, and publishes proof pages), and verification by anyone with no Let's Seal server."></p>
 
 The engine is fully self hostable and carries no hosted only code paths. A single-user install runs the identical code the hosted service runs.
 

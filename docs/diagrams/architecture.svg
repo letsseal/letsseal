@@ -1,0 +1,76 @@
+<svg viewBox="0 0 1160 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-label="Let's Seal architecture: issuance (root CA to intermediate to the localhost signing service), delivery (the web app anchors each seal to the public ledger, appends it to the transparency log, and publishes proof pages), and verification by anyone with no Let's Seal server.">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <style>
+    .box  { fill:#ffffff; stroke:#1e293b; stroke-width:1.3; }
+    .zone { fill:#f1f5f9; stroke:#cbd5e1; stroke-width:1.1; stroke-dasharray:5 4; }
+    .zlab { font-size:11px; fill:#94a3b8; letter-spacing:.7px; }
+    .labb { font-size:14px; font-weight:600; fill:#0f172a; }
+    .lab  { font-size:13px; fill:#0f172a; }
+    .dim  { font-size:11px; fill:#64748b; }
+    .ar   { stroke:#64748b; stroke-width:1.4; fill:none; marker-end:url(#a2); }
+    .ard  { stroke:#94a3b8; stroke-width:1.3; fill:none; stroke-dasharray:4 3; marker-end:url(#a2); }
+  </style>
+
+  <rect x="3" y="3" width="1154" height="494" rx="14" fill="#fbfcfd" stroke="#e6e9ee"/>
+
+  <!-- ===== ISSUANCE ===== -->
+  <rect class="zone" x="28" y="42" width="1104" height="112" rx="10"/>
+  <text class="zlab" x="44" y="64">ISSUANCE</text>
+
+  <rect class="box" x="56" y="82" width="150" height="54" rx="8"/>
+  <text class="labb" x="131" y="106" text-anchor="middle">Root CA</text>
+  <text class="dim"  x="131" y="123" text-anchor="middle">offline</text>
+
+  <path class="ar" d="M206,109 L242,109"/>
+
+  <rect class="box" x="246" y="82" width="214" height="54" rx="8"/>
+  <text class="labb" x="353" y="106" text-anchor="middle">Intermediate CA</text>
+  <text class="dim"  x="353" y="123" text-anchor="middle">the SEAL root of trust</text>
+
+  <path class="ar" d="M460,109 L496,109"/>
+
+  <rect x="496" y="76" width="612" height="66" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.8"/>
+  <text class="labb" x="802" y="102" text-anchor="middle">signing-service · FastAPI, localhost · holds the intermediate key</text>
+  <text class="dim"  x="802" y="122" text-anchor="middle">issues per-org signing certs; embeds PAdES · C2PA · XML · S-MIME · detached · code seals</text>
+
+  <!-- issuance -> delivery -->
+  <path class="ar" d="M640,142 L640,222"/>
+  <text class="dim" x="662" y="186">issues the org's signing cert</text>
+
+  <!-- ===== DELIVERY ===== -->
+  <rect class="zone" x="28" y="190" width="1104" height="172" rx="10"/>
+  <text class="zlab" x="44" y="212">DELIVERY</text>
+
+  <rect class="box" x="490" y="224" width="300" height="84" rx="8"/>
+  <text class="labb" x="640" y="252" text-anchor="middle">web · Next.js</text>
+  <text class="dim"  x="640" y="272" text-anchor="middle">dashboard · hosted API (/api/v1)</text>
+  <text class="dim"  x="640" y="290" text-anchor="middle">verification portal · marketing site</text>
+
+  <path class="ar" d="M790,258 L866,242"/>
+  <path class="ar" d="M790,266 L866,292"/>
+  <path class="ar" d="M790,282 L866,340"/>
+
+  <rect class="box" x="868" y="222" width="256" height="40" rx="8"/>
+  <text class="lab" x="884" y="247">Anchor each hash to the public ledger</text>
+
+  <rect class="box" x="868" y="272" width="256" height="40" rx="8"/>
+  <text class="lab" x="884" y="297">Append to the transparency log (6962)</text>
+
+  <rect class="box" x="868" y="322" width="256" height="40" rx="8"/>
+  <text class="lab" x="884" y="347">Publish proof pages at /d/&lt;id&gt;</text>
+
+  <!-- delivery -> verify -->
+  <path class="ard" d="M996,362 L996,418"/>
+  <text class="dim" x="1016" y="392">anyone can check</text>
+
+  <!-- ===== VERIFY ===== -->
+  <rect class="zone" x="28" y="392" width="1104" height="92" rx="10"/>
+  <text class="zlab" x="44" y="414">VERIFY · anyone, with no Let's Seal server</text>
+
+  <rect x="56" y="424" width="1048" height="46" rx="8" fill="#ecfdf5" stroke="#0b7150" stroke-width="1.8"/>
+  <text class="lab" x="580" y="452" text-anchor="middle">verify.letsseal.org  ·  any PAdES / C2PA / XML validator  ·  openssl  ·  ots verify (Bitcoin)  ·  the reference verifier</text>
+</svg>

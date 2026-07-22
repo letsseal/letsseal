@@ -1,0 +1,62 @@
+<svg viewBox="0 0 1160 320" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-label="The life of a seal: you seal a file, it is evidenced and anchored to the public ledger, served back, and anyone can verify it forever.">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <style>
+    .box  { fill:#ffffff; stroke:#1e293b; stroke-width:1.3; }
+    .zone { fill:#f1f5f9; stroke:#cbd5e1; stroke-width:1.1; stroke-dasharray:5 4; }
+    .zlab { font-size:10.5px; fill:#94a3b8; letter-spacing:.6px; }
+    .num  { font-size:13px; font-weight:700; }
+    .dim  { font-size:11px; fill:#64748b; }
+    .ar   { stroke:#64748b; stroke-width:1.4; fill:none; marker-end:url(#a); }
+  </style>
+
+  <rect x="3" y="3" width="1154" height="314" rx="14" fill="#fbfcfd" stroke="#e6e9ee"/>
+
+  <!-- trust-boundary zones: you seal, anyone verifies -->
+  <rect class="zone" x="31" y="96" width="200" height="150" rx="10"/>
+  <text class="zlab" x="45" y="116">YOU SEAL IT</text>
+  <rect class="zone" x="921" y="96" width="206" height="150" rx="10"/>
+  <text class="zlab" x="935" y="116">ANYONE VERIFIES IT</text>
+
+  <!-- spine arrows -->
+  <path class="ar" d="M225,170 L265,170"/>
+  <path class="ar" d="M447,170 L487,170"/>
+  <path class="ar" d="M669,170 L709,170"/>
+  <path class="ar" d="M891,170 L931,170"/>
+
+  <!-- 1 · Seal -->
+  <rect class="box" x="47" y="130" width="178" height="80" rx="9"/>
+  <text class="num" x="62" y="154" fill="#2563eb">1 · Seal</text>
+  <text class="dim" x="62" y="176">hash it (SHA-256),</text>
+  <text class="dim" x="62" y="192">sign: your cert → SEAL root</text>
+
+  <!-- 2 · Evidence -->
+  <rect class="box" x="269" y="130" width="178" height="80" rx="9"/>
+  <text class="num" x="284" y="154" fill="#0f172a">2 · Evidence</text>
+  <text class="dim" x="284" y="176">seal embedded in the file,</text>
+  <text class="dim" x="284" y="192">logged (RFC 6962)</text>
+
+  <!-- 3 · Anchor (accent: the public ledger) -->
+  <rect x="491" y="130" width="178" height="80" rx="9" fill="#eff6ff" stroke="#2563eb" stroke-width="1.8"/>
+  <text class="num" x="506" y="154" fill="#2563eb">3 · Anchor</text>
+  <text class="dim" x="506" y="176">hash timestamped on the</text>
+  <text class="dim" x="506" y="192">public ledger (Bitcoin)</text>
+
+  <!-- 4 · Serve -->
+  <rect class="box" x="713" y="130" width="178" height="80" rx="9"/>
+  <text class="num" x="728" y="154" fill="#0f172a">4 · Serve</text>
+  <text class="dim" x="728" y="176">proof rides in the file,</text>
+  <text class="dim" x="728" y="192">plus a public proof page</text>
+
+  <!-- 5 · Check (accent: authentic) -->
+  <rect x="935" y="130" width="178" height="80" rx="9" fill="#ecfdf5" stroke="#0b7150" stroke-width="1.8"/>
+  <text class="num" x="950" y="154" fill="#0b7150">5 · Check</text>
+  <text class="dim" x="950" y="176">signature · time · log,</text>
+  <text class="num" x="950" y="194" fill="#0b7150" font-size="12px">→ Authentic</text>
+
+  <!-- caption -->
+  <text class="dim" x="580" y="278" text-anchor="middle">Pin the published root once, then verify offline, anywhere, forever. Authentic = valid ∧ intact ∧ trusted.</text>
+</svg>
