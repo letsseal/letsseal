@@ -20,6 +20,7 @@
     <a href="#quickstart">Quickstart</a> ·
     <a href="#what-it-seals">What it seals</a> ·
     <a href="#how-a-seal-is-made-and-checked">How it works</a> ·
+    <a href="#use-cases">Use cases</a> ·
     <a href="#for-developers">Developers</a> ·
     <a href="#self-host">Self-host</a> ·
     <a href="https://verify.letsseal.org">Verify a document</a>
@@ -76,6 +77,22 @@ One standard, every kind of file, each in its own native format so any standard 
 
 The seal is native to each format, so a sealed PDF is still a normal PDF that opens anywhere, a sealed image still shows everywhere, and a signed artifact still installs as usual. The proof rides along inside.
 
+## See it in action
+
+Seal and verify from the command line:
+
+<p align="center"><img src="docs/screenshots/cli-seal.svg" width="720" alt="sealbot sealing and verifying a document on the command line"></p>
+
+The free public verification portal, [verify.letsseal.org](https://verify.letsseal.org):
+
+<p align="center"><img src="docs/screenshots/verify.png" width="860" alt="The Let's Seal verification portal"></p>
+
+A public proof page: the plain-English verdict anyone can open, with the evidence behind it. Subject and signer details stay private until you upload the file:
+
+<p align="center"><img src="docs/screenshots/proof.png" width="860" alt="A Let's Seal proof page"></p>
+
+The hosted app at [app.letsseal.org](https://app.letsseal.org) does the rest: seal files, send documents out for signature (remote, in person, or with no email at all), and issue branded certificates and credentials.
+
 ## Quickstart
 
 Verify any sealed document, free and in the open, at **[verify.letsseal.org](https://verify.letsseal.org)**, or run the reference verifier yourself:
@@ -125,30 +142,39 @@ The verdict is deliberately strict. A cryptographically valid signature from a c
 
 ## How a seal is made and checked
 
+The life of a seal: made once, evidenced and anchored, served back, and checkable by anyone, forever.
+
 ```
-SEAL                                          VERIFY  (independent of us)
-────                                          ──────────────────────────
-your file                                     the sealed file
-   │                                              │
-   ▼                                              ▼
-hash it (SHA-256)                             1. signature check
-   │                                             does it chain to the
-   ▼                                             published root, and do
-sign with your org certificate                the bytes still match?
-(chains to the SEAL intermediate,                │
-which chains to the published root)              ▼
-   │                                          2. time check
-   ▼                                             run OpenTimestamps
-embed the seal in the file,                      against Bitcoin, no
-native to its format                             Let's Seal server involved
-   │                                              │
-   ▼                                              ▼
-anchor the hash to Bitcoin                    optional: fetch the log
-(OpenTimestamps) and append it                inclusion proof and check
-to the public transparency log                it against the signed tree head
-   │                                              │
-   ▼                                              ▼
-proof travels inside the file                 Authentic = valid ∧ intact ∧ trusted
+─── 1 · SEAL ──────────────────────────────────────────────────
+  your file  →  hash it (SHA-256)  →  sign with your org cert
+                                       (chains to the SEAL root)
+        │
+        ▼
+─── 2 · EVIDENCE ──────────────────────────────────────────────
+  the seal is embedded in the file, native to its format, and
+  the entry is written to the public transparency log
+  (RFC 6962, append-only, its own root anchored too)
+        │
+        ▼
+─── 3 · ANCHOR ────────────────────────────────────────────────
+  the file's hash is timestamped on the public ledger
+  (OpenTimestamps → Bitcoin): proof it existed by a date,
+  with no trust in Let's Seal
+        │
+        ▼
+─── 4 · SERVE ─────────────────────────────────────────────────
+  the proof travels inside the file itself, and a public proof
+  page is published at /d/<id> that anyone can open
+        │
+        ▼
+─── 5 · CHECK  (any time, by anyone, no Let's Seal server) ────
+  pin the published root once, then verify offline, forever:
+    ├─→ signature chains to the root, and the bytes still match
+    ├─→ ledger anchor confirmed on Bitcoin   (ots verify)
+    └─→ inclusion proof checks against the signed tree head
+                             │
+                             ▼
+           Authentic = valid ∧ intact ∧ trusted
 ```
 
 ## Verify it yourself, free
@@ -186,29 +212,41 @@ This is domain control as identity, the same model the web took for TLS. It prov
 
 **Open to verify. Open to implement. Impossible to lock up.**
 
-SEAL is a published specification anyone can build on, see [SPEC.md](SPEC.md) and [letsseal.org/site/standard](https://letsseal.org/site/standard). The goal is one interoperable way to seal and verify any file, not a product to lock into. A SEAL proof is integrity, time, transparency, and optional verified-email attribution in a single self-contained artifact.
+SEAL is a published specification anyone can build on, see [SPEC.md](SPEC.md) and [letsseal.org/standard](https://letsseal.org/standard). The goal is one interoperable way to seal and verify any file, not a product to lock into. A SEAL proof is integrity, time, transparency, and optional verified-email attribution in a single self-contained artifact.
 
 The signing service, the SDKs, and the reference verifier in this repository are the reference implementation. Anyone else is free to write their own, and a proof made by one implementation verifies under any other.
+
+## Use cases
+
+The standard fits any file and any sector. Worked guides for the common ones, each with step-by-step instructions and live proofs:
+
+- **Documents and law:** [Law & legal](https://letsseal.org/use-cases/law) · [Property & conveyancing](https://letsseal.org/use-cases/property-conveyancing) · [Compliance & audit](https://letsseal.org/use-cases/compliance) · [HR & corporate](https://letsseal.org/use-cases/hr-corporate) · [Government & public sector](https://letsseal.org/use-cases/government-public-sector)
+- **Finance and professional services:** [Banking & lending](https://letsseal.org/use-cases/banking-lending) · [Insurance](https://letsseal.org/use-cases/insurance) · [Accounting & audit](https://letsseal.org/use-cases/accounting-audit) · [Investment & asset management](https://letsseal.org/use-cases/investment-asset-management) · [Surveying & property reports](https://letsseal.org/use-cases/surveying-property-reports)
+- **Software and supply chain:** [Software supply chain](https://letsseal.org/use-cases/software-supply-chain) · [Procurement & supply chain](https://letsseal.org/use-cases/procurement-supply-chain) · [Manufacturing & trade](https://letsseal.org/use-cases/manufacturing-trade)
+- **Regulated and specialist:** [Healthcare](https://letsseal.org/use-cases/healthcare) · [Pharma & life sciences](https://letsseal.org/use-cases/pharma-life-sciences) · [Construction & engineering](https://letsseal.org/use-cases/construction-engineering) · [Intellectual property](https://letsseal.org/use-cases/intellectual-property) · [Education & credentials](https://letsseal.org/use-cases/education-credentials)
+- **Media and individuals:** [Media, journalism & creative](https://letsseal.org/use-cases/media-journalism) · [Individuals & freelancers](https://letsseal.org/use-cases/individuals-freelancers)
+
+See them all at [letsseal.org/use-cases](https://letsseal.org/use-cases).
 
 ## Architecture
 
 ```
-─── ISSUANCE ───────────────────────────────────────────────
+─── ISSUANCE ─────────────────────────────────────────────────
   ca/                    root CA (offline) ─┐
-                                            ├─ intermediate CA
-  signing-service/       holds the         ─┘   (the SEAL root of trust)
+                                            ├─→ intermediate CA
+  signing-service/       holds the         ─┘    (the SEAL root of trust)
   (FastAPI, localhost)   intermediate key
         │  issues per-org signing certs; embeds PAdES / C2PA /
         │  XML / S-MIME / detached / code seals
         ▼
-─── DELIVERY ────────────────────────────────────────────────
+─── DELIVERY ──────────────────────────────────────────────────
   web/  (Next.js)        dashboard · hosted API (/api/v1) ·
         │                verification portal · marketing site
-        ├─► anchor each seal's hash to Bitcoin (OpenTimestamps)
-        ├─► append each seal to the transparency log (RFC 6962)
-        └─► publish proof pages at /d/<id>
-                                            │
-─── VERIFY  (anyone, no Let's Seal) ─────────┴───────────────
+        ├─→ anchor each seal's hash to the public ledger (OpenTimestamps)
+        ├─→ append each seal to the transparency log (RFC 6962)
+        └─→ publish proof pages at /d/<id>
+        ▼
+─── VERIFY  (anyone, no Let's Seal server) ────────────────────
   verify.letsseal.org  ·  any PAdES / C2PA / XML validator  ·
   openssl  ·  ots verify (Bitcoin)  ·  the reference verifier
 ```

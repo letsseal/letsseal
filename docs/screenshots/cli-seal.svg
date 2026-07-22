@@ -1,0 +1,36 @@
+<svg width="760" height="360" viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="sealbot command line: seal and verify a document">
+  <style>
+    .bg { fill: #0d1117; }
+    .bar { fill: #161b22; }
+    .t { font-family: "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 14px; }
+    .prompt { fill: #3fb950; }
+    .cmd { fill: #e6edf3; }
+    .out { fill: #c9d1d9; }
+    .muted { fill: #8b949e; }
+    .ok { fill: #3fb950; }
+    .accent { fill: #58a6ff; }
+    .title { fill: #8b949e; font-family: "SF Mono", Menlo, monospace; font-size: 12px; }
+  </style>
+  <rect class="bg" x="0" y="0" width="760" height="360" rx="10"/>
+  <rect class="bar" x="0" y="0" width="760" height="34" rx="10"/>
+  <rect class="bar" x="0" y="20" width="760" height="14"/>
+  <circle cx="20" cy="17" r="6" fill="#ff5f56"/>
+  <circle cx="40" cy="17" r="6" fill="#ffbd2e"/>
+  <circle cx="60" cy="17" r="6" fill="#27c93f"/>
+  <text class="title" x="380" y="21" text-anchor="middle">sealbot</text>
+
+  <text class="t" x="20" y="66"><tspan class="prompt">$ </tspan><tspan class="cmd">sealbot seal contract.pdf --org acme-solicitors</tspan></text>
+  <text class="t" x="20" y="90"><tspan class="ok">sealed  </tspan><tspan class="out"> contract.sealed.pdf</tspan></text>
+  <text class="t" x="20" y="112"><tspan class="muted">  by     </tspan><tspan class="out">Acme Solicitors LLP</tspan></text>
+  <text class="t" x="20" y="134"><tspan class="muted">  sha256 </tspan><tspan class="accent">9f2c1a8e…e7b4</tspan></text>
+  <text class="t" x="20" y="156"><tspan class="muted">  anchor </tspan><tspan class="out">queued on the public ledger (OpenTimestamps)</tspan></text>
+
+  <text class="t" x="20" y="196"><tspan class="prompt">$ </tspan><tspan class="cmd">sealbot verify contract.sealed.pdf</tspan></text>
+  <text class="t" x="20" y="220"><tspan class="ok">verified</tspan><tspan class="out"> contract.sealed.pdf</tspan></text>
+  <text class="t" x="20" y="242"><tspan class="muted">  signer </tspan><tspan class="out">Acme Solicitors LLP  </tspan><tspan class="muted">(verified, controls acme.example)</tspan></text>
+  <text class="t" x="20" y="264"><tspan class="muted">  seal   </tspan><tspan class="out">intact </tspan><tspan class="ok">true</tspan><tspan class="out">   valid </tspan><tspan class="ok">true</tspan><tspan class="out">   trusted </tspan><tspan class="ok">true</tspan></text>
+  <text class="t" x="20" y="286"><tspan class="muted">  time   </tspan><tspan class="out">anchored, Bitcoin block </tspan><tspan class="accent">812,043</tspan></text>
+  <text class="t" x="20" y="308"><tspan class="muted">  sha256 </tspan><tspan class="accent">9f2c1a8e…e7b4</tspan><tspan class="muted">  (matches the sealed bytes, exactly)</tspan></text>
+
+  <text class="t" x="20" y="340"><tspan class="prompt">$ </tspan><tspan class="cmd">▊</tspan></text>
+</svg>
