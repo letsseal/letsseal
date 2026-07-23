@@ -1,0 +1,65 @@
+# Build the sealbot CLI for every platform and publish a GitHub Release when a
+# v* tag is pushed. It uses the repository's built-in GITHUB_TOKEN, so it needs
+# no external secret and works on the public repo out of the box. The crate is
+# pure Rust (rustls, no OpenSSL), so every target cross-compiles cleanly.
+name: Release sealbot CLI
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest,   target: aarch64-apple-darwin,      name: sealbot-macos-arm64 }
+          - { os: macos-latest,   target: x86_64-apple-darwin,       name: sealbot-macos-x64 }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-musl, name: sealbot-linux-x64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,    name: sealbot-windows-x64.exe }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl toolchain
+        if: endsWith(matrix.target, 'linux-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build
+        working-directory: cli-rs
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Stage binary
+        shell: bash
+        working-directory: cli-rs
+        run: |
+          bin="target/${{ matrix.target }}/release/sealbot"
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          cp "$bin" "../${{ matrix.name }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

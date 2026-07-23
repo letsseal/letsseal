@@ -1,14 +1,44 @@
 {
   "name": "sealbot",
   "version": "0.1.0",
-  "description": "sealbot — the certbot for document authenticity: scriptable sealing, verification, and Bitcoin anchoring against any Let's Seal-compatible service.",
+  "description": "The certbot for document authenticity: scriptable sealing, verification, and public-ledger timestamping against any Let's Seal-compatible service.",
   "type": "module",
   "bin": {
-    "sealbot": "./sealbot.mjs"
+    "sealbot": "sealbot.mjs"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["sealbot", "pdf", "signing", "seal", "opentimestamps", "bitcoin", "timestamp", "notary", "pades", "verify"],
-  "license": "Apache-2.0"
+  "files": [
+    "sealbot.mjs",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "keywords": [
+    "sealbot",
+    "seal",
+    "signing",
+    "pdf",
+    "pades",
+    "c2pa",
+    "opentimestamps",
+    "timestamp",
+    "notary",
+    "verify",
+    "document-authenticity"
+  ],
+  "homepage": "https://letsseal.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/letsseal/letsseal.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/letsseal/letsseal/issues"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  }
 }
