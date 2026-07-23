@@ -10,7 +10,8 @@
     <a href="SPEC.md"><img src="https://img.shields.io/badge/standard-SEAL-0b7150?style=flat-square" alt="SEAL standard"></a>
     <a href="https://verify.letsseal.org"><img src="https://img.shields.io/badge/verify-free-0b7150?style=flat-square" alt="Verify free"></a>
     <a href="https://www.npmjs.com/package/sealbot"><img src="https://img.shields.io/npm/v/sealbot?style=flat-square&color=0b7150&label=sealbot" alt="sealbot on npm"></a>
-    <a href="https://www.npmjs.com/package/sealbot"><img src="https://img.shields.io/npm/dm/sealbot?style=flat-square&color=0b7150&label=downloads" alt="npm downloads"></a>
+    <a href="https://www.npmjs.com/package/sealbot"><img src="https://img.shields.io/npm/dm/sealbot?style=flat-square&color=0b7150&label=npm%20downloads" alt="npm downloads"></a>
+    <a href="https://github.com/letsseal/letsseal/releases"><img src="https://img.shields.io/github/downloads/letsseal/letsseal/total?style=flat-square&color=0b7150&label=binary%20downloads" alt="Binary downloads"></a>
     <a href="https://letsseal.org"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fletsseal.org%2Fapi%2Fstats%2Fbadge&style=flat-square" alt="Proof records"></a>
   </p>
 
