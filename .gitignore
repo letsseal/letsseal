@@ -44,3 +44,12 @@ scripts/mirror/
 /s*.crt
 /s*.csr
 /audit/
+/adversarial-review/
+
+# Coding-agent instructions and local editor config. Operator-side only: these
+# describe how we work on the repo, not the product, and the public mirror is
+# built from tracked files, so keeping them untracked keeps them out of it.
+/CLAUDE.md
+/AGENTS.md
+/GEMINI.md
+/.cursor/

@@ -7,6 +7,10 @@ on:
 
 jobs:
   anchor:
+    # Only this repo anchors. A fork that enables Actions inherits the workflow,
+    # and without the guard every fork push would write an anchor row for source
+    # we did not publish.
+    if: github.repository == 'letsseal/letsseal'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
