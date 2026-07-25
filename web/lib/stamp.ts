@@ -31,7 +31,6 @@ export async function stampVerifyBadge(
       size, font, color: grey,
     });
   } else {
-    // No code (e.g. a bare anchor) — keep the tiny caption under the QR.
     const label = "letsseal.org";
     const lw = font.widthOfTextAtSize(label, cap);
     page.drawText(label, { x: qrX + (QR - lw) / 2, y: margin - cap - 1, size: cap, font, color: grey });

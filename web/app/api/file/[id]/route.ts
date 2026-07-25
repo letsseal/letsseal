@@ -37,14 +37,11 @@ async function mayRead(req: NextRequest, envelopeId: string, variant: string | n
   return false;
 }
 
-// Streams an envelope's PDF (working copy or sealed) for pdf.js / download.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isId(id)) return new Response("bad request", { status: 400 });
   const variant = req.nextUrl.searchParams.get("variant");
 
-  // OpenTimestamps proof download for independent Bitcoin verification. This is
-  // public by design — it's a bare timestamp, not the document contents.
   if (variant === "ots") {
     const key = `envelopes/${id}/sealed.pdf.ots`;
     if (!(await fileExists(key))) return new Response("not found", { status: 404 });
@@ -58,7 +55,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
   }
 
-  // Document bytes (working draft or sealed final) require authorisation.
   if (!(await mayRead(req, id, variant))) return new Response("not found", { status: 404 });
 
   const v = variant === "sealed" ? "sealed" : "working";

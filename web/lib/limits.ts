@@ -1,10 +1,13 @@
 export const MAX_UPLOAD_BYTES = 25_000_000; 
 
-export function overContentLength(req: Request): boolean {
+const MULTIPART_SLACK = 1_000_000;
+
+export function overContentLength(req: Request, max?: number): boolean {
   const len = Number(req.headers.get("content-length") ?? "0");
-  return Number.isFinite(len) && len > MAX_UPLOAD_BYTES + 1_000_000; 
+  if (!Number.isFinite(len)) return false;
+  return max === undefined ? len > MAX_UPLOAD_BYTES + MULTIPART_SLACK : len > max;
 }
 
-export function tooLarge(file: File): boolean {
-  return file.size > MAX_UPLOAD_BYTES;
+export function tooLarge(file: File, max: number = MAX_UPLOAD_BYTES): boolean {
+  return file.size > max;
 }

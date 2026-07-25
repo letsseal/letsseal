@@ -30,15 +30,12 @@ function isConfigured(env: string): boolean {
   return !!(process.env[`AUTH_${env}_ID`]?.trim() && process.env[`AUTH_${env}_SECRET`]?.trim());
 }
 
-/** The provider objects to hand to NextAuth (only the configured ones). */
 export function activeOAuthProviders(): Provider[] {
   return REGISTRY.filter((p) => isConfigured(p.env)).map((p) => p.provider);
 }
 
-/** Lightweight {id,label} list for rendering sign-in buttons (safe for the UI). */
 export function enabledOAuthProviders(): { id: string; label: string }[] {
   return REGISTRY.filter((p) => isConfigured(p.env)).map(({ id, label }) => ({ id, label }));
 }
 
-/** Every provider this build supports, whether configured or not (for docs/UI hints). */
 export const SUPPORTED_OAUTH = REGISTRY.map(({ id, label, env }) => ({ id, label, env }));

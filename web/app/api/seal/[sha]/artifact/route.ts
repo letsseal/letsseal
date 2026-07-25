@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { readFile, fileExists } from "@/lib/storage";
+import { readFile } from "@/lib/storage";
+import { canonicalProofQuery, sidecarKey } from "@/lib/proofs";
 
 const PARTS: Record<string, { file: string; type: string; name: string }> = {
   sig: { file: "artifact.sig", type: "text/plain; charset=utf-8", name: "sig" },
@@ -17,9 +18,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sha:
   const { sha } = await params;
   const sha256 = sha.toLowerCase();
 
-  const rec = await db.sealedDocument.findUnique({
-    where: { sha256 },
-    select: { sealType: true },
+  const rec = await db.sealedDocument.findFirst({
+    ...canonicalProofQuery(sha256),
+    select: { id: true, sha256: true, sealType: true },
   });
   if (!rec || (rec.sealType !== "blob" && rec.sealType !== "identity" && rec.sealType !== "attestation")) {
     return new Response("not found", { status: 404 });
@@ -29,8 +30,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sha:
   const part = table[req.nextUrl.searchParams.get("part") ?? (isAtt ? "bundle" : "sig")];
   if (!part) return new Response(`unknown part (${Object.keys(table).join("|")})`, { status: 400 });
 
-  const path = `hosted/${sha256}/${part.file}`;
-  if (!(await fileExists(path))) {
+  const path = await sidecarKey(rec, part.file);
+  if (!path) {
     return new Response("This proof's signature files weren't retained.", { status: 410 });
   }
   const buf = await readFile(path);

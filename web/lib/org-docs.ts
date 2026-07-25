@@ -14,32 +14,73 @@ export type DocRow = {
   href: string;
 };
 
+export type EnvelopeForRow = {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: Date;
+  completedAt: Date | null;
+  sealingStartedAt?: Date | null;
+  signers: { name: string; status: string }[];
+  sealed: { anchorState: string; btcBlock: number | null } | null;
+};
+
+export type SealedDocForRow = {
+  id: string;
+  title: string | null;
+  sha256: string;
+  sealedAt: Date;
+  anchorState: string;
+  btcBlock: number | null;
+};
+
+export type CredentialForRow = {
+  id: string;
+  title: string;
+  recipientName: string;
+  sha256: string | null;
+  issuedOn: Date;
+  revokedAt: Date | null;
+};
+
+export type OrgForRows = {
+  slug: string;
+  envelopes?: EnvelopeForRow[];
+  sealedDocuments?: SealedDocForRow[];
+  credentials?: CredentialForRow[];
+};
+
 function initials(name: string) {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
-export function buildDocRows(org: any): DocRow[] {
+function envelopeBadge(e: { status: string; sealingStartedAt?: Date | null }): { label: string; tone: DocTone } {
+  switch (e.status) {
+    case "completed": return { label: "Sealed", tone: "green" };
+    case "voided":    return { label: "Voided", tone: "red" };
+    case "sent":
+      return e.sealingStartedAt
+        ? { label: "Sealing", tone: "amber" }
+        : { label: "Awaiting", tone: "amber" };
+    default:          return { label: "Draft", tone: "gray" };
+  }
+}
+
+export function buildDocRows(org: OrgForRows): DocRow[] {
   const rows: DocRow[] = [];
 
   for (const e of org.envelopes ?? []) {
-    const signed = e.signers.filter((s: any) => s.status === "signed").length;
-    const tone: DocTone =
-      e.status === "completed" ? "green" : e.status === "voided" ? "red" : e.status === "sent" ? "amber" : "gray";
-    const label =
-      e.status === "completed" ? "Sealed" : e.status === "sent" ? "Awaiting" : e.status === "voided" ? "Voided" : "Draft";
+    const signed = e.signers.filter((s) => s.status === "signed").length;
     rows.push({
       id: e.id,
       kind: "contract",
       title: e.title,
       meta: `Contract · ${e.signers.length} signer${e.signers.length === 1 ? "" : "s"}`,
-      status: { label, tone },
-      signers: e.signers.map((s: any) => ({ initials: initials(s.name) })),
+      status: envelopeBadge(e),
+      signers: e.signers.map((s) => ({ initials: initials(s.name) })),
       signedText: `${signed}/${e.signers.length} signed`,
       anchor: e.sealed ? { state: e.sealed.anchorState, block: e.sealed.btcBlock } : null,
       date: e.completedAt ?? e.createdAt,
-      // Always the owner view — it shows status, signer links, a sealed-PDF
-      // download and a link to the public proof. The bare /d/<hash> proof page is
-      // for third-party verifiers, not the issuer clicking their own document.
       href: `/${org.slug}/e/${e.id}`,
     });
   }
@@ -84,7 +125,6 @@ export function relativeDate(d: Date, now = new Date()): string {
   return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-// True if `d` falls within the last 7 days.
 export function withinWeek(d: Date | null | undefined, now = new Date()): boolean {
   if (!d) return false;
   return +new Date(d) >= +now - 7 * 86400000;

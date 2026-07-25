@@ -59,7 +59,6 @@ export async function acceptInvitation(token: string, userId: string): Promise<A
   let orgSlug: string | null = null;
   await db.$transaction(async (tx) => {
     if (inv.orgId) {
-      // Entity invite: org Membership at the invited role + a base account membership.
       await tx.membership.upsert({
         where: { userId_orgId: { userId, orgId: inv.orgId } },
         update: { role: inv.role },
@@ -67,13 +66,12 @@ export async function acceptInvitation(token: string, userId: string): Promise<A
       });
       await tx.tenantMembership.upsert({
         where: { userId_tenantId: { userId, tenantId: inv.tenantId } },
-        update: {}, // don't downgrade an existing account role
+        update: {}, 
         create: { userId, tenantId: inv.tenantId, role: "member" },
       });
       const org = await tx.organization.findUnique({ where: { id: inv.orgId }, select: { slug: true } });
       orgSlug = org?.slug ?? null;
     } else {
-      // Account invite: TenantMembership at the invited role.
       await tx.tenantMembership.upsert({
         where: { userId_tenantId: { userId, tenantId: inv.tenantId } },
         update: { role: inv.role },

@@ -49,7 +49,6 @@ export default function BrandingEditor({ org }: { org: Org }) {
     logoUrl !== org.logoUrl || fromEmail !== (org.fromEmail ?? "");
 
   async function pickLogo(file: File) {
-    // Downscale to a small square PNG data URL so it stays well under the cap.
     const img = new Image();
     const url = URL.createObjectURL(file);
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });

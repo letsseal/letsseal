@@ -58,9 +58,36 @@ export async function treeSnapshot(): Promise<{ leaves: Buffer[]; rows: { idx: n
   return { leaves, rows, root: merkleRoot(leaves) };
 }
 
+type LeafCache = { rows: { idx: number; leafHash: string }[]; leaves: Buffer[]; maxIdx: number };
+const g = globalThis as unknown as { __letssealLeafCache?: LeafCache; __letssealRootCache?: Map<number, Buffer> };
+const leafCache: LeafCache = (g.__letssealLeafCache ??= { rows: [], leaves: [], maxIdx: -1 });
+const rootCache: Map<number, Buffer> = (g.__letssealRootCache ??= new Map());
+
 async function orderedLeaves(): Promise<{ leaves: Buffer[]; rows: { idx: number; leafHash: string }[] }> {
-  const rows = await db.logEntry.findMany({ orderBy: { idx: "asc" }, select: { idx: true, leafHash: true } });
-  return { leaves: rows.map((r) => Buffer.from(r.leafHash, "hex")), rows };
+  const fresh = await db.logEntry.findMany({
+    where: leafCache.maxIdx >= 0 ? { idx: { gt: leafCache.maxIdx } } : undefined,
+    orderBy: { idx: "asc" },
+    select: { idx: true, leafHash: true },
+  });
+  if (fresh.length) {
+    leafCache.rows.push(...fresh);
+    leafCache.leaves.push(...fresh.map((r) => Buffer.from(r.leafHash, "hex")));
+    leafCache.maxIdx = fresh[fresh.length - 1].idx;
+  }
+  return { leaves: leafCache.leaves, rows: leafCache.rows };
+}
+
+const MAX_CACHED_ROOTS = 64;
+function rootAt(leaves: Buffer[], size: number): Buffer {
+  const hit = rootCache.get(size);
+  if (hit) return hit;
+  const root = merkleRoot(size === leaves.length ? leaves : leaves.slice(0, size));
+  if (rootCache.size >= MAX_CACHED_ROOTS) {
+    const oldest = rootCache.keys().next().value;
+    if (oldest !== undefined) rootCache.delete(oldest);
+  }
+  rootCache.set(size, root);
+  return root;
 }
 
 export type SignedTreeHead = {
@@ -71,7 +98,7 @@ export type SignedTreeHead = {
 export async function getSignedTreeHead(): Promise<SignedTreeHead> {
   const { leaves } = await orderedLeaves();
   const treeSize = leaves.length;
-  const rootHash = merkleRoot(leaves).toString("hex");
+  const rootHash = rootAt(leaves, treeSize).toString("hex");
 
   const cached = await db.treeHead.findFirst({
     where: { treeSize, rootHash }, orderBy: { createdAt: "desc" },
@@ -115,17 +142,14 @@ export async function getInclusionProof(opts: { leafHash?: string; sha256?: stri
     throw new RangeError(`treeSize must be an integer in 1..${leaves.length}`);
   }
   if (pos >= size) throw new RangeError(`leaf is at index ${pos}, not present in a tree of size ${size}`);
-  const sub = leaves.slice(0, size);
+  const sub = size === leaves.length ? leaves : leaves.slice(0, size);
   return {
     index: pos, treeSize: size, leafHash: rows[pos].leafHash,
-    rootHash: merkleRoot(sub).toString("hex"),
+    rootHash: rootAt(leaves, size).toString("hex"),
     proof: inclusionProof(sub, pos).map((b) => b.toString("hex")),
   };
 }
 
-// Consistency proof that tree size `first` is a prefix of size `second`. `second`
-// must not exceed the current tree size: clamping it would return a proof that
-// silently describes a smaller tree than the caller asked for.
 export async function getConsistencyProof(first: number, second: number): Promise<string[]> {
   const { leaves } = await orderedLeaves();
   if (second > leaves.length) {
@@ -135,16 +159,9 @@ export async function getConsistencyProof(first: number, second: number): Promis
   return consistencyProof(sliced, first).map((b) => b.toString("hex"));
 }
 
-// Anchor the log's own integrity to Bitcoin: ensure a current Signed Tree Head
-// exists, anchor the latest head's root via OpenTimestamps, and advance any
-// pending head toward confirmation. Called from the anchor cron — so the whole
-// log (via its Merkle root) gets a public, decentralised timestamp. Returns a
-// small summary for logging. Best-effort; failures are swallowed by the caller.
 export async function anchorTreeHeads(): Promise<{ anchored: number; upgraded: number; treeSize: number }> {
-  // 1. make sure the current tree size is represented by a signed head.
   const sth = await getSignedTreeHead();
 
-  // 2. anchor the latest head if it isn't anchored yet (commits to the whole log).
   let anchored = 0;
   const latest = await db.treeHead.findFirst({ orderBy: { treeSize: "desc" } });
   if (latest && latest.anchorState === "none" && latest.treeSize > 0) {
@@ -155,10 +172,9 @@ export async function anchorTreeHeads(): Promise<{ anchored: number; upgraded: n
         data: { otsProof: a.ots_b64, anchorState: a.status.state },
       });
       anchored = 1;
-    } catch { /* calendar hiccup — retry next tick */ }
+    } catch {  }
   }
 
-  // 3. upgrade pending heads toward Bitcoin confirmation.
   let upgraded = 0;
   const pending = await db.treeHead.findMany({ where: { anchorState: "pending" } });
   for (const th of pending) {
@@ -172,7 +188,7 @@ export async function anchorTreeHeads(): Promise<{ anchored: number; upgraded: n
         });
         upgraded++;
       }
-    } catch { /* still pending / offline */ }
+    } catch {  }
   }
 
   return { anchored, upgraded, treeSize: sth.treeSize };

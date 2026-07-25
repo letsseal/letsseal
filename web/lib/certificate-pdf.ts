@@ -81,7 +81,7 @@ export async function generateCertificatePdf(
     const qs = 66;
     page.drawImage(qr, { x: width - inset - 34 - qs, y: metaY - 30, width: qs, height: qs });
     page.drawText("Scan to verify", { x: width - inset - 34 - qs, y: metaY - 42, size: 7.5, font: sans, color: muted });
-  } catch { /* QR service down — certificate is still valid, just no inline QR */ }
+  } catch {  }
 
   const verifyLine = "Verify authenticity at " + proofUrl.replace(/^https?:\/\//, "");
   centre(verifyLine, 44, 8.5, sans, muted);
@@ -100,7 +100,6 @@ async function tryEmbedLogo(doc: PDFDocument, logoUrl: string | null | undefined
   }
 }
 
-// Minimal greedy word-wrap, centred.
 function wrapCentre(
   page: PDFPage, text: string, y: number, size: number, font: PDFFont, color: RGB, maxWidth: number, lineH: number,
   centre: (t: string, y: number, s: number, f: PDFFont, c: RGB) => void,

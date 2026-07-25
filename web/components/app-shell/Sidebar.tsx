@@ -19,7 +19,6 @@ export function Sidebar({
     { label: "Seal & anchor", href: `/${slug}/seal`, icon: Stamp },
     { label: "Identity seal", href: `/${slug}/identity`, icon: Fingerprint },
     { label: "Verify", href: `/verify`, icon: BadgeCheck },
-    // Enterprise accounts get the account/entity + member management surface.
     ...(enterprise ? [{ label: "Account", href: `/${slug}/account`, icon: Building2 }] : []),
   ];
   const dev = [

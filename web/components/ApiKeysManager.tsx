@@ -53,7 +53,7 @@ export default function ApiKeysManager({
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Could not create key"); return; }
-      setNewSecret(data.secret); // shown once
+      setNewSecret(data.secret); 
       setName("");
       await refresh();
     } finally {

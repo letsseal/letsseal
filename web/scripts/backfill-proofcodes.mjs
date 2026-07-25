@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
 import { randomBytes } from "crypto";
+import { prismaClient } from "./_db.mjs";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const LEN = 20;
@@ -13,7 +13,7 @@ function makeCode() {
   return out.join("");
 }
 
-const db = new PrismaClient();
+const db = prismaClient();
 const issued = new Set(); 
 
 async function uniqueCode() {

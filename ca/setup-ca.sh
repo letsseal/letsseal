@@ -37,6 +37,18 @@ if [[ -z "${LETSSEAL_P12_PASS:-}" ]]; then
 fi
 P12_PASS="$LETSSEAL_P12_PASS"
 
+# A certificate serial with real entropy.
+#
+# -CAcreateserial (what this replaces) increments a counter in a .srl file, so serials are sequential
+# and predictable. The CA/Browser Forum baseline requires at least 64 bits of
+# entropy in a serial, because a predictable serial makes the certificate's
+# to-be-signed bytes fully predictable to an attacker, which is the precondition
+# for a chosen-prefix collision attack on the signature hash. 128 bits here, with
+# the top bit cleared so the DER INTEGER is unambiguously positive.
+_serial() {
+  printf '0x00%s' "$(openssl rand -hex 15)"
+}
+
 init_ca() {
   mkdir -p "$OUT"
   if [[ -f "$OUT/root-ca.crt" ]]; then
@@ -58,7 +70,7 @@ init_ca() {
     -out "$OUT/intermediate.csr" \
     -subj "/CN=Let's Seal Intermediate CA/O=Let's Seal/C=GB"
   openssl x509 -req -in "$OUT/intermediate.csr" \
-    -CA "$OUT/root-ca.crt" -CAkey "$OUT/root-ca.key" -CAcreateserial \
+    -CA "$OUT/root-ca.crt" -CAkey "$OUT/root-ca.key" -set_serial "$(_serial)" \
     -out "$OUT/intermediate.crt" -days "$DAYS_INT" -sha256 \
     -extfile <(printf "basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\n")
 
@@ -104,7 +116,7 @@ sign_csr() {
   local dir="$OUT/$subdir/$id" ; mkdir -p "$dir"
   echo "==> Signing CSR '$id' (profile: $profile, pinned CN: $cn)"
   openssl x509 -req -in "$csr" -subj "/CN=$cn/O=Let's Seal/C=GB" \
-    -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -CAcreateserial \
+    -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -set_serial "$(_serial)" \
     -out "$dir/signing.crt" -days "$DAYS_ORG" -sha256 \
     -extfile <(printf "%s" "$ext")
   echo "==> Wrote $dir/signing.crt"
@@ -136,7 +148,7 @@ issue_cert() {
   # cert's UTF8String and later renders as mojibake ("Let’s" → "Letâ€™s").
   openssl req -new -utf8 -key "$dir/$base.key" -out "$dir/$base.csr" -subj "/CN=$subject/O=$subject/C=GB"
   openssl x509 -req -in "$dir/$base.csr" \
-    -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -CAcreateserial \
+    -CA "$OUT/intermediate.crt" -CAkey "$OUT/intermediate.key" -set_serial "$(_serial)" \
     -out "$dir/$base.crt" -days "$DAYS_ORG" -sha256 \
     -extfile <(printf "%s" "$ext")
   openssl pkcs12 -export -out "$dir/$base.p12" \
@@ -174,7 +186,7 @@ identity_init() {
   # pathlen:0 → it can only sign leaves. EKU (non-critical) constrains issued
   # identity to email/code so a leaked identity key can't mint TLS/other certs.
   openssl x509 -req -in "$OUT/identity-ca.csr" \
-    -CA "$OUT/root-ca.crt" -CAkey "$OUT/root-ca.key" -CAcreateserial \
+    -CA "$OUT/root-ca.crt" -CAkey "$OUT/root-ca.key" -set_serial "$(_serial)" \
     -out "$OUT/identity-ca.crt" -days "$DAYS_INT" -sha256 \
     -extfile <(printf "basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\nextendedKeyUsage=1.3.6.1.5.5.7.3.4,codeSigning\n")
   cat "$OUT/identity-ca.crt" "$OUT/root-ca.crt" > "$OUT/identity-chain.pem"
@@ -216,6 +228,113 @@ reissue_org() {
 # The SAN is the org's stable Let's Seal namespace URI — cosign's --certificate-identity.
 issue_org_code() { issue_cert "$1" "$2" code orgs signing-code "URI:https://letsseal.org/o/$1" ; }
 
+# ---------------------------------------------------------------------------
+# Revocation.
+#
+# A CA that cannot withdraw a certificate is not finished. Before this, an org
+# cert was valid for five years with no way to retract it: a leaked signing key,
+# or an org suspended for impersonation, went on producing seals that verified as
+# trusted forever, because the verifier ran with revocation checking off and no
+# list was published anywhere.
+#
+# The list is out/revoked.json, read by signing-service/revocation.py and served
+# publicly so anyone can check a proof without asking us. See that module for why
+# the REASON matters: key_compromise invalidates every seal under the cert
+# whatever its date, while an orderly retirement leaves earlier seals standing.
+# ---------------------------------------------------------------------------
+REVOKED="$OUT/revoked.json"
+_REASONS="key_compromise ca_compromise superseded cessation_of_operation affiliation_changed privilege_withdrawn unspecified"
+
+# revoke <path-to-cert> <reason> [note]
+revoke_cert() {
+  local cert="$1" reason="$2" note="${3:-}"
+  [[ -f "$cert" ]] || { echo "No certificate at $cert" >&2 ; exit 1 ; }
+  case " $_REASONS " in
+    *" $reason "*) ;;
+    *) echo "Unknown reason '$reason'. One of: $_REASONS" >&2 ; exit 1 ;;
+  esac
+
+  local serial subject now
+  serial="$(openssl x509 -in "$cert" -noout -serial | cut -d= -f2 | tr 'A-Z' 'a-z')"
+  subject="$(openssl x509 -in "$cert" -noout -subject | sed 's/^subject=//')"
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  mkdir -p "$OUT"
+  [[ -f "$REVOKED" ]] || printf '{"version":1,"revoked":[]}\n' > "$REVOKED"
+
+  # python3 rather than shell string-mangling: this file feeds a trust decision,
+  # so it has to be valid JSON every time, not usually.
+  SERIAL="$serial" SUBJECT="$subject" REASON="$reason" NOTE="$note" NOW="$now" \
+  python3 - "$REVOKED" <<'PYEOF'
+import json, os, sys
+path = sys.argv[1]
+with open(path) as f:
+    doc = json.load(f)
+serial = os.environ["SERIAL"]
+doc.setdefault("revoked", [])
+doc["revoked"] = [e for e in doc["revoked"] if str(e.get("serial", "")).lower() != serial]
+doc["revoked"].append({
+    "serial": serial,
+    "subject": os.environ["SUBJECT"],
+    "reason": os.environ["REASON"],
+    "revoked_at": os.environ["NOW"],
+    "note": os.environ["NOTE"],
+})
+doc["revoked"].sort(key=lambda e: e["revoked_at"])
+doc["version"] = 1
+doc["updated_at"] = os.environ["NOW"]
+with open(path, "w") as f:
+    json.dump(doc, f, indent=2, sort_keys=True)
+    f.write("\n")
+PYEOF
+
+  echo "==> Revoked $subject"
+  echo "    serial  $serial"
+  echo "    reason  $reason"
+  echo "    listed in $REVOKED (published at /revocations.json)"
+  if [[ "$reason" == "key_compromise" || "$reason" == "ca_compromise" ]]; then
+    echo "    NOTE: EVERY seal under this certificate is now untrusted, whatever its date."
+  else
+    echo "    NOTE: seals provably made before now (confirmed anchor) stay trusted."
+  fi
+}
+
+# unrevoke <path-to-cert>   (mistaken entries only; never to undo a real compromise)
+unrevoke_cert() {
+  local cert="$1"
+  [[ -f "$cert" ]] || { echo "No certificate at $cert" >&2 ; exit 1 ; }
+  [[ -f "$REVOKED" ]] || { echo "Nothing is revoked." >&2 ; exit 1 ; }
+  local serial
+  serial="$(openssl x509 -in "$cert" -noout -serial | cut -d= -f2 | tr 'A-Z' 'a-z')"
+  SERIAL="$serial" python3 - "$REVOKED" <<'PYEOF'
+import json, os, sys
+path = sys.argv[1]
+with open(path) as f:
+    doc = json.load(f)
+before = len(doc.get("revoked", []))
+doc["revoked"] = [e for e in doc.get("revoked", []) if str(e.get("serial", "")).lower() != os.environ["SERIAL"]]
+with open(path, "w") as f:
+    json.dump(doc, f, indent=2, sort_keys=True)
+    f.write("\n")
+print("    removed %d entry/entries" % (before - len(doc["revoked"])))
+PYEOF
+  echo "==> Un-revoked serial $serial"
+}
+
+list_revoked() {
+  [[ -f "$REVOKED" ]] || { echo "Nothing revoked yet." ; return ; }
+  REVOKED="$REVOKED" python3 - <<'PYEOF'
+import json, os
+doc = json.load(open(os.environ["REVOKED"]))
+rows = doc.get("revoked", [])
+if not rows:
+    print("Nothing revoked yet.")
+else:
+    for e in rows:
+        print("%s  %-24s %s  %s" % (e["revoked_at"], e["reason"], e["serial"], e.get("subject", "")))
+PYEOF
+}
+
 cmd="${1:-}"
 case "$cmd" in
   init)         init_ca ;;
@@ -225,5 +344,8 @@ case "$cmd" in
   org-code)  issue_org_code "${2:?slug required}" "${3:?legal name required}" ;;
   cert)      issue_cert "${2:?id required}" "${3:?subject required}" "${4:-document}" certs ;;
   sign-csr)  sign_csr "${2:?id required}" "${3:?csr path required}" "${4:-document}" "${5:-$2}" certs ;;
-  *) echo "Usage: $0 init | identity-init | org <slug> \"Legal Name\" | reissue-org <slug> \"Legal Name\" [verified-domain] | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn]" >&2 ; exit 1 ;;
+  revoke)    revoke_cert "${2:?certificate path required}" "${3:?reason required}" "${4:-}" ;;
+  unrevoke)  unrevoke_cert "${2:?certificate path required}" ;;
+  revoked)   list_revoked ;;
+  *) echo "Usage: $0 init | identity-init | org <slug> \"Legal Name\" | reissue-org <slug> \"Legal Name\" [verified-domain] | org-code <slug> \"Legal Name\" | cert <id> \"<subject>\" <document|code|data> | sign-csr <id> <csr> <profile> [pinned-cn] | revoke <cert-path> <reason> [note] | unrevoke <cert-path> | revoked" >&2 ; exit 1 ;;
 esac

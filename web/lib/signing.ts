@@ -7,7 +7,6 @@ function svcHeaders(extra: Record<string, string> = {}): Record<string, string> 
 
 export type SealResult = { pdf: Buffer; sha256: string; certCN: string };
 
-// Issue a signing certificate for a new business.
 export async function issueOrgCert(slug: string, legalName: string): Promise<void> {
   const res = await fetch(`${SERVICE}/org`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -16,8 +15,6 @@ export async function issueOrgCert(slug: string, legalName: string): Promise<voi
   if (!res.ok) throw new Error(`cert issuance failed: ${res.status} ${await res.text()}`);
 }
 
-// Re-issue an org's signing cert, binding a verified domain as a dNSName SAN
-// (Phase 3 issuer identity). Pass domain=null to unbind. The org key is preserved.
 export async function reissueOrgCert(slug: string, legalName: string, domain: string | null): Promise<void> {
   const res = await fetch(`${SERVICE}/org/reissue`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -26,7 +23,6 @@ export async function reissueOrgCert(slug: string, legalName: string, domain: st
   if (!res.ok) throw new Error(`cert reissue failed: ${res.status} ${await res.text()}`);
 }
 
-// Render a QR code PNG for a proof URL (used to stamp sealed PDFs).
 export async function qrPng(data: string): Promise<Buffer> {
   const res = await fetch(`${SERVICE}/qr`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -59,8 +55,6 @@ export async function sealPdf(
 
 export type DetachedSealResult = { sha256: string; sig_b64: string; cert_cn: string };
 
-// Detached CAdES/CMS seal over a file's SHA-256 (digest-only) for any non-PDF
-// artifact. The signing service never sees the file bytes.
 export async function sealDetached(orgSlug: string, sha256: string): Promise<DetachedSealResult> {
   const res = await fetch(`${SERVICE}/seal/detached`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -75,7 +69,6 @@ export type DetachedVerifyResult = {
   entire_file?: boolean; signer?: string; sha256: string; reason?: string;
 };
 
-// Verify a detached seal: the file bytes + its .sig, against our root.
 export async function verifyDetached(file: Buffer, sig: Buffer): Promise<DetachedVerifyResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(file)]), "file");
@@ -89,9 +82,6 @@ export type BlobSealResult = {
   cert_cn: string; identity: string;
 };
 
-// cosign-compatible seal over a file's SHA-256 (digest-only) — a raw ECDSA
-// signature + the org's codeSigning cert. The signing service never sees the
-// artifact bytes. Verifies with sealbot, openssl, and stock cosign verify-blob.
 export async function sealBlob(orgSlug: string, sha256: string): Promise<BlobSealResult> {
   const res = await fetch(`${SERVICE}/seal/blob`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -106,8 +96,6 @@ export type BlobVerifyResult = {
   entire_file?: boolean; signer?: string; sha256: string; reason?: string;
 };
 
-// Verify a cosign-format blob seal: the artifact bytes + its base64 .sig + the
-// signer .pem (leaf, optionally with chain), against our root.
 export async function verifyBlob(file: Buffer, sig: string, certPem: string): Promise<BlobVerifyResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(file)]), "file");
@@ -122,11 +110,6 @@ export type IdentitySealResult = {
   cert_cn: string; identity: string; issuer: string; provider: string; not_after: string;
 };
 
-// Seal a digest under a third-party-verified identity: the signing service
-// re-verifies the provider's proof (Google/GitHub/OIDC token), mints a short-lived
-// leaf binding the verified email, and signs the SHA-256 with it. Digest-only —
-// the artifact never reaches the service. `token` is an OIDC ID token (JWT) for
-// OIDC providers, or a GitHub OAuth access token for provider "github".
 export async function sealIdentity(provider: string, sha256: string, token: string): Promise<IdentitySealResult> {
   const res = await fetch(`${SERVICE}/seal/identity`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -142,9 +125,6 @@ export type IdentityVerifyResult = {
   account_url?: string; sha256: string; reason?: string;
 };
 
-// Verify an identity seal: the artifact bytes + its base64 .sig + the signer .pem,
-// against our root — and surface who signed (verified email) and who vouched (the
-// OIDC issuer recorded at issuance).
 export async function verifyIdentity(file: Buffer, sig: string, certPem: string): Promise<IdentityVerifyResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(file)]), "file");
@@ -154,8 +134,6 @@ export async function verifyIdentity(file: Buffer, sig: string, certPem: string)
   return res.json();
 }
 
-// The identity providers the signing service is configured for (only those with
-// an OAuth client id set). The UI renders sign-in buttons from this.
 export async function identityProviders(): Promise<string[]> {
   const res = await fetch(`${SERVICE}/identity/providers`, { headers: svcHeaders() });
   if (!res.ok) return [];
@@ -168,9 +146,6 @@ export type AttestResult = {
   cert_pem: string; chain_pem: string; cert_cn: string; identity: string; predicate_type: string;
 };
 
-// Sign a DSSE/in-toto attestation (SBOM, SLSA provenance, vuln scan) about an
-// artifact's SHA-256 with the org's codeSigning cert. Digest-only. The returned
-// `bundle` verifies with stock cosign verify-blob-attestation --key.
 export async function signAttestation(
   orgSlug: string, sha256: string, predicate: unknown,
   opts: { predicateType?: string; subjectName?: string } = {},
@@ -192,8 +167,6 @@ export type AttestVerifyResult = {
   subject_ok?: boolean | null; predicate_type?: string; signer?: string; sha256: string; reason?: string;
 };
 
-// Verify a DSSE attestation: the artifact bytes + its bundle + the signer .pem,
-// against our root, confirming the attestation's subject matches the artifact.
 export async function verifyAttestation(file: Buffer, bundleJson: string, certPem: string): Promise<AttestVerifyResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(file)]), "file");
@@ -207,8 +180,6 @@ export type SthSignResult = {
   signature: string; cert_pem: string; chain_pem: string; cert_cn: string; ts: number;
 };
 
-// Sign a transparency-log Signed Tree Head with the system log key. The web app
-// owns the log and computes the Merkle root; the signing service authenticates it.
 export async function signSth(treeSize: number, rootHash: string, ts: number): Promise<SthSignResult> {
   const res = await fetch(`${SERVICE}/log/sth/sign`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -220,7 +191,6 @@ export async function signSth(treeSize: number, rootHash: string, ts: number): P
 
 export type LogCertResult = { cert_pem: string; chain_pem: string; cert_cn: string };
 
-// The transparency-log public cert + chain (static; the caller caches it).
 export async function getLogCert(): Promise<LogCertResult> {
   const res = await fetch(`${SERVICE}/log/cert`, { headers: svcHeaders() });
   if (!res.ok) throw new Error(`log cert fetch failed: ${res.status}`);
@@ -229,16 +199,12 @@ export async function getLogCert(): Promise<LogCertResult> {
 
 export type LogKeyIdResult = { key_id_b64: string; key_id_hex: string; spki_b64: string };
 
-// The log key's ID (SHA-256 of its DER SPKI), as cosign derives it — used for the
-// bundle logId.keyId and the published trusted_root. Static; caller caches.
 export async function getLogKeyId(): Promise<LogKeyIdResult> {
   const res = await fetch(`${SERVICE}/log/keyid`, { headers: svcHeaders() });
   if (!res.ok) throw new Error(`log key id fetch failed: ${res.status}`);
   return res.json();
 }
 
-// Sign a Rekor-v1 checkpoint (the cosign-facing signed-note form of the STH) with
-// the log key. `origin` is "<host> - <treeID>".
 export async function signCheckpoint(origin: string, treeSize: number, rootHash: string): Promise<{ envelope: string }> {
   const res = await fetch(`${SERVICE}/log/checkpoint/sign`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -248,7 +214,6 @@ export async function signCheckpoint(origin: string, treeSize: number, rootHash:
   return res.json();
 }
 
-// Sign a Rekor SignedEntryTimestamp (supplies cosign's trusted integrated time).
 export async function signSet(bodyB64: string, integratedTime: number, logIndex: number): Promise<{ set_b64: string; log_id_hex: string }> {
   const res = await fetch(`${SERVICE}/log/set/sign`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -260,9 +225,6 @@ export async function signSet(bodyB64: string, integratedTime: number, logIndex:
 
 export type C2paSealResult = { image: Buffer; sha256: string; certCN: string; format: string };
 
-// Embed a signed C2PA (Content Credentials) manifest into an image. The image is
-// rewritten (the manifest lives inside it), so unlike detached this uploads the
-// bytes. Returns the signed image + its new digest, signer and MIME.
 export async function sealC2pa(
   orgSlug: string,
   image: Buffer,
@@ -291,7 +253,6 @@ export type C2paVerifyResult = {
   validation_state?: string; signer?: string; sha256: string; reason?: string;
 };
 
-// Verify an image's embedded C2PA manifest against our root.
 export async function verifyC2pa(image: Buffer, opts: { filename?: string; contentType?: string } = {}): Promise<C2paVerifyResult> {
   const form = new FormData();
   form.append(
@@ -305,8 +266,6 @@ export async function verifyC2pa(image: Buffer, opts: { filename?: string; conte
 
 export type XmlSealResult = { xml: Buffer; sha256: string; certCN: string };
 
-// Embed an enveloped W3C XML-DSig signature into an XML document. The document is
-// rewritten (the <Signature> lives inside it). Returns the signed XML + its digest.
 export async function sealXml(orgSlug: string, xml: Buffer, opts: { filename?: string } = {}): Promise<XmlSealResult> {
   const form = new FormData();
   form.append("org_slug", orgSlug);
@@ -325,7 +284,6 @@ export type XmlVerifyResult = {
   signer?: string; sha256: string; reason?: string;
 };
 
-// Verify an XML document's enveloped signature against our root.
 export async function verifyXml(xml: Buffer, opts: { filename?: string } = {}): Promise<XmlVerifyResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(xml)], { type: "application/xml" }), opts.filename || "document.xml");
@@ -335,8 +293,6 @@ export async function verifyXml(xml: Buffer, opts: { filename?: string } = {}): 
 
 export type SmimeSealResult = { eml: Buffer; sha256: string; certCN: string };
 
-// Wrap an email message in an S/MIME `multipart/signed` envelope signed by the org
-// cert. Same CMS crypto as the detached seal, delivered in the form mail speaks.
 export async function sealSmime(orgSlug: string, message: Buffer, opts: { filename?: string } = {}): Promise<SmimeSealResult> {
   const form = new FormData();
   form.append("org_slug", orgSlug);
@@ -355,7 +311,6 @@ export type SmimeVerifyResult = {
   signer?: string; sha256: string; reason?: string;
 };
 
-// Verify an S/MIME signed email message against our root.
 export async function verifySmime(message: Buffer, opts: { filename?: string } = {}): Promise<SmimeVerifyResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(message)], { type: "message/rfc822" }), opts.filename || "message.eml");
@@ -366,23 +321,17 @@ export async function verifySmime(message: Buffer, opts: { filename?: string } =
 export type VerifyResult = {
   sealed: boolean;
   sha256: string;
-  // `intact` = the whole document is unaltered since sealing (covered bytes
-  // untouched AND nothing appended after the signature). This is what the UI
-  // means by "unaltered", and it's coverage-aware — a valid signature with
-  // content appended afterwards (e.g. via exiftool) reports intact=false.
   intact?: boolean;
-  covered_intact?: boolean; // raw: only the signature's byte range
-  whole_document?: boolean; // signature covers the entire file
-  coverage?: string;        // ENTIRE_FILE | ENTIRE_REVISION | ...
+  covered_intact?: boolean; 
+  whole_document?: boolean; 
+  coverage?: string;        
   valid?: boolean;
   trusted?: boolean;
-  // Authoritative pass/fail verdict from the service: valid AND intact AND
-  // trusted. A valid signature from an unrecognized (self-signed) cert is NOT
-  // authentic — never render a green verdict from sealed/intact alone.
   authentic?: boolean;
   signer?: string;
   signed_at?: string;
   reason?: string;
+  revoked?: { serial: string; reason: string; revoked_at: string; subject?: string; note?: string };
 };
 
 export async function verifyPdf(pdf: Buffer): Promise<VerifyResult> {
@@ -400,7 +349,6 @@ export type AnchorStatus = {
 };
 export type AnchorResult = { ots_b64: string; status: AnchorStatus };
 
-// Timestamp sha256(pdf) on Bitcoin via OpenTimestamps calendars.
 export async function anchorPdf(pdf: Buffer): Promise<AnchorResult> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), "doc.pdf");
@@ -409,8 +357,6 @@ export async function anchorPdf(pdf: Buffer): Promise<AnchorResult> {
   return res.json();
 }
 
-// Timestamp a bare SHA-256 digest on Bitcoin (no file upload) — the
-// privacy-preserving "anchor anything" primitive.
 export async function anchorHash(sha256: string): Promise<AnchorResult> {
   const res = await fetch(`${SERVICE}/anchor/hash`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
@@ -420,12 +366,22 @@ export async function anchorHash(sha256: string): Promise<AnchorResult> {
   return res.json();
 }
 
-// Try to upgrade a pending .ots proof to a confirmed Bitcoin attestation.
 export async function upgradeAnchor(otsB64: string): Promise<AnchorResult> {
   const res = await fetch(`${SERVICE}/anchor/upgrade`, {
     method: "POST", headers: svcHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ ots_b64: otsB64 }),
   });
   if (!res.ok) throw new Error(`upgrade failed: ${res.status}`);
+  return res.json();
+}
+
+export type RevocationEntry = {
+  serial: string; reason: string; revoked_at: string; subject: string; note?: string;
+};
+export type RevocationList = { version: number; revoked: RevocationEntry[]; updated_at?: string; fetched_at?: number };
+
+export async function getRevocations(): Promise<RevocationList> {
+  const res = await fetch(`${SERVICE}/revocations`, { headers: svcHeaders(), cache: "no-store" });
+  if (!res.ok) throw new Error(`revocation list fetch failed: ${res.status}`);
   return res.json();
 }

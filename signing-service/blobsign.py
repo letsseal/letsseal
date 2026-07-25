@@ -121,6 +121,8 @@ def verify_blob_digest(sha256_hex: str, sig_b64: str, cert_pem: str, ca_root_pat
     from cryptography import x509
     from cryptography.exceptions import InvalidSignature
 
+    import revocation
+
     sha256_hex = sha256_hex.strip().lower()
     if not _HEX64.fullmatch(sha256_hex):
         raise ValueError("expected a 64-character SHA-256 hex digest")
@@ -138,10 +140,10 @@ def verify_blob_digest(sha256_hex: str, sig_b64: str, cert_pem: str, ca_root_pat
 
     trusted = False
     signer = _cn(leaf)
+    inter: list = []
     try:
         with open(ca_root_path, "rb") as f:
             root = x509.load_pem_x509_certificate(f.read())
-        inter = []
         rest = chain_pem or ""
         for block in re.findall(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", rest, re.S):
             c = x509.load_pem_x509_certificate(block.encode())
@@ -176,5 +178,13 @@ def verify_blob_digest(sha256_hex: str, sig_b64: str, cert_pem: str, ca_root_pat
     except Exception:
         trusted = False
 
-    return {"sealed": True, "blob": True, "valid": bool(valid), "trusted": bool(trusted),
-            "entire_file": bool(valid), "signer": signer}
+    revoked = revocation.check_chain([leaf, *inter]) if trusted else None
+    if revoked:
+        trusted = False
+
+    out = {"sealed": True, "blob": True, "valid": bool(valid), "trusted": bool(trusted),
+           "entire_file": bool(valid), "signer": signer}
+    if revoked:
+        out["revoked"] = revoked
+        out["reason"] = f"signing certificate revoked ({revoked['reason']})"
+    return out

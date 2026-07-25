@@ -28,6 +28,7 @@ from starlette.concurrency import run_in_threadpool
 from seal import seal_pdf, DEFAULT_TSA_URL
 import anchor
 import providers
+import revocation
 
 from pyhanko_certvalidator import ValidationContext
 from pyhanko.sign.validation import validate_pdf_signature
@@ -210,6 +211,7 @@ class VerifyResponse(BaseModel):
     signer: Optional[str] = Field(None, description="Human-friendly signer subject.")
     signed_at: Optional[str] = None
     reason: Optional[str] = Field(None, description="Why verification could not proceed (when unsealed).")
+    revoked: Optional[dict] = Field(None, description="Present when the signing certificate has been withdrawn: {serial, reason, revoked_at, subject, note}. `trusted` and `authentic` are false whenever this is set.")
 
 
 class AnchorStatus(BaseModel):
@@ -973,6 +975,20 @@ async def verify_smime_ep(request: Request, file: UploadFile = File(...)):
                              "sha256": sha, "reason": "verification error"})
 
 
+@app.get("/revocations", operation_id="revocations", tags=["ca"],
+         summary="The published certificate revocation list",
+         dependencies=[Depends(require_auth)])
+async def revocations_ep():
+    """Every withdrawn certificate, by serial, with the reason and date.
+
+    The app tier republishes this at /revocations.json so anyone verifying a
+    Let's Seal proof can apply it themselves. The reason is part of the data on
+    purpose: `key_compromise` invalidates every seal under that certificate
+    whatever its date, while an orderly `superseded` leaves seals that provably
+    predate the revocation standing. See signing-service/revocation.py."""
+    return JSONResponse(revocation.published(), headers={"Cache-Control": "public, max-age=300"})
+
+
 @app.post("/verify", operation_id="verify", tags=["sealing"],
           summary="Verify a sealed PDF", response_model=VerifyResponse,
           dependencies=[Depends(require_auth)])
@@ -1056,6 +1072,10 @@ def _verify_bytes(pdf_bytes: bytes) -> dict:
     whole_document = coverage == "ENTIRE_FILE"
     covered_intact = bool(status.intact)
     intact = covered_intact and whole_document
+
+    revoked = revocation.check_chain([status.signing_cert])
+    trusted = bool(status.trusted) and revoked is None
+
     return {
         "sealed": True,
         "intact": intact,
@@ -1063,8 +1083,9 @@ def _verify_bytes(pdf_bytes: bytes) -> dict:
         "whole_document": whole_document,
         "coverage": coverage,
         "valid": status.valid,
-        "trusted": status.trusted,
-        "authentic": bool(status.valid) and intact and bool(status.trusted),
+        "trusted": trusted,
+        "authentic": bool(status.valid) and intact and trusted,
         "signer": status.signing_cert.subject.human_friendly,
         "signed_at": str(getattr(status, "signer_reported_dt", None)),
+        **({"revoked": revoked} if revoked else {}),
     }

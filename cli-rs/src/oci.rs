@@ -5,6 +5,12 @@
 // the key. sealbot resolves the image digest here, has the service sign the
 // cosign payload, then constructs + pushes the `.sig` OCI image. No signing
 // happens in this file — it is pure registry plumbing.
+// Two helpers here take more parameters than clippy's default of seven. They
+// mirror an OCI registry request (registry, repo, reference, media type, auth,
+// and so on), so the arguments are genuinely independent rather than a struct
+// waiting to be extracted, and splitting the signature would obscure that.
+#![allow(clippy::too_many_arguments)]
+
 use base64::Engine;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -22,7 +28,10 @@ application/vnd.docker.distribution.manifest.list.v2+json";
 pub fn sha256_digest(bytes: &[u8]) -> String {
     let mut h = Sha256::new();
     h.update(bytes);
-    format!("sha256:{:x}", h.finalize())
+    // hex::encode rather than the {:x} formatter: sha2 0.11 returns an Array
+    // that no longer implements LowerHex. Same bytes, same string, and it
+    // matches how main.rs already renders a digest.
+    format!("sha256:{}", hex::encode(h.finalize()))
 }
 
 fn b64(bytes: &[u8]) -> String {
@@ -362,3 +371,36 @@ fn urlenc(s: &str) -> String {
 }
 
 use std::io::Read;
+
+#[cfg(test)]
+mod digest_tests {
+    use super::sha256_digest;
+
+    // Known-answer tests. sha256_digest produces the content digest an OCI
+    // registry is addressed by, so a change in its output would not fail loudly:
+    // it would silently look up the wrong object and break cosign interop. These
+    // vectors are the standard SHA-256 answers, independent of any crate version.
+    #[test]
+    fn matches_known_sha256_vectors() {
+        assert_eq!(
+            sha256_digest(b""),
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256_digest(b"abc"),
+            "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            sha256_digest(b"hello world"),
+            "sha256:b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+    }
+
+    #[test]
+    fn is_lowercase_hex_of_exactly_32_bytes() {
+        let d = sha256_digest(b"letsseal");
+        let hex = d.strip_prefix("sha256:").expect("digest must carry the algorithm prefix");
+        assert_eq!(hex.len(), 64);
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    }
+}

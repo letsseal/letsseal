@@ -124,7 +124,7 @@ export default function PdfCanvas(props: Props) {
           canvas.style.width = "100%";
           canvas.style.display = "block";
           wrap.prepend(canvas);
-          await page.render({ canvasContext: canvas.getContext("2d")!, viewport }).promise;
+          await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
         }
       } catch (e) {
         if (!cancelled) setError(String(e));
@@ -285,7 +285,7 @@ function FieldTab({
   const Icon = FIELD_ICON[f.type] ?? PenLine;
   const filled = f.value != null && f.value !== "";
   const showArrow = isNext && mode === "sign" && mine && !filled;
-  const arrowLeft = f.x > 0.18; // enough room on the left, else point from the right
+  const arrowLeft = f.x > 0.18; 
   return (
     <div
       data-field-id={f.id}

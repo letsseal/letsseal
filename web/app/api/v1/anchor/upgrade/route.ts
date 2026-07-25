@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!isHash(sha256)) return NextResponse.json({ error: "sha256 (64 hex) required" }, { status: 400 });
 
   const anchor = await db.anchor.findUnique({ where: { sha256 } });
-  const sealed = anchor ? null : await db.sealedDocument.findUnique({ where: { sha256 } });
+  const sealed = anchor ? null : await db.sealedDocument.findFirst({ where: { sha256 }, orderBy: [{ sealedAt: "asc" }, { id: "asc" }] });
   const rec = anchor ?? sealed;
   if (!rec?.otsProof) return NextResponse.json({ error: "no anchor on record for this digest" }, { status: 404 });
   if (rec.anchorState === "confirmed") {

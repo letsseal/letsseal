@@ -30,8 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files. Real secrets never ship; the annotated template always does.
+# The negation has to live HERE: a parent .gitignore cannot re-include a file
+# that a nested .gitignore has excluded, so the root's `!web/.env.example` was
+# being silently overridden by the `.env*` line above it.
 .env*
+!.env.example
 
 # vercel
 .vercel

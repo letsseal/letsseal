@@ -50,28 +50,15 @@ function newToken(): string {
   return randomBytes(24).toString("base64url");
 }
 
-/**
- * Anti-impersonation gate. A domain is unavailable to this org's account if either:
- *   - a PERMANENT DomainClaim (releasedAt null) is held by a DIFFERENT account, or
- *   - another account (tenant) currently displays it as its verifiedDomain.
- * The org's own account may (re)verify a domain it already holds and share it across
- * its entities. Only an operator releasing the claim frees it for anyone else.
- */
 async function domainUnavailable(domain: string, tenantId: string): Promise<boolean> {
   const claim = await db.domainClaim.findUnique({ where: { domain }, select: { tenantId: true, releasedAt: true } });
   if (claim && !claim.releasedAt) {
-    // Active lock: only the holding account may proceed.
     if (!claim.tenantId || claim.tenantId !== tenantId) return true;
   }
   const owner = await db.tenant.findUnique({ where: { verifiedDomain: domain }, select: { id: true } });
   return !!owner && owner.id !== tenantId;
 }
 
-/**
- * Begin a challenge. For email, `alias` must be a controller alias; the caller is
- * responsible for actually sending the mail (see mailer.sendDomainVerification) —
- * we return the token via the StartResult only for dns (it's public in the record).
- */
 export async function startChallenge(
   orgId: string,
   rawDomain: string,
@@ -89,7 +76,6 @@ export async function startChallenge(
     return { result: { ok: false, error: "That domain is already claimed by another organisation and can't be verified here." } };
   }
 
-  // Retire any previous pending challenges for this org+domain to avoid dangling tokens.
   await db.domainChallenge.updateMany({
     where: { orgId, domain, status: "pending" },
     data: { status: "expired" },
@@ -106,7 +92,6 @@ export async function startChallenge(
     };
   }
 
-  // email
   if (!alias || !(CONTROLLER_ALIASES as readonly string[]).includes(alias)) {
     return { result: { ok: false, error: "Choose a controller address (admin, postmaster, hostmaster, webmaster, administrator)." } };
   }
@@ -120,7 +105,6 @@ export async function startChallenge(
   };
 }
 
-/** Check the DNS TXT record for the org's latest pending dns challenge. */
 export async function checkDnsChallenge(orgId: string): Promise<{ verified: boolean; error?: string }> {
   const ch = await db.domainChallenge.findFirst({
     where: { orgId, method: "dns", status: "pending" },
@@ -145,7 +129,6 @@ export async function checkDnsChallenge(orgId: string): Promise<{ verified: bool
   return promote(ch.id, orgId, ch.domain, "dns");
 }
 
-/** Confirm an email-method challenge from a clicked link token. Public (proves mailbox control). */
 export async function confirmEmailToken(token: string): Promise<{ verified: boolean; domain?: string; org?: string; error?: string }> {
   const ch = await db.domainChallenge.findUnique({ where: { token }, include: { org: { select: { name: true } } } });
   if (!ch || ch.method !== "email") return { verified: false, error: "This verification link is not valid." };
@@ -158,15 +141,10 @@ export async function confirmEmailToken(token: string): Promise<{ verified: bool
   return r.verified ? { verified: true, domain: ch.domain, org: ch.org.name } : { verified: false, error: r.error };
 }
 
-/** Atomically mark the BRAND (tenant) verified for a domain, guarding the
- *  one-account-per-domain rule and recording the permanent anti-impersonation claim.
- *  The challenge is started from one entity, but the identity is the brand's, so every
- *  entity under the tenant inherits it (and gets the dNSName SAN in its cert). */
 async function promote(challengeId: string, orgId: string, domain: string, via: "dns" | "email"): Promise<{ verified: boolean; error?: string }> {
   const org0 = await db.organization.findUnique({ where: { id: orgId }, select: { tenantId: true } });
   if (!org0) return { verified: false, error: "Unknown organisation." };
   const tenantId = org0.tenantId;
-  // Re-guard: refuse if another account grabbed a permanent claim since the check.
   const existing = await db.domainClaim.findUnique({ where: { domain }, select: { tenantId: true, releasedAt: true } });
   if (existing && !existing.releasedAt && existing.tenantId && existing.tenantId !== tenantId) {
     return { verified: false, error: "That domain was just claimed by another organisation." };
@@ -178,8 +156,6 @@ async function promote(challengeId: string, orgId: string, domain: string, via: 
         data: { verifiedDomain: domain, domainVerifiedVia: via, domainVerifiedAt: new Date() },
       }),
       db.domainChallenge.update({ where: { id: challengeId }, data: { status: "verified", verifiedAt: new Date() } }),
-      // The permanent lock: created on first verify, refreshed (and un-released) if the
-      // same account re-verifies. Survives clearVerification and deletion.
       db.domainClaim.upsert({
         where: { domain },
         create: { domain, tenantId, orgId, verifiedAt: new Date() },
@@ -187,26 +163,20 @@ async function promote(challengeId: string, orgId: string, domain: string, via: 
       }),
     ]);
   } catch (e: unknown) {
-    // Unique-constraint race: another account grabbed this domain between check and write.
     if (typeof e === "object" && e && "code" in e && (e as { code?: string }).code === "P2002") {
       return { verified: false, error: "That domain was just verified by another organisation." };
     }
     return { verified: false, error: "Could not complete verification. Try again." };
   }
-  // Bind the domain into EVERY entity's signing cert as a dNSName SAN so each seal
-  // proves the brand's domain control. Best-effort per entity: the DB is the source of
-  // truth for the proof page, so a signing-service hiccup must not fail verification.
   await syncTenantCerts(tenantId, domain);
   return { verified: true };
 }
 
-/** Reissue the signing cert of every entity under a tenant to (un)bind the domain SAN. */
 async function syncTenantCerts(tenantId: string, domain: string | null): Promise<void> {
   const orgs = await db.organization.findMany({ where: { tenantId }, select: { slug: true, name: true } });
   await Promise.all(orgs.map((o) => syncCertDomain(o.slug, o.name, domain)));
 }
 
-/** Re-issue the org signing cert to (un)bind the verified-domain SAN. Never throws. */
 async function syncCertDomain(slug: string, name: string, domain: string | null): Promise<void> {
   try {
     await reissueOrgCert(slug, name, domain);
@@ -215,12 +185,6 @@ async function syncCertDomain(slug: string, name: string, domain: string | null)
   }
 }
 
-/**
- * Operator-only: release a permanent domain claim so another account may verify it.
- * Use for genuine transfers or mistaken claims — NEVER in response to a self-serve
- * request from the party wanting the domain (that's the impersonation vector). Returns
- * false if there is no active claim for the domain.
- */
 export async function releaseDomainClaim(rawDomain: string): Promise<boolean> {
   const domain = normalizeDomain(rawDomain);
   if (!domain) return false;
@@ -230,12 +194,10 @@ export async function releaseDomainClaim(rawDomain: string): Promise<boolean> {
   return true;
 }
 
-/** Operator-only: list all domain claims (active + released). */
 export async function listDomainClaims() {
   return db.domainClaim.findMany({ orderBy: { verifiedAt: "desc" } });
 }
 
-/** Read-only lookup of an email challenge by token, for the confirm landing page. */
 export async function peekChallenge(token: string): Promise<
   { domain: string; org: string; status: "pending" | "verified" | "expired" | "invalid" } | null
 > {
@@ -247,7 +209,6 @@ export async function peekChallenge(token: string): Promise<
   return { domain: ch.domain, org: ch.org.name, status };
 }
 
-/** Latest still-live pending challenge for an org, shaped for the settings UI. */
 export async function pendingForSettings(orgId: string): Promise<
   | { kind: "dns"; domain: string; recordName: string; recordValue: string }
   | { kind: "email"; domain: string; sentTo: string }
@@ -265,13 +226,6 @@ export async function pendingForSettings(orgId: string): Promise<
   return { kind: "email", domain: ch.domain, sentTo: ch.emailTarget ?? "" };
 }
 
-/**
- * Clear the BRAND's domain verification (invoked from an entity's settings). Because
- * the identity is the brand's, this removes the verified badge from every entity under
- * the account and drops the SAN from each entity's cert. The permanent DomainClaim is
- * intentionally LEFT in place: clearing the badge must not free the domain for an
- * impersonator; only an operator release (releaseDomainClaim) does.
- */
 export async function clearVerification(orgId: string): Promise<void> {
   const org = await db.organization.findUnique({ where: { id: orgId }, select: { tenantId: true } });
   if (!org) return;
@@ -282,6 +236,5 @@ export async function clearVerification(orgId: string): Promise<void> {
     }),
     db.domainChallenge.updateMany({ where: { org: { tenantId: org.tenantId }, status: "pending" }, data: { status: "expired" } }),
   ]);
-  // Drop the dNSName SAN from every entity's signing cert. Best-effort.
   await syncTenantCerts(org.tenantId, null);
 }

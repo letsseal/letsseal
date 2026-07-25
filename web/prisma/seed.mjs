@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "../scripts/_db.mjs";
 import { hash } from "@node-rs/argon2";
 
-const db = new PrismaClient();
+const db = prismaClient();
 
 const orgs = [
   { slug: "acme", name: "Acme Property Ltd", brandColor: "#0f766e", accentColor: "#14b8a6", fromEmail: "docs@acme.example" },

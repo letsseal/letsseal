@@ -15,14 +15,10 @@ function getFlag(name) {
   const i = process.argv.indexOf(`--${name}`);
   return i !== -1 ? process.argv[i + 1] : undefined;
 }
-// Headers for a signing-service (API) request, with the bearer when present.
 function svc(extra = {}) {
   return TOKEN ? { Authorization: `Bearer ${TOKEN}`, ...extra } : { ...extra };
 }
 function die(msg) { console.error(`error: ${msg}`); process.exit(1); }
-// Require https for any non-localhost endpoint. `verify` trusts the service's
-// verdict, so a plaintext channel would let a network attacker forge "verified"
-// for a tampered file; the same channel also carries the bearer token.
 function assertSecure(url, what) {
   let u;
   try { u = new URL(url); } catch { die(`invalid ${what} URL: ${url}`); }
@@ -35,8 +31,6 @@ async function toBlob(path) {
   return new Blob([buf]);
 }
 
-// Register a digest as a public, shareable proof page on the hosted app
-// (keyless). Returns { sha256, proof, state, existing? }.
 async function appAnchor(sha256, label) {
   const res = await fetch(`${APP}/api/anchor`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -48,15 +42,12 @@ async function appAnchor(sha256, label) {
 
 async function anchor(file, forcePublish = false) {
   if (!file) die("usage: sealbot anchor <file> [--publish]");
-  // Hash locally — only the 32-byte digest ever leaves this machine.
   const buf = await readFile(file).catch(() => die(`cannot read ${file}`));
   const sha256 = createHash("sha256").update(buf).digest("hex");
   const otsPath = `${file}.ots`;
   const publish = forcePublish || process.argv.includes("--publish");
 
   if (publish) {
-    // Public, shareable proof page via the hosted app (keyless); still fetch the
-    // portable .ots so the proof works offline / against Bitcoin directly.
     const r = await appAnchor(sha256, basename(file)).catch((e) => die(e.message));
     const otsRes = await fetch(`${APP}/api/anchor/${sha256}`);
     if (otsRes.ok) await writeFile(otsPath, Buffer.from(await otsRes.arrayBuffer()));
@@ -68,7 +59,6 @@ async function anchor(file, forcePublish = false) {
     return;
   }
 
-  // Private by default: local .ots only, nothing registered anywhere public.
   const { ots_b64, status } = await anchorDigest(sha256).catch((e) => die(e.message));
   await writeFile(otsPath, Buffer.from(ots_b64, "base64"));
   console.log(`anchored  ${file}`);
@@ -79,8 +69,6 @@ async function anchor(file, forcePublish = false) {
   console.log(`  tip     add --publish for a shareable public proof page`);
 }
 
-// Deprecated: folded into `anchor --publish`. Kept as a thin alias so existing
-// scripts keep working; prints a one-line nudge to stderr.
 async function notarize(file) {
   console.error("note: 'notarize' is now 'anchor --publish' — running that.");
   return anchor(file, true);
@@ -90,11 +78,9 @@ async function issue() {
   const id = getFlag("id"), cn = getFlag("cn"), profile = getFlag("profile") || "document";
   if (!id || !cn) die('usage: sealbot issue --id <id> --cn "<subject>" [--profile document|code|data]');
   const keyPath = `${id}.key`;
-  // Generate the key + CSR locally — the private key NEVER leaves this machine;
-  // the CA only ever sees (and signs) the CSR.
   try {
     await exec("openssl", ["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", keyPath]);
-    await chmod(keyPath, 0o600).catch(() => {}); // owner-only: it's a private key
+    await chmod(keyPath, 0o600).catch(() => {}); 
     const { stdout: csr } = await exec("openssl", ["req", "-new", "-key", keyPath, "-subj", `/CN=${cn}/O=${cn}/C=GB`]);
     const res = await fetch(`${API}/cert/sign`, {
       method: "POST", headers: svc({ "Content-Type": "application/json" }),
@@ -115,7 +101,6 @@ async function issue() {
 
 const exists = async (p) => !!(await stat(p).catch(() => null));
 
-// Re-check the calendars for a pending .ots and persist any confirmation.
 async function upgradeOts(otsPath) {
   const ots = await readFile(otsPath);
   const res = await fetch(`${API}/anchor/upgrade`, {
@@ -131,7 +116,6 @@ async function upgradeOts(otsPath) {
 async function verify(file) {
   if (!file) die("usage: sealbot verify <file>   (a sealed PDF, or an .ots proof)");
 
-  // An .ots argument → refresh its Bitcoin confirmation status (was `upgrade`).
   if (file.endsWith(".ots")) {
     const status = await upgradeOts(file).catch((e) => die(e.message));
     console.log(`${status.state === "confirmed" ? "confirmed" : "pending  "} ${file}`);
@@ -139,7 +123,6 @@ async function verify(file) {
     return;
   }
 
-  // Otherwise a sealed PDF → check the seal + integrity against the CA.
   const form = new FormData();
   form.append("file", await toBlob(file), basename(file));
   const res = await fetch(`${API}/verify`, { method: "POST", headers: svc(), body: form });
@@ -152,8 +135,6 @@ async function verify(file) {
     console.log(`  intact  ${r.intact}   valid ${r.valid}   trusted ${r.trusted}`);
     console.log(`  sha256  ${r.sha256}`);
   }
-  // Surface a sibling anchor's Bitcoin status too, if one exists (folds in the
-  // old `upgrade` for the common "sealed PDF + its .ots" pair).
   if (await exists(`${file}.ots`)) {
     try {
       const st = await upgradeOts(`${file}.ots`);
@@ -179,21 +160,12 @@ async function seal(file) {
   console.log(`  sha256 ${res.headers.get("x-letsseal-sha256")}`);
 }
 
-// Deprecated: folded into `verify <file>.ots`. Thin alias for compatibility.
 async function upgrade(file) {
   if (!file) die("usage: sealbot verify <file>.ots");
   console.error("note: 'upgrade' is now 'verify <file>.ots' — running that.");
   return verify(file);
 }
 
-// ---- watch: turn a directory into an always-on notary -----------------------
-// Poll a folder; anchor (or publish/seal) every new or changed file, skipping
-// anything already recorded. Non-destructive by default: `anchor` hashes locally
-// (only the 32-byte digest leaves the machine) and writes a sibling `<file>.ots`
-// — the original bytes are never touched, which is register-in-place. A small
-// dotfile state store makes it idempotent across restarts; a JSONL manifest is
-// the append-only audit log. This is the piece that makes sealbot a daemon you
-// point at a server directory rather than a one-shot command.
 
 const DERIVED = (name) => name.endsWith(".ots") || /\.sealed\.pdf$/i.test(name);
 
@@ -202,7 +174,7 @@ async function walk(dir, out = []) {
   try { entries = await readdir(dir, { withFileTypes: true }); }
   catch { return out; }
   for (const e of entries) {
-    if (e.name.startsWith(".")) continue; // skip dotfiles/dirs (incl. our state/manifest)
+    if (e.name.startsWith(".")) continue; 
     const full = join(dir, e.name);
     if (e.isDirectory()) await walk(full, out);
     else if (e.isFile() && !DERIVED(e.name)) out.push(full);
@@ -210,14 +182,13 @@ async function walk(dir, out = []) {
   return out;
 }
 
-// Anchor a bare digest via the signing service — the file never leaves the box.
 async function anchorDigest(sha256) {
   const res = await fetch(`${API}/anchor/hash`, {
     method: "POST", headers: svc({ "Content-Type": "application/json" }),
     body: JSON.stringify({ sha256 }),
   });
   if (!res.ok) throw new Error(`anchor ${res.status} ${await res.text()}`);
-  return res.json(); // { ots_b64, status }
+  return res.json(); 
 }
 
 async function processOne(full, mode, org) {
@@ -242,7 +213,6 @@ async function processOne(full, mode, org) {
     return { sha256, proof: `${APP}${r.proof}`, state: r.state };
   }
 
-  // default: anchor — hash-only, writes a sibling .ots (original untouched).
   const { ots_b64, status } = await anchorDigest(sha256);
   const otsPath = `${full}.ots`;
   await writeFile(otsPath, Buffer.from(ots_b64, "base64"));
@@ -257,7 +227,7 @@ const sleep = (ms, aborted) => new Promise((res) => {
 async function watch(dir) {
   if (!dir) die("usage: sealbot watch <dir> [--mode anchor|publish|seal] [--org <slug>] [--interval <sec>] [--once]");
   let mode = getFlag("mode") || "anchor";
-  if (mode === "notarize") mode = "publish"; // back-compat alias
+  if (mode === "notarize") mode = "publish"; 
   if (!["anchor", "publish", "seal"].includes(mode)) die(`unknown --mode '${mode}' (anchor|publish|seal)`);
   const org = getFlag("org");
   if (mode === "seal" && !org) die("seal mode needs --org <slug>");
@@ -267,7 +237,7 @@ async function watch(dir) {
   const manifestPath = getFlag("manifest") || join(dir, ".sealbot-manifest.jsonl");
 
   let state = {};
-  try { state = JSON.parse(await readFile(statePath, "utf8")); } catch { /* first run */ }
+  try { state = JSON.parse(await readFile(statePath, "utf8")); } catch {  }
 
   let stopping = false;
   process.on("SIGINT", () => { if (!stopping) { stopping = true; console.log("\nstopping after this scan…"); } });

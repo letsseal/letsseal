@@ -9,7 +9,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // No `url` here. Prisma 7 removed it from the schema: the connection for
+  // migrations lives in prisma.config.ts, and the runtime client is constructed
+  // with an explicit driver adapter (see lib/db.ts). The upside is that the
+  // connection string is no longer duplicated between a schema file and the
+  // environment, and the client no longer carries a bundled query engine.
 }
 
 // A business. Everything is scoped to an Organization for tenant isolation.
@@ -256,17 +260,23 @@ model ApiKey {
 // ---- Auth (Auth.js / NextAuth) ----
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String? // argon2 hash for credentials sign-in (null = OAuth-only)
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  passwordHash   String? // argon2 hash for credentials sign-in (null = OAuth-only)
   // Signer-profile defaults — pre-fill this user's own signatures with their
   // organizational attribution (optional; overridable per signature).
-  title         String? // e.g. "Senior Director"
-  department    String? // e.g. "Finance"
-  createdAt     DateTime  @default(now())
+  title          String? // e.g. "Senior Director"
+  department     String? // e.g. "Finance"
+  // Bumping this invalidates every session token issued before the bump, which
+  // is the only way to end a session under the JWT strategy the Credentials
+  // provider requires (there is no server-side session row to delete). Bump it
+  // on a password change, or on "sign out everywhere" after a suspected
+  // compromise. See the session callback in auth.ts.
+  sessionVersion Int       @default(0)
+  createdAt      DateTime  @default(now())
 
   accounts          Account[]
   sessions          Session[]
@@ -335,6 +345,8 @@ model Template {
   fields    Field[] // template-level field definitions
   envelopes Envelope[]
   createdAt DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 // A send-out: one document routed to one or more signers.
@@ -351,11 +363,22 @@ model Envelope {
   pdfPath     String // working copy being filled in
   createdAt   DateTime     @default(now())
   completedAt DateTime?
+  // Set when a request wins the right to seal this envelope, so two final
+  // signatures landing together cannot each produce a seal (two certificates,
+  // two anchors, two sets of emails, and a second sealed PDF nobody has a record
+  // of). A TIMESTAMP rather than an extra status value on purpose: if the process
+  // dies mid-seal, a stale claim ages out and the next attempt can take over,
+  // where a status of "sealing" would have stranded the envelope with no way for
+  // anyone to finish it. Cleared on failure, left in place once completed.
+  sealingStartedAt DateTime?
 
   signers Signer[]
   fields  Field[]
   audit   AuditEvent[]
   sealed  SealedDocument?
+
+  @@index([orgId, createdAt])
+  @@index([orgId, status])
 }
 
 // A person who must sign. email is OPTIONAL — supports in-person & no-email.
@@ -383,6 +406,9 @@ model Signer {
   signedAt    DateTime?
 
   fields Field[]
+
+  @@index([envelopeId])
+  @@index([envelopeId, status])
 }
 
 // A field placed on the PDF: signature box, date, text, etc.
@@ -403,13 +429,25 @@ model Field {
   h          Float
   value      String? // filled value / signature image ref
   required   Boolean   @default(true)
+
+  @@index([envelopeId])
+  @@index([signerId])
+  @@index([templateId])
 }
 
 // Tamper-evident audit trail. Each event hashes the prior state.
+//
+// `seq` is the chain position, not `createdAt`. Two events written in the same
+// millisecond (or with the same clock value under any precision) have no defined
+// order by timestamp, so ordering the chain on time made both the append and the
+// verify non-deterministic. seq is assigned inside the same serialized
+// transaction that computes the hash, so the chain is total-ordered by
+// construction and re-derives identically forever.
 model AuditEvent {
   id         String   @id @default(cuid())
   envelopeId String
   envelope   Envelope @relation(fields: [envelopeId], references: [id])
+  seq        Int // 1-based position within this envelope's chain
   actor      String // signer id, user id, or "system"
   action     String // created|viewed|field_filled|signed|sealed|verified
   ip         String?
@@ -417,6 +455,13 @@ model AuditEvent {
   prevHash   String? // hash chain: sha256(prevHash + this event)
   hash       String
   createdAt  DateTime @default(now())
+
+  // Unique, not merely indexed: the database is what makes a concurrent append
+  // impossible rather than merely unlikely. Two racing writers computing the same
+  // seq means the loser's INSERT fails and retries against the new tip, instead
+  // of both committing and silently breaking the chain for good.
+  @@unique([envelopeId, seq])
+  @@index([envelopeId, createdAt])
 }
 
 // A standalone Bitcoin timestamp for an arbitrary file's SHA-256 — the
@@ -432,6 +477,8 @@ model Anchor {
   anchorProvider String   @default("bitcoin") // which decentralized ledger anchored this
   btcBlock       Int? // ledger reference (Bitcoin block height) once confirmed
   createdAt      DateTime @default(now())
+
+  @@index([anchorState, createdAt])
 }
 
 // The public, append-only Merkle transparency log (RFC 6962 — the same standard
@@ -490,7 +537,16 @@ model SealedDocument {
   sealType       String        @default("pades") // pades (embedded) | detached (CAdES .sig)
   pdfPath        String? // present for pades seals; null for detached
   detachedSig    String? // base64 detached CMS signature, present for detached seals
-  sha256         String        @unique // what the /verify portal matches against
+  // The digest the /verify portal matches against. NOT globally unique: two
+  // different businesses can legitimately seal the same bytes (a public release
+  // artifact attested by its publisher and by a downstream auditor is the point
+  // of the supply-chain lane), and each is a real, separately-signed seal.
+  //
+  // Uniqueness therefore sits on (orgId, sha256, sealType): keying a seal on the
+  // digest alone would collapse two issuers onto one row, and sidecars keyed the
+  // same way would collide on disk, pairing one issuer's signature with another's
+  // certificate. Sidecars are scoped to the record id for the same reason.
+  sha256         String
   proofCode      String?       @unique // short human-typable code -> verify.letsseal.org/v/<code>
   certCN         String
   // Identity seals (sealType="identity") bind a third-party-verified email. We do
@@ -505,4 +561,15 @@ model SealedDocument {
   anchorState    String        @default("none") // none | pending | confirmed
   anchorProvider String        @default("bitcoin") // which decentralized ledger anchored this
   btcBlock       Int? // ledger reference (Bitcoin block height) once confirmed
+
+  // One seal per (business, digest, form). Re-sealing the same artifact the same
+  // way is still idempotent; a different business, or a different seal form, is a
+  // distinct seal with its own row, proof code and sidecars.
+  // Envelope-sealed rows carry a null orgId and are constrained by envelopeId.
+  @@unique([orgId, sha256, sealType])
+  // The public proof lookup: /d/<sha>, /api/verify and the anchor download all
+  // resolve a digest to its seal(s), so this stays the hot read path.
+  @@index([sha256])
+  @@index([orgId, sealedAt])
+  @@index([anchorState, sealedAt])
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { readFile, fileExists } from "@/lib/storage";
+import { canonicalProofQuery } from "@/lib/proofs";
 
 const MIME: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
@@ -13,8 +14,8 @@ const MIME: Record<string, string> = {
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ sha: string }> }) {
   const { sha } = await params;
   const sha256 = sha.toLowerCase();
-  const rec = await db.sealedDocument.findUnique({
-    where: { sha256 },
+  const rec = await db.sealedDocument.findFirst({
+    ...canonicalProofQuery(sha256),
     select: { pdfPath: true, sealType: true },
   });
   if (!rec || rec.sealType !== "c2pa" || !rec.pdfPath) return new Response("not found", { status: 404 });

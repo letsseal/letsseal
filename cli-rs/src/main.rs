@@ -319,7 +319,7 @@ fn verify(file: &str) {
             println!("  sha256  {}", s(&r, "sha256"));
         }
         show_sibling_anchor(file);
-        if !sealed || !(valid && trusted) { exit(2); }
+        if !(sealed && valid && trusted) { exit(2); }
         return;
     }
 
@@ -341,7 +341,7 @@ fn verify(file: &str) {
             println!("  sha256  {}", s(&r, "sha256"));
         }
         show_sibling_anchor(file);
-        if !sealed || !(valid && trusted) { exit(2); }
+        if !(sealed && valid && trusted) { exit(2); }
         return;
     }
 
@@ -362,7 +362,7 @@ fn verify(file: &str) {
             println!("  sha256  {}", s(&r, "sha256"));
         }
         show_sibling_anchor(file);
-        if !sealed || !(valid && trusted) { exit(2); }
+        if !(sealed && valid && trusted) { exit(2); }
         return;
     }
 
@@ -384,7 +384,7 @@ fn verify(file: &str) {
             println!("  sha256  {}", s(&r, "sha256"));
         }
         show_sibling_anchor(file);
-        if !sealed || !(valid && trusted) { exit(2); }
+        if !(sealed && valid && trusted) { exit(2); }
         return;
     }
 
@@ -432,7 +432,7 @@ fn verify(file: &str) {
         println!("  sha256  {}", s(&r, "sha256"));
     }
     show_sibling_anchor(file);
-    if !sealed || !(intact && valid) { exit(2); }
+    if !(sealed && intact && valid) { exit(2); }
 }
 
 // Deprecated: folded into `verify <file>.ots`. Thin alias.

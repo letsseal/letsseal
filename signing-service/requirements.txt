@@ -1,8 +1,18 @@
-pyHanko[pkcs11,image-support]==0.25.1
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+pyHanko[pkcs11,image-support]==0.35.2
+fastapi==0.140.0
+uvicorn[standard]==0.51.0
+python-multipart==0.0.32
 opentimestamps-client==0.7.2
-c2pa-python==0.36.0
+# 0.37 enforces a rule 0.36 did not: a `c2pa.created` action must declare a
+# `digitalSourceType`. We do not use `c2pa.created` any more, precisely because
+# every value in that vocabulary asserts HOW the media was produced and a sealing
+# service is handed a finished file and cannot know. The manifest now says
+# `c2pa.opened` over a `parentOf` ingredient, which is both accurate and
+# conformant. See c2pa_seal._manifest.
+#
+# Seals issued under the older shape stay verifiable: verify_c2pa accepts a
+# manifest whose ONLY defect is the missing field, and only when the signature,
+# the chain and the hash binding all pass. test_c2pa.py holds that line.
+c2pa-python==0.37.1
 signxml==5.1.0
 requests==2.34.2  # OIDC identity: fetch provider JWKS + GitHub API (oidc.py)

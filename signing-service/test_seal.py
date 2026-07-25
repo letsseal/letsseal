@@ -4,6 +4,7 @@ signature against our own CA root, and prove tamper-evidence by flipping a byte.
 
 Run:  ./.venv/bin/python test_seal.py
 """
+import os
 import sys
 from io import BytesIO
 
@@ -19,7 +20,10 @@ from pyhanko.keys import load_cert_from_pemder
 CA_ROOT = "../ca/out/root-ca.crt"
 CA_INT = "../ca/out/intermediate.crt"
 ORG_P12 = "../ca/out/orgs/acme/signing.p12"
-P12_PASS = "changeit"
+
+P12_PASS = os.environ.get("LETSSEAL_P12_PASS", "")
+if not P12_PASS:
+    sys.exit("LETSSEAL_P12_PASS must be set to the passphrase ca/setup-ca.sh was run with.")
 
 
 def make_pdf() -> bytes:

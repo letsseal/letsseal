@@ -1,6 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 
-const db = new PrismaClient();
+import { prismaClient } from "./_db.mjs";
+const db = prismaClient();
 const APPLY = process.env.APPLY === "1";
 const ORPHAN_OWNER_EMAIL = (process.env.ORPHAN_OWNER_EMAIL || "").trim().toLowerCase();
 

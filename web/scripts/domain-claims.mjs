@@ -1,6 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 
-const db = new PrismaClient();
+import { prismaClient } from "./_db.mjs";
+const db = prismaClient();
 const [cmd, domain] = process.argv.slice(2);
 
 async function main() {
@@ -22,14 +22,13 @@ async function main() {
     return;
   }
   if (cmd === "backfill") {
-    // Seed claims from any accounts (tenants) that are already verified (idempotent).
     const tenants = await db.tenant.findMany({ where: { verifiedDomain: { not: null } }, select: { verifiedDomain: true, id: true, domainVerifiedAt: true } });
     let n = 0;
     for (const t of tenants) {
       await db.domainClaim.upsert({
         where: { domain: t.verifiedDomain },
         create: { domain: t.verifiedDomain, tenantId: t.id, verifiedAt: t.domainVerifiedAt ?? new Date() },
-        update: {}, // keep existing claim as-is
+        update: {}, 
       });
       n++;
     }

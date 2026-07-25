@@ -56,17 +56,17 @@ export async function requireOrgRole(userId: string, slug: string, min: OrgRole)
   return access;
 }
 
-// For API routes: returns the user id or null (caller returns 401).
 export async function apiUser() {
   const session = await auth();
   return session?.user?.id ?? null;
 }
 
-// For API routes: assert membership in the org that owns an envelope.
-export async function userOwnsEnvelope(userId: string, envelopeId: string) {
+export async function userOwnsEnvelope(userId: string, envelopeId: string, min: OrgRole = "viewer") {
   const env = await db.envelope.findUnique({
     where: { id: envelopeId },
-    select: { org: { select: { slug: true, memberships: { where: { userId }, select: { id: true } } } } },
+    select: { org: { select: { slug: true } } },
   });
-  return !!env?.org.memberships.length;
+  if (!env) return false;
+  const access = await resolveOrgAccess(userId, env.org.slug);
+  return !!access && orgRoleAtLeast(access.orgRole, min);
 }

@@ -20,9 +20,7 @@ export async function GET(req: NextRequest) {
   };
 
   if (!flow) return fail("expired");
-  // The provider may bounce the user (denied consent, etc.).
   if (sp.get("error")) return fail("denied");
-  // CSRF: the state echoed by the provider must equal the one we signed in.
   const state = sp.get("state") || "";
   if (state !== flow.state) return fail("bad_state");
   const code = sp.get("code") || "";
@@ -31,8 +29,6 @@ export async function GET(req: NextRequest) {
   const p = flowProvider(flow.provider);
   if (!p) return fail("provider_unavailable");
 
-  // Re-assert the session + org membership at callback time (the cookie is CSRF
-  // binding, not authorization).
   const userId = await apiUser();
   if (!userId) return fail("not_signed_in");
   const org = await requireOrg(userId, flow.orgSlug);
@@ -44,8 +40,6 @@ export async function GET(req: NextRequest) {
     return done(new URL(r.proofUrl));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // A provider proof that doesn't verify (401 from the signing service) vs a
-    // transport/exchange failure — surface distinctly for the UI.
     return fail(/\b401\b|did not verify/.test(msg) ? "not_verified" : "seal_failed");
   }
 }

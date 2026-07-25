@@ -41,9 +41,6 @@ export async function canSend(orgId: string): Promise<{ ok: boolean; reason?: st
   const cap = dailyCap(org);
   if (today >= cap) return { ok: false, reason: `daily email limit reached (${cap}) — contact us to raise it` };
 
-  // Per-ACCOUNT ceiling: the per-org cap alone lets one user spin up N orgs to get
-  // N×cap arbitrary-recipient sends through the shared (account-wide-reputation)
-  // SES identity. Sum gated sends across every org this account owns and fail closed.
   const owner = await db.membership.findFirst({ where: { orgId, role: "owner" }, select: { userId: true } });
   if (owner) {
     const ownedOrgs = await db.membership.findMany({
@@ -57,12 +54,9 @@ export async function canSend(orgId: string): Promise<{ ok: boolean; reason?: st
   return { ok: true };
 }
 
-// Log a sent email (every kind — audit + volume). Best-effort: a logging hiccup
-// must never fail the surrounding request.
 export async function recordSend(orgId: string, to: string, kind: SendKind): Promise<void> {
   try {
     await db.emailSend.create({ data: { orgId, to, kind } });
   } catch {
-    /* non-fatal */
   }
 }

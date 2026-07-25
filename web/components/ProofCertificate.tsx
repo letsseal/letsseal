@@ -19,6 +19,7 @@ export type ProofData = {
     sealed: boolean; intact?: boolean; valid?: boolean; trusted?: boolean;
     signer?: string; signed_at?: string;
     onRecordOnly?: boolean;
+    revoked?: { serial: string; reason: string; revoked_at: string; note?: string } | null;
   };
   anchor?: { state: string; btcBlock: number | null; blockHash?: string | null; blockTime?: string | null } | null;
   otsUrl?: string | null;
@@ -30,6 +31,7 @@ export type ProofData = {
   identity?: { email: string; provider?: string | null; issuer?: string | null } | null;
   attestation?: { predicateType: string; bundleUrl: string } | null;
   log?: { index: number; treeSize: number } | null;
+  alsoSealedBy?: { org: string | null; certCN: string; sealType: string; sealedAt: string; proofCode: string | null }[];
   trail?: SigningTrail | null; 
   credential?: {
     recipientName: string; credType: string; title: string; description?: string | null;
@@ -98,9 +100,6 @@ const ACTION_LABEL: Record<string, string> = {
   anchored: "Timestamp submitted", anchor_confirmed: "Timestamp confirmed",
 };
 
-// Tier-1 attribution: how each party was bound to the signing, plus the
-// tamper-evident trail. This is control-of-channel evidence, NOT identity proof —
-// stated plainly so the claim stays defensible.
 function SigningTrailCard({ trail }: { trail: SigningTrail }) {
   return (
     <div className="rounded-2xl border bg-card p-5">
@@ -177,13 +176,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-// How an issuer proved control of its domain, for display on the proof.
 function viaLabel(via: string): string {
   return { dns: "verified via DNS", http: "verified via a website file", email: "verified via a domain admin email", operator: "verified by the operator" }[via] ?? "verified";
 }
 
-// Inline issuer-identity chip beside the issuer/business name. Suspended wins over
-// any verified state (a takedown must never look like a green tick).
 function IdentityPill({ data }: { data: ProofData }) {
   if (data.suspended) {
     return (
@@ -202,9 +198,6 @@ function IdentityPill({ data }: { data: ProofData }) {
   );
 }
 
-// The public "certificate of proof". For a sealed document it leads with two
-// trust layers (cryptographic seal + independent timestamp); for a bare "anchor
-// anything" timestamp it shows just the independent timestamp.
 export function ProofCertificate({ data, variant = "document", gate }: {
   data: ProofData;
   variant?: "document" | "timestamp";
@@ -215,11 +208,6 @@ export function ProofCertificate({ data, variant = "document", gate }: {
   const intact = data.crypto.intact !== false;
   const valid = data.crypto.valid !== false;
   const trusted = data.crypto.trusted === true;
-  // "Authentic" REQUIRES the seal to chain to the Let's Seal CA. A cryptographically
-  // valid signature from an unrecognized (e.g. self-signed) certificate is a forgery
-  // vector — NOT an authentic document — so the verdict gates on `trusted`, never on
-  // sealed+intact alone. onRecordOnly docs were sealed by us (provenance implies trust),
-  // so their live re-check isn't available and the record itself vouches for them.
   const authentic = sealed && intact && valid && trusted;
   const sealOk = onRecordOnly ? sealed : authentic;
   const anchored = data.anchor && data.anchor.state !== "none";
@@ -235,8 +223,6 @@ export function ProofCertificate({ data, variant = "document", gate }: {
             isTimestamp
               ? (anchorOk ? "var(--brand)" : "#a1a1aa")
               : onRecordOnly
-                // On record, but no live integrity re-check here: amber, so the
-                // brand-coloured seal stays reserved for a live trusted+intact result.
                 ? (sealed ? "#d97706" : "#a1a1aa")
                 : (authentic ? "var(--brand)" : "#a1a1aa")
           } />
@@ -270,6 +256,32 @@ export function ProofCertificate({ data, variant = "document", gate }: {
           </div>
         </div>
       </div>
+
+      {data.crypto.revoked && (
+        <div className="flex items-start gap-2 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {data.crypto.revoked.reason === "key_compromise" || data.crypto.revoked.reason === "ca_compromise" ? (
+              <>
+                <b>Signing certificate revoked (key compromise).</b> The key that sealed this document is known to
+                have been out of its owner&apos;s control, and there is no way to establish for how long. This seal
+                is <b>not trusted</b>, whatever its date.
+              </>
+            ) : (
+              <>
+                <b>Signing certificate withdrawn.</b> This certificate was retired
+                ({data.crypto.revoked.reason.replace(/_/g, " ")}) on{" "}
+                {new Date(data.crypto.revoked.revoked_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.
+                A seal made before that date still stands; this one could not be shown to predate it.
+              </>
+            )}
+            {data.crypto.revoked.note ? <> {data.crypto.revoked.note}</> : null}{" "}
+            The document&apos;s <b>integrity and timestamp are unaffected</b>: the file is still what it was, and it
+            still provably existed when the anchor says. Every withdrawal is listed at{" "}
+            <a href="/revocations.json" className="underline">/revocations.json</a>.
+          </span>
+        </div>
+      )}
 
       {data.suspended ? (
         <div className="flex items-start gap-2 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -537,6 +549,30 @@ export function ProofCertificate({ data, variant = "document", gate }: {
               and check it against the signed <a href="/api/log/sth" className="underline">tree head</a>; the head&apos;s
               root is itself anchored to the blockchain.
             </p>
+          </div>
+        )}
+        {!!data.alsoSealedBy?.length && (
+          <div className="mt-4 rounded-lg border border-dashed p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Also sealed by
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              These exact bytes carry {data.alsoSealedBy.length === 1 ? "another seal" : `${data.alsoSealedBy.length} further seals`},
+              each a separate signature under its own certificate. Every one stands on its own.
+            </p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {data.alsoSealedBy.map((c, i) => (
+                <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                  <b>{c.org ?? c.certCN}</b>
+                  <span className="text-xs text-muted-foreground">
+                    {c.sealType} · {new Date(c.sealedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                  {c.proofCode && (
+                    <a href={`/v/${c.proofCode}`} className="text-xs underline">view its proof</a>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

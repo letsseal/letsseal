@@ -22,7 +22,7 @@ export async function getBlockInfo(height: number): Promise<BlockInfo | null> {
         const j = await blk.json();
         if (typeof j.timestamp === "number") time = new Date(j.timestamp * 1000).toISOString();
       }
-    } catch { /* time is optional */ }
+    } catch {  }
 
     return { height, hash, time };
   } catch {

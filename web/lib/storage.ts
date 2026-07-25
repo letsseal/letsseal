@@ -76,16 +76,10 @@ function makeS3Backend(): Backend {
   return {
     async save(key, data) {
       assertSafeKey(key);
-      // Copy into a standalone Uint8Array — safe SHA-256 body signing regardless
-      // of Buffer pooling.
       const payload = new Uint8Array(pack(data));
       const res = await client.fetch(urlFor(key), {
         method: "PUT",
         body: payload,
-        // B2 (unlike AWS S3) rejects chunked uploads with 411 MissingContentLength.
-        // Inside Next's server bundle the patched global fetch streams the body and
-        // drops Content-Length, so set it explicitly; cache:"no-store" keeps Next's
-        // fetch instrumentation from re-wrapping the request body.
         headers: { "content-length": String(payload.byteLength) },
         cache: "no-store",
       });

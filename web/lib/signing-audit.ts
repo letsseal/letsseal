@@ -25,7 +25,7 @@ const realIp = (ip: string | null | undefined): string | null =>
 
 export async function getSigningTrail(envelopeId: string): Promise<SigningTrail> {
   const [events, signers, chainIntact] = await Promise.all([
-    db.auditEvent.findMany({ where: { envelopeId }, orderBy: { createdAt: "asc" } }),
+    db.auditEvent.findMany({ where: { envelopeId }, orderBy: [{ seq: "asc" }, { createdAt: "asc" }] }),
     db.signer.findMany({ where: { envelopeId }, orderBy: { order: "asc" } }),
     verifyAuditChain(envelopeId),
   ]);

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { clientIp } from "@/lib/ip";
-import { rateLimited } from "@/lib/ratelimit";
+import { rateLimitedAsync } from "@/lib/ratelimit";
 
 const CATEGORIES = new Set(["impersonation", "fraud", "phishing", "other"]);
 
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
-  if (rateLimited(`report:${ip}`, 5, 10 * 60_000)) {
+  if (await rateLimitedAsync(`report:${ip}`, 5, 10 * 60_000)) {
     return NextResponse.json({ error: "too many reports — please try again later" }, { status: 429 });
   }
 

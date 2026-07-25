@@ -1,6 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 
-const db = new PrismaClient();
+import { prismaClient } from "./_db.mjs";
+const db = prismaClient();
 const [arg1, arg2] = process.argv.slice(2);
 
 async function main() {

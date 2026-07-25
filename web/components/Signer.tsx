@@ -63,7 +63,6 @@ export default function Signer({ token }: { token: string }) {
     if (!ok && !error) toast.error("That access code didn't match. Check it and try again.");
   }
 
-  // Map each recipient to a stable color index (same scheme as the builder).
   const signerIndex = useMemo(() => {
     const map = new Map<string, number>();
     if (data) for (const f of data.envelope.fields) {
@@ -120,7 +119,7 @@ export default function Signer({ token }: { token: string }) {
       return;
     }
     if (f.type === "signature" || f.type === "initials") {
-      if (adopted) return fill(f, adopted); // reuse adopted signature
+      if (adopted) return fill(f, adopted); 
       return setEditing(f);
     }
   }

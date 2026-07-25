@@ -31,7 +31,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   return NextResponse.json(result);
 }
 
-// Remove an org's domain verification (and retire pending challenges).
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const userId = await apiUser();

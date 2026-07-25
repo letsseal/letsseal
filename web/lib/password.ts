@@ -1,5 +1,6 @@
 
 export const MIN_PASSWORD_LENGTH = 10;
+export const MAX_PASSWORD_LENGTH = 200;
 export const MIN_ACCEPTED_SCORE = 2; 
 
 const COMMON = new Set([
@@ -38,6 +39,7 @@ export function scorePassword(pw: string): Strength {
 
 export function passwordProblem(pw: string): string | null {
   if (!pw || pw.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+  if (pw.length > MAX_PASSWORD_LENGTH) return `Use at most ${MAX_PASSWORD_LENGTH} characters.`;
   if (COMMON.has(pw.toLowerCase())) return "That password is too common — pick something less guessable.";
   if (scorePassword(pw).score < MIN_ACCEPTED_SCORE)
     return "Too weak — mix in more length, or upper/lower case, numbers and symbols.";

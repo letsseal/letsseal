@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       const base = process.env.APP_URL ?? "http://localhost:3000";
       await sendVerificationEmail({ to: e, name: user.name ?? undefined, link: `${base}/verify-email?token=${token}` });
     }
-  } catch { /* non-fatal — still report ok */ }
+  } catch {  }
 
   return NextResponse.json({ ok: true });
 }

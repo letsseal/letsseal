@@ -39,9 +39,8 @@ export async function issueCredential(
     },
   });
 
-  const link = `${appUrl()}/d/${cred.id}`; // keyed on the stable credential id
+  const link = `${appUrl()}/d/${cred.id}`; 
 
-  // 2. Generate → 3. seal → 4. anchor.
   const pdf = await generateCertificatePdf(org, { ...input, credType: cred.credType, issuedOn }, link);
   const sealed = await sealPdf(org.slug, pdf, { reason: `Issued: ${cred.credType} — ${input.title}`, timestamp: false });
   const pdfPath = `credentials/${cred.id}/sealed.pdf`;
@@ -55,18 +54,19 @@ export async function issueCredential(
     anchorState = a.status.state;
   } catch { anchorState = "none"; }
 
-  // 5. Persist the sealed doc (drives the proof page + verify) and link the sha.
   await db.sealedDocument.upsert({
-    where: { sha256: sealed.sha256 },
+    where: {
+      orgId_sha256_sealType: { orgId: org.id, sha256: sealed.sha256, sealType: "pades" },
+    },
     update: {},
     create: {
-      orgId: org.id, source: "credential", title: `${cred.credType}: ${input.title}`,
+      orgId: org.id, source: "credential", sealType: "pades",
+      title: `${cred.credType}: ${input.title}`,
       pdfPath, sha256: sealed.sha256, certCN: sealed.certCN, otsProof, anchorState,
     },
   });
   await db.credential.update({ where: { id: cred.id }, data: { sha256: sealed.sha256 } });
 
-  // 6. Deliver the verification link to the recipient (best-effort).
   let emailed = false;
   if (input.recipientEmail && (await canSend(org.id)).ok) {
     try {

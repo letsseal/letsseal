@@ -94,7 +94,6 @@ export default function Builder({
 
   async function handleUpload(file: File) {
     setUploading(true);
-    // Anything the user already typed wins; otherwise take the filename.
     const named = title.trim() || titleFromFilename(file.name) || "Untitled document";
     setTitle(named);
     const form = new FormData();
@@ -110,7 +109,6 @@ export default function Builder({
 
   const place = useCallback((page: number, x: number, y: number) => {
     if (!armedType) return;
-    // cc / viewer recipients don't sign, so they can't own fields.
     if (!isSigningRole(signers[activeSigner]?.role ?? "signer")) { toast.error("This recipient only receives a copy — switch to a signer to place fields."); return; }
     const [w, h] = FIELD_TYPES.find((f) => f.type === armedType)!.size;
     const id = genId();
@@ -128,8 +126,6 @@ export default function Builder({
     if (fields.length === 0) { toast.error("Place at least one field on the document."); return; }
     setSending(true);
     const payload = {
-      // Sent on every save: the title box is edited AFTER upload far more often
-      // than before it, and until this was included those edits never persisted.
       title: title.trim() || undefined,
       message: message.trim() || undefined,
       sequential,
@@ -147,9 +143,6 @@ export default function Builder({
   const fieldCountFor = (i: number) => fields.filter((f) => f.signerIndex === i).length;
   const selectedField = fields.find((f) => f.id === selectedId) ?? null;
 
-  // Drop a recipient, their fields, and re-index everyone above them. The active
-  // selection has to shift with the list, or the next field you place silently
-  // lands on a different recipient than the one highlighted.
   function removeSigner(i: number) {
     setSigners((p) => p.filter((_, j) => j !== i));
     setFields((p) => p.filter((f) => f.signerIndex !== i)
@@ -164,8 +157,6 @@ export default function Builder({
     const lost = fieldCountFor(i);
     setFields((p) => p.filter((f) => f.signerIndex !== i));
     if (selectedField?.signerIndex === i) setSelectedId(null);
-    // Say it out loud. Losing placed fields to a dropdown change with no notice
-    // reads as a bug, because from the drafter's side it is indistinguishable from one.
     if (lost) toast.warning(`${roleMeta(role).label} recipients don't sign, so their ${lost} placed field${lost > 1 ? "s were" : " was"} removed.`);
   }
 
@@ -432,8 +423,6 @@ function SentView({ sent, slug, orgName, title, envelopeId }: { sent: SentSigner
                 <div className="text-sm text-muted-foreground mt-1">{s.email || "no email — sign in person"}</div>
                 {s.accessCode && <div className="text-xs text-muted-foreground mt-1">Access code: <b>{s.accessCode}</b></div>}
                 {s.status === "emailed" ? (
-                  // Link delivered to the signer's own inbox — deliberately not shown
-                  // here, so the signature stays attributable to the counterparty.
                   <div className="mt-3 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
                     <Mail className="h-4 w-4" /> Signing invite emailed to {s.email}
                   </div>

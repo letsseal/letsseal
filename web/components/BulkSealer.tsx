@@ -55,7 +55,6 @@ export default function BulkSealer({ slug }: { slug: string }) {
     }
   }
 
-  // keep a live ref to items so the worker pool reads current File objects
   const itemsRef = useRef<Item[]>([]);
   itemsRef.current = items;
 

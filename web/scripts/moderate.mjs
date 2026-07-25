@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { prismaClient } from "./_db.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 try {
@@ -12,7 +12,7 @@ try {
   }
 } catch {  }
 
-const db = new PrismaClient();
+const db = prismaClient();
 const SVC = process.env.SIGNING_SERVICE_URL ?? "http://127.0.0.1:8081";
 const TOKEN = process.env.LETSSEAL_SERVICE_TOKEN ?? "";
 
@@ -76,7 +76,7 @@ async function suspend(slug, reason) {
     data: { status: "suspended", suspendedAt: new Date(), suspendedReason: reason },
   });
   console.log(`Suspended ${o.name} (${o.slug}): ${reason}`);
-  await syncCert(o.slug, o.name, null); // drop the domain SAN from the cert
+  await syncCert(o.slug, o.name, null); 
   const upd = await db.abuseReport.updateMany({
     where: { orgId: o.id, status: "open" },
     data: { status: "actioned", handledAt: new Date(), handledNote: `suspended: ${reason}` },
@@ -91,7 +91,6 @@ async function reinstate(slug) {
     data: { status: "active", suspendedAt: null, suspendedReason: null },
   });
   console.log(`Reinstated ${o.name} (${o.slug}).`);
-  // Re-bind the cert SAN only if the brand still holds a verified domain.
   await syncCert(o.slug, o.name, o.tenant?.verifiedDomain ?? null);
 }
 

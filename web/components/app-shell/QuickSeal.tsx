@@ -31,8 +31,6 @@ export function QuickSeal({ slug }: { slug: string }) {
         throw new Error(j.error || `seal failed (${res.status})`);
       }
       const sha = res.headers.get("X-Letsseal-Sha256") || "";
-      // The response body IS the sealed PDF (signed + stamped). Capture it so the
-      // user gets the sealed copy back — that copy is what's anchored & verifiable.
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const sealedName = `${file.name.replace(/\.pdf$/i, "")}.sealed.pdf`;

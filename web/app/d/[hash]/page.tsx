@@ -11,17 +11,18 @@ import { getInclusionProof } from "@/lib/translog";
 import { TopBar } from "@/components/TopBar";
 import { ProofCertificate, type ProofData } from "@/components/ProofCertificate";
 import { Button } from "@/components/ui/button";
+import { canonicalProofQuery, coIssuersFor, readSidecar } from "@/lib/proofs";
 
 export const dynamic = "force-dynamic";
 
 const isHash = (s: string) => /^[0-9a-f]{64}$/.test(s);
 
 // Pull the predicate type (SPDX / CycloneDX / SLSA / …) out of a stored
-async function attestationPredicateType(sha256: string): Promise<string> {
+async function attestationPredicateType(rec: { id: string; sha256: string }): Promise<string> {
   try {
-    const path = `hosted/${sha256}/attestation.bundle`;
-    if (!(await fileExists(path))) return "";
-    const bundle = JSON.parse((await readFile(path)).toString("utf8"));
+    const raw = await readSidecar(rec, "attestation.bundle");
+    if (!raw) return "";
+    const bundle = JSON.parse(raw);
     const payloadB64 = bundle?.dsseEnvelope?.payload;
     if (!payloadB64) return "";
     const stmt = JSON.parse(Buffer.from(payloadB64, "base64").toString("utf8"));
@@ -33,7 +34,6 @@ async function attestationPredicateType(sha256: string): Promise<string> {
 
 export async function generateMetadata({ params }: { params: Promise<{ hash: string }> }): Promise<Metadata> {
   const { hash } = await params;
-  // Proof pages are bearer-token URLs — keep them out of search indexes.
   return { title: `Proof · ${hash.slice(0, 12)}… · Let's Seal`, robots: { index: false, follow: false } };
 }
 
@@ -44,7 +44,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   const orgInc = { include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } } } as const;
   const include = { envelope: { include: { org: orgInc, _count: { select: { audit: true } } } }, org: orgInc } as const;
   let rec = isHash(ref)
-    ? await db.sealedDocument.findUnique({ where: { sha256: ref }, include })
+    ? await db.sealedDocument.findFirst({ ...canonicalProofQuery(ref), include })
     : await db.sealedDocument.findUnique({ where: { envelopeId: hash }, include });
 
   if (!rec && !isHash(ref)) {
@@ -53,7 +53,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
 
   if (!rec && !isHash(ref)) {
     const cred = await db.credential.findUnique({ where: { id: hash }, select: { sha256: true } });
-    if (cred?.sha256) rec = await db.sealedDocument.findUnique({ where: { sha256: cred.sha256 }, include });
+    if (cred?.sha256) rec = await db.sealedDocument.findFirst({ ...canonicalProofQuery(cred.sha256), include });
   }
 
   if (!rec && isHash(ref)) {
@@ -106,7 +106,11 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   } else if (docOnFile && key) {
     try {
       const v = await verifyPdf(await readFile(key));
-      crypto = { sealed: v.sealed, intact: v.intact, valid: v.valid, trusted: v.trusted, signer: v.signer, signed_at: v.signed_at, onRecordOnly: false };
+      crypto = {
+        sealed: v.sealed, intact: v.intact, valid: v.valid, trusted: v.trusted,
+        signer: v.signer, signed_at: v.signed_at, onRecordOnly: false,
+        revoked: v.revoked ?? null,
+      };
     } catch {  }
   }
 
@@ -163,6 +167,10 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     title: gateContent ? null : rawTitle,
     completedAt: (rec.envelope?.completedAt ?? rec.sealedAt).toISOString(),
     auditEvents: rec.envelope?._count.audit ?? 0,
+    alsoSealedBy: (await coIssuersFor(sha256, rec.id)).map((c) => ({
+      ...c,
+      sealedAt: c.sealedAt.toISOString(),
+    })),
     crypto,
     anchor: { state: anchorState, btcBlock, blockHash: block?.hash ?? null, blockTime: block?.time ?? null },
     otsUrl: rec.otsProof ? (rec.envelopeId ? `/api/file/${rec.envelopeId}?variant=ots` : `/api/anchor/${sha256}`) : null,
@@ -175,7 +183,7 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
       ? { email: rec.certCN, provider: rec.oidcProvider, issuer: rec.oidcIssuer }
       : null,
     attestation: isAttestation
-      ? { predicateType: await attestationPredicateType(sha256), bundleUrl: `/api/seal/${sha256}/artifact` }
+      ? { predicateType: await attestationPredicateType(rec), bundleUrl: `/api/seal/${sha256}/artifact` }
       : null,
     log: await getInclusionProof({ sha256 }).then((p) => (p ? { index: p.index, treeSize: p.treeSize } : null)).catch(() => null),
     trail: viewerIsIssuer ? trail : null,
@@ -242,8 +250,6 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   );
 }
 
-// A standalone "anchor anything" timestamp — no document, no seal, just a
-// file's SHA-256 anchored to a decentralised public ledger.
 async function TimestampProof({
   anchor,
 }: { anchor: { id: string; sha256: string; label: string | null; otsProof: string | null; anchorState: string; btcBlock: number | null } }) {
@@ -257,7 +263,7 @@ async function TimestampProof({
         btcBlock = up.status.bitcoin_block ?? null;
         await db.anchor.update({ where: { id: anchor.id }, data: { anchorState: "confirmed", btcBlock, otsProof: up.ots_b64 } });
       }
-    } catch { /* still pending / offline */ }
+    } catch {  }
   }
   const block = anchorState === "confirmed" && btcBlock != null ? await getBlockInfo(btcBlock) : null;
 

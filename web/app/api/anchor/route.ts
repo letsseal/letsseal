@@ -4,35 +4,32 @@ import { db } from "@/lib/db";
 import { anchorHash } from "@/lib/signing";
 import { clientIp } from "@/lib/ip";
 import { overContentLength, tooLarge } from "@/lib/limits";
+import { rateLimitedAsync } from "@/lib/ratelimit";
 
-const HITS = new Map<string, { n: number; resetAt: number }>();
 const LIMIT = 20, WINDOW_MS = 60 * 60 * 1000;
-function rateLimited(ip: string) {
-  const now = Date.now();
-  const rec = HITS.get(ip);
-  if (!rec || now > rec.resetAt) { HITS.set(ip, { n: 1, resetAt: now + WINDOW_MS }); return false; }
-  rec.n += 1;
-  return rec.n > LIMIT;
-}
 
 const isHash = (s: string) => /^[0-9a-f]{64}$/.test(s);
 
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
-  if (rateLimited(ip)) return NextResponse.json({ error: "rate limit exceeded, try later" }, { status: 429 });
+  if (await rateLimitedAsync(`anchor:${ip}`, LIMIT, WINDOW_MS)) {
+    return NextResponse.json({ error: "rate limit exceeded, try later" }, { status: 429 });
+  }
 
   let sha256 = "";
   let label: string | null = null;
   const ctype = req.headers.get("content-type") ?? "";
 
   if (ctype.includes("application/json")) {
-    const body = await req.json();
+    if (overContentLength(req, 16_384)) return NextResponse.json({ error: "payload too large" }, { status: 413 });
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
     sha256 = String(body.sha256 ?? "").trim().toLowerCase();
     label = body.label ? String(body.label).slice(0, 200) : null;
   } else {
     if (overContentLength(req)) return NextResponse.json({ error: "file too large" }, { status: 413 });
-    const form = await req.formData();
-    const file = form.get("file");
+    const form = await req.formData().catch(() => null);
+    const file = form?.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "no file or sha256" }, { status: 400 });
     if (tooLarge(file)) return NextResponse.json({ error: "file too large" }, { status: 413 });
     const bytes = Buffer.from(await file.arrayBuffer()); 

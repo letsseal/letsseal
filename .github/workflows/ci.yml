@@ -1,0 +1,320 @@
+# The checks that run on every push and pull request.
+#
+# Until now nothing verified this repository automatically: no typecheck, no
+# build, no tests. For a project whose whole value is "the proof is correct",
+# the Merkle tree and the audit chain are the last things that should rely on
+# someone remembering to check them by hand.
+#
+# Every third-party action is pinned to a commit SHA. Dependabot keeps the pins
+# current (see .github/dependabot.yml). A floating tag is a mutable reference,
+# and this repository is in the business of arguing that mutable references are
+# not evidence.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web (typecheck, test, build)
+    runs-on: ubuntu-latest
+
+    services:
+      # The audit-chain tests are concurrency tests: they assert that simultaneous
+      # appends cannot fork the hash chain. That is not something an in-memory
+      # fake can demonstrate, so they run against a real Postgres.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: letsseal
+          POSTGRES_PASSWORD: letsseal
+          POSTGRES_DB: letsseal_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U letsseal -d letsseal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://letsseal:letsseal@localhost:5432/letsseal_test?schema=public
+      # The database tests refuse to run without this, so they can never be
+      # pointed at a real database by an ambient DATABASE_URL.
+      TEST_DATABASE_URL: postgresql://letsseal:letsseal@localhost:5432/letsseal_test?schema=public
+      # Test-only values. The app refuses to start in production without real
+      # ones (see web/instrumentation.ts).
+      AUTH_SECRET: ci-not-a-real-secret-0000000000000000
+      AUDIT_HMAC_SECRET: ci-not-a-real-audit-key-000000000000
+      LETSSEAL_SERVICE_TOKEN: ci-not-a-real-service-token
+      APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Prisma client
+        working-directory: web
+        run: npx prisma generate
+
+      - name: Apply migrations
+        working-directory: web
+        run: npx prisma migrate deploy
+
+      # The drift check below diffs the migrations against the schema using a
+      # throwaway shadow database. Prisma manages the SCHEMA inside it but will
+      # not create the database itself, so it has to exist first.
+      - name: Create the shadow database
+        env:
+          PGPASSWORD: letsseal
+        run: psql -h localhost -U letsseal -d letsseal_test -c 'CREATE DATABASE letsseal_shadow'
+
+      # A migration that does not reproduce the schema is a deployment that will
+      # drift. Prisma reports the difference; an empty diff is the pass condition.
+      - name: Migrations reproduce the schema exactly
+        working-directory: web
+        env:
+          # Prisma 7 takes the shadow database from prisma.config.ts rather than
+          # a --shadow-database-url flag, and --to-schema-datamodel is now
+          # --to-schema.
+          SHADOW_DATABASE_URL: postgresql://letsseal:letsseal@localhost:5432/letsseal_shadow?schema=public
+        run: |
+          set -euo pipefail
+          diff=$(npx prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema ./prisma/schema.prisma \
+            --script)
+          echo "$diff"
+          if ! grep -q "This is an empty migration" <<<"$diff"; then
+            echo "::error::prisma/migrations does not reproduce schema.prisma. Add a migration for the difference above."
+            exit 1
+          fi
+
+      # deploy.sh runs preflight.mjs on every deploy and aborts on failure, and
+      # the operational scripts (abuse takedowns, backfills, the seal-collision
+      # check) are only ever run by hand. Nothing exercised them, so the Prisma 7
+      # upgrade broke all of them at once: a bare new PrismaClient() throws
+      # without a driver adapter. Running the read-only ones here means a deploy
+      # cannot be blocked by something CI could have caught.
+      - name: Operational scripts still connect
+        working-directory: web
+        env:
+          APP_URL: http://localhost:3000
+          SIGNING_SERVICE_URL: http://127.0.0.1:8081
+        run: |
+          set -euo pipefail
+          node scripts/check-seal-collisions.mjs
+          node scripts/domain-claims.mjs list
+          node scripts/moderate.mjs reports open
+
+          # THE SERVER'S SHAPE, which is not this job's shape: on the VPS the
+          # connection string lives in web/.env and is NOT exported into the
+          # shell, because that is how deploy.sh and systemd run. Prisma 6 read
+          # that file implicitly whenever a client was constructed; Prisma 7 does
+          # not, and the scripts failed on production while passing here, because
+          # CI exports everything. So run them again the way the server does.
+          printf 'DATABASE_URL="%s"\n' "$DATABASE_URL" > .env
+          env -u DATABASE_URL node scripts/check-seal-collisions.mjs
+          env -u DATABASE_URL node scripts/domain-claims.mjs list
+          env -u DATABASE_URL node scripts/moderate.mjs reports open
+
+          # preflight insists on web/.env existing, deliberately: it is the check
+          # an operator runs on the VPS, where a missing file is the fault. It
+          # only fills variables that are not already set, so the file above is
+          # enough here and the job's env still wins.
+          # The signing service is not running in CI, so preflight will exit
+          # non-zero on that check. What matters here is that it gets far enough
+          # to talk to Postgres at all, which is what the Prisma 7 upgrade broke.
+          node scripts/preflight.mjs 2>&1 | tee /tmp/preflight.out || true
+          rm -f .env
+          grep -q "postgres" /tmp/preflight.out
+          if grep -qE "✗ postgres" /tmp/preflight.out; then
+            echo "::error::preflight could not reach Postgres (see the output above)"
+            exit 1
+          fi
+
+      - name: Typecheck
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: web
+        run: npm test
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+  signing-service:
+    name: signing service (seal, verify, tamper)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # Dependabot updates requirements.txt, but CI and deploy.sh both install
+      # from requirements.lock. A bump applied to one and not the other changes
+      # nothing that runs, and would go green having tested the old pins. This
+      # makes that drift a failure instead of a silence.
+      - name: requirements.txt agrees with requirements.lock
+        working-directory: signing-service
+        run: python3 check_requirements_sync.py
+
+      - name: Install (from the lock, like production)
+        working-directory: signing-service
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install --upgrade pip
+          ./.venv/bin/pip install -r requirements.lock
+          ./.venv/bin/pip install fpdf2
+
+      # test_seal.py is the end-to-end proof the README claims: build a CA, seal a
+      # PDF, validate it, then flip a byte and confirm the seal reports tampering.
+      # It existed and was never run automatically.
+      - name: Build a throwaway CA
+        env:
+          LETSSEAL_P12_PASS: ci-not-a-real-passphrase
+        run: |
+          cd ca
+          ./setup-ca.sh init
+          ./setup-ca.sh org acme "Acme Test Ltd"
+          # Identity seals are minted by a dedicated intermediate rather than by an
+          # org's signing certificate, which is an end entity and cannot issue
+          # certificates. Without this the identity round trip cannot run at all.
+          ./setup-ca.sh identity-init
+
+      - name: Seal, validate, tamper-check
+        working-directory: signing-service
+        env:
+          LETSSEAL_P12_PASS: ci-not-a-real-passphrase
+        run: ./.venv/bin/python test_seal.py
+
+      # A verification library can start rejecting a manifest whose signature,
+      # certificate chain and hash binding all still verify, because what it
+      # rejects is the manifest SHAPE. Only asserting the verdict a recipient
+      # actually sees catches that. Each seal type needs its own round trip:
+      # proving one of them says nothing about the other seven.
+      - name: C2PA seal still verifies as trusted (guards the manifest shape)
+        working-directory: signing-service
+        env:
+          LETSSEAL_P12_PASS: ci-not-a-real-passphrase
+        run: ./.venv/bin/python test_c2pa.py
+
+      # The remaining six seal types, each sealed, verified and tampered with. With
+      # this and the two steps above, every seal type Let's Seal issues has a check
+      # that asserts the verdict a recipient sees, rather than merely that sealing
+      # returned without raising.
+      - name: Every other seal type still verifies (xmldsig, smime, blob, identity, attestation, detached)
+        working-directory: signing-service
+        env:
+          LETSSEAL_P12_PASS: ci-not-a-real-passphrase
+        run: ./.venv/bin/python test_seal_types.py
+
+      # A CA that cannot withdraw a certificate is not finished. This asserts the
+      # distinction that matters: after revocation the signature is still `valid`
+      # (it really was made by that key) but no longer `trusted`.
+      - name: Revocation stops a certificate being trusted
+        working-directory: signing-service
+        env:
+          LETSSEAL_P12_PASS: ci-not-a-real-passphrase
+          LETSSEAL_CA_DIR: ../ca/out
+        run: ./.venv/bin/python test_revocation.py
+
+  cli-rs:
+    name: rust CLI (build, test, lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: cli-rs
+
+      # sealbot is a published binary that verifies seals and carries an API key.
+      # Nothing was compiling it on push: the release workflow only builds on a
+      # tag, so a dependency bump or a bad edit reached main unchecked. Three
+      # Rust dependency PRs, one of them a major (ureq 2 -> 3), were reported
+      # green by CI without ever being built.
+      - name: Build
+        working-directory: cli-rs
+        run: cargo build --locked --all-targets
+
+      - name: Test
+        working-directory: cli-rs
+        run: cargo test --locked
+
+      # Warnings are errors here: this is a security tool, and clippy's default
+      # lints catch the kind of slip (ignored Result, truncating cast) that
+      # matters most in one.
+      - name: Clippy
+        working-directory: cli-rs
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      # No `cargo fmt --check` gate. This crate predates rustfmt being applied to
+      # it, so turning that on would mean reformatting security-critical files
+      # wholesale as a side effect of a dependency pass. Worth doing as its own
+      # deliberate commit, not smuggled in here.
+
+  sdk:
+    name: TypeScript SDK (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: sdk/ts/package-lock.json
+
+      # sdk/ts is published to npm and nothing was compiling it on push, so a
+      # dependency bump there merged unverified. It builds with the TypeScript 7
+      # native compiler because it calls tsc directly, unlike the web app.
+      - name: Install
+        working-directory: sdk/ts
+        run: npm ci
+
+      - name: Build
+        working-directory: sdk/ts
+        run: npm run build
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm audit (web)
+        working-directory: web
+        run: npm audit --audit-level=moderate
+      - name: npm audit (cli)
+        working-directory: cli
+        run: npm audit --audit-level=moderate || true

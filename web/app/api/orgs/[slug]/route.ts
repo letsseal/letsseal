@@ -40,8 +40,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
       data.logoUrl = null;
     } else if (
       typeof logo === "string" && logo.startsWith("data:image/") &&
-      // Reject SVG — it can carry <script>/onload and would execute wherever the
-      // logo is rendered. Only raster image types are allowed.
       !/^data:image\/svg/i.test(logo) && logo.length <= MAX_LOGO_BYTES
     ) {
       data.logoUrl = logo;

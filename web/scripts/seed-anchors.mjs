@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { prismaClient } from "./_db.mjs";
 
 const envText = readFileSync(new URL("../.env", import.meta.url), "utf8");
 const env = {};
@@ -31,8 +32,7 @@ const all = readFileSync(file, "utf8")
   .filter((s) => /^[0-9a-f]{64}$/.test(s));
 const digests = limit > 0 ? all.slice(0, limit) : all;
 
-const { PrismaClient } = await import("@prisma/client");
-const db = new PrismaClient();
+const db = prismaClient();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let done = 0, skipped = 0, failed = 0, n = 0;
@@ -40,7 +40,6 @@ const started = Date.now();
 
 console.log(`seeding ${digests.length} digest(s) (of ${all.length} in file), service ${SVC}, concurrency ${concurrency}, delay ${delayMs}ms`);
 
-// Shared cursor across `concurrency` workers pulling from the same queue.
 let idx = 0;
 async function worker() {
   while (idx < digests.length) {
@@ -65,9 +64,6 @@ async function worker() {
       }
     } catch (e) {
       const msg = String(e && e.message ? e.message : e);
-      // A concurrent worker (or the anchor cron) may have created this digest
-      // between our findUnique and create. Harmless race: the anchor exists, so
-      // count it as skipped rather than a real failure.
       if (e?.code === "P2002" || /Unique constraint/i.test(msg)) {
         skipped++;
       } else {

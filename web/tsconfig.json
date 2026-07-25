@@ -11,6 +11,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Tests run on `node --test` with native type stripping, which requires the
+    // real file extension on relative imports. Nothing is emitted from here
+    // (noEmit), so allowing the extension only affects what typechecks.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

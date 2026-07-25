@@ -9,12 +9,9 @@ export async function POST(req: NextRequest) {
   if (!secret || !ctEqual(auth, `Bearer ${secret}`)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  // First re-anchor anything that missed anchoring at seal time, then advance
-  // pending anchors toward Bitcoin confirmation.
   const reanchored = await reanchorOrphans();
   const upgraded = await upgradePendingAnchors();
-  // Also anchor the transparency log's own root to Bitcoin (best-effort).
   let log: { anchored: number; upgraded: number; treeSize: number } | null = null;
-  try { log = await anchorTreeHeads(); } catch { /* best-effort */ }
+  try { log = await anchorTreeHeads(); } catch {  }
   return NextResponse.json({ ok: true, reanchored, upgraded, log });
 }

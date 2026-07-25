@@ -4,24 +4,20 @@ import { db } from "@/lib/db";
 import { getSigningTrail } from "@/lib/signing-audit";
 import { MAX_UPLOAD_BYTES, overContentLength, tooLarge } from "@/lib/limits";
 import { clientIp } from "@/lib/ip";
+import { rateLimitedAsync } from "@/lib/ratelimit";
+import { canonicalProofQuery } from "@/lib/proofs";
 
 const isHash = (s: string) => /^[0-9a-f]{64}$/.test(s);
 
-const HITS = new Map<string, { n: number; resetAt: number }>();
 const LIMIT = 30, WINDOW_MS = 60 * 60 * 1000;
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const rec = HITS.get(ip);
-  if (!rec || now > rec.resetAt) { HITS.set(ip, { n: 1, resetAt: now + WINDOW_MS }); return false; }
-  rec.n += 1;
-  return rec.n > LIMIT;
-}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ hash: string }> }) {
   const { hash } = await params;
   const ref = hash.toLowerCase();
   if (!isHash(ref)) return NextResponse.json({ error: "invalid reference" }, { status: 400 });
-  if (rateLimited(clientIp(req))) return NextResponse.json({ error: "too many attempts, try later" }, { status: 429 });
+  if (await rateLimitedAsync(`reveal:${clientIp(req)}`, LIMIT, WINDOW_MS)) {
+    return NextResponse.json({ error: "too many attempts, try later" }, { status: 429 });
+  }
   if (overContentLength(req)) return NextResponse.json({ error: `file too large (${MAX_UPLOAD_BYTES / 1_000_000}MB max)` }, { status: 413 });
 
   const form = await req.formData().catch(() => null);
@@ -32,12 +28,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ has
   const buf = Buffer.from(await file.arrayBuffer());
   const sha = createHash("sha256").update(buf).digest("hex");
   if (sha !== ref) {
-    // Not the file — no possession, no reveal. Generic message (don't confirm existence).
     return NextResponse.json({ error: "This file doesn't match this proof." }, { status: 403 });
   }
 
-  const rec = await db.sealedDocument.findUnique({
-    where: { sha256: ref },
+  const rec = await db.sealedDocument.findFirst({
+    ...canonicalProofQuery(ref),
     include: { envelope: true },
   });
   if (!rec) return NextResponse.json({ error: "no proof on record" }, { status: 404 });

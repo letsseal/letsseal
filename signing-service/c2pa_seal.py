@@ -98,21 +98,39 @@ def _load_signer(p12_path: str, p12_password: str):
     return key, chain_pem, cn
 
 
+_SOURCE_INSTANCE_ID = "xmp.iid:letsseal-source"
+
+
 def _manifest(mime: str, title: str | None) -> dict:
-    """A minimal, honest manifest. C2PA requires a well-formed `c2pa.actions`
-    assertion, so we record the single standard origin action `c2pa.created` (the
-    asset's provenance begins with this seal) — deliberately WITHOUT a
-    `digitalSourceType`, which would overclaim HOW the image was made (camera vs
-    software). The seal's real meaning — which issuer vouches for this exact,
-    unaltered image — is carried by the signature and the hash binding."""
+    """A manifest that says only what a sealing service can truthfully say.
+
+    C2PA requires the first action to be `c2pa.created` or `c2pa.opened`, and it
+    requires `c2pa.created` to carry a `digitalSourceType` declaring HOW the media
+    was produced. We are handed a finished file and cannot know: every value in
+    that vocabulary is a claim about origin (digitalCapture is a camera,
+    trainedAlgorithmicMedia is generative AI, empty is a blank canvas), so picking
+    one to satisfy a validator would put a false provenance claim inside a
+    provenance seal. That is the one thing this must never do.
+
+    `c2pa.opened` is the accurate description: the asset already existed, we
+    opened it and vouched for it. The original is declared as its `parentOf`
+    ingredient, which is what the action refers to, and no assertion is made about
+    where that parent came from. Readers surface this as `unknownProvenance`,
+    which is exactly right: we vouch for the bytes and the signer, not the
+    camera."""
     return {
         "claim_generator_info": [{"name": "Let's Seal", "version": "1.0.0"}],
         "title": title or "media",
         "format": mime,
         "assertions": [
-            {"label": "c2pa.actions", "data": {"actions": [{"action": "c2pa.created"}]}},
+            {"label": "c2pa.actions", "data": {"actions": [
+                {"action": "c2pa.opened", "instanceId": _SOURCE_INSTANCE_ID},
+            ]}},
         ],
     }
+
+
+_BUILDER_SETTINGS = {"builder": {"thumbnail": {"enabled": False}}}
 
 
 def sign_c2pa(image_bytes: bytes, mime: str, p12_path: str, p12_password: str,
@@ -129,9 +147,17 @@ def sign_c2pa(image_bytes: bytes, mime: str, p12_path: str, p12_password: str,
     def _sign(data: bytes) -> bytes:
         return key.sign(data, ec.ECDSA(hashes.SHA256()))
 
+    ingredient = {
+        "title": title or "original",
+        "relationship": "parentOf",
+        "instance_id": _SOURCE_INSTANCE_ID,
+    }
+
     out = io.BytesIO()
     with Signer.from_callback(_sign, C2paSigningAlg.ES256, chain_pem, None) as signer, \
-            Context() as ctx, Builder(_manifest(mime, title), ctx) as builder:
+            Context.from_dict(_BUILDER_SETTINGS) as ctx, \
+            Builder(_manifest(mime, title), ctx) as builder:
+        builder.add_ingredient_from_stream(ingredient, mime, io.BytesIO(image_bytes))
         builder.sign(signer, mime, io.BytesIO(image_bytes), out)
     return out.getvalue(), cn
 
@@ -170,7 +196,8 @@ def verify_c2pa(image_bytes: bytes, mime: str, ca_root_path: str) -> dict:
     signer = ""
     if am and am in store.get("manifests", {}):
         signer = store["manifests"][am].get("signature_info", {}).get("issuer", "") or ""
-    return {
+
+    verdict = {
         "sealed": bool(am),
         "c2pa": True,
         "valid": state in ("Valid", "Trusted"),
@@ -178,3 +205,60 @@ def verify_c2pa(image_bytes: bytes, mime: str, ca_root_path: str) -> dict:
         "validation_state": state,
         "signer": signer,
     }
+    if verdict["valid"] or not am:
+        return verdict
+
+    codes = _status_codes(store)
+    if _only_defect_is_the_missing_source_type(codes):
+        verdict.update({
+            "valid": True,
+            "trusted": "signingCredential.trusted" in codes["success"],
+            "legacy_manifest": True,
+            "reason": "sealed before the manifest recorded a digital source type; "
+                      "signature, certificate chain and hash binding all verify",
+        })
+    return verdict
+
+
+def _status_codes(store: dict) -> dict[str, set[str]]:
+    """Collect validation codes by outcome. The results are nested by manifest and
+    by ingredient, and the shape has moved between library versions, so this walks
+    the structure rather than assuming a fixed depth."""
+    found: dict[str, set[str]] = {"success": set(), "failure": set(), "informational": set()}
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in found and isinstance(value, list):
+                    found[key].update(
+                        item.get("code") for item in value
+                        if isinstance(item, dict) and item.get("code")
+                    )
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(store.get("validation_results") or {})
+    return found
+
+
+_HARD_BINDINGS = {"assertion.dataHash.match", "assertion.bmffHash.match", "assertion.boxesHash.match"}
+
+
+def _only_defect_is_the_missing_source_type(codes: dict[str, set[str]]) -> bool:
+    """True only when the manifest's SHAPE is the sole complaint and every
+    cryptographic check passed.
+
+    Deliberately strict, because being wrong here means calling a tampered file
+    authentic. A tampered image is not close to this: altering pixels adds
+    `assertion.dataHash.mismatch` and altering the manifest adds
+    `assertion.hashedURI.mismatch`, so any second failure disqualifies it. The
+    positive checks are required rather than assumed, so a future validator that
+    stops reporting a binding fails closed instead of silently widening this."""
+    if codes["failure"] != {"assertion.action.malformed"}:
+        return False
+    if "claimSignature.validated" not in codes["success"]:
+        return False
+    return bool(_HARD_BINDINGS & codes["success"])

@@ -38,16 +38,12 @@ export async function inviteSigner(env: EnvForInvite, signer: SignerRow): Promis
   return { emailed, link };
 }
 
-// After a signer completes in a sequential envelope, invite the next order group
-// (only recipients who haven't been invited yet). No-op for parallel envelopes.
 export async function advanceSequence(envelopeId: string): Promise<void> {
   const env = await db.envelope.findUnique({
     where: { id: envelopeId },
     include: { org: { include: { tenant: true } }, signers: true },
   });
   if (!env || !env.sequential) return;
-  // Same shape the send endpoint builds, so later invites in a sequential
-  // envelope carry the verified badge too.
   const forInvite = {
     id: env.id, title: env.title, message: env.message,
     org: {
@@ -58,9 +54,8 @@ export async function advanceSequence(envelopeId: string): Promise<void> {
   };
   const signing = env.signers.filter((s) => isSigningRole(s.role));
   const pending = signing.filter((s) => s.status !== "signed" && s.status !== "declined");
-  if (!pending.length) return; // everyone's done — completion is handled elsewhere
+  if (!pending.length) return; 
   const currentOrder = Math.min(...pending.map((s) => s.order));
-  // Guard: don't advance while a lower order still owes a signature.
   if (signing.some((s) => s.order < currentOrder && s.status !== "signed" && s.status !== "declined")) return;
   const toInvite = signing.filter((s) => s.order === currentOrder && !s.invitedAt);
   for (const s of toInvite) {

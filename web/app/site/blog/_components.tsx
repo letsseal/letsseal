@@ -50,7 +50,6 @@ export function PostHead({
   );
 }
 
-// Centred reading column for the article body.
 export function Prose({ children }: { children: React.ReactNode }) {
   return (
     <Container className="py-14 sm:py-18">
@@ -77,7 +76,6 @@ export function B({ children }: { children: React.ReactNode }) {
   return <strong className="font-semibold text-stone-900">{children}</strong>;
 }
 
-// A figure with a caption, used for the inline diagrams.
 export function Figure({
   caption,
   children,
@@ -95,7 +93,6 @@ export function Figure({
   );
 }
 
-// A compact stat trio for the top of a post.
 export function Stats({ items }: { items: { k: string; l: string }[] }) {
   return (
     <div className="mt-9 grid grid-cols-3 gap-4 rounded-2xl border border-stone-200 bg-stone-50 px-5 py-6">
@@ -111,7 +108,6 @@ export function Stats({ items }: { items: { k: string; l: string }[] }) {
   );
 }
 
-// Footer CTA + link to the sibling posts.
 export function PostFooter() {
   return (
     <div className="mt-14 border-t border-stone-200 pt-8">

@@ -1,0 +1,98 @@
+# Dependency updates for every ecosystem in the repo. A trust product's blast
+# radius is its dependency tree, so nothing here is left to manual noticing:
+# security updates open a PR the day an advisory lands, and the weekly sweep
+# catches ordinary drift.
+#
+# Security updates are ungrouped on purpose, so a CVE fix arrives as its own
+# small, reviewable PR rather than buried in a batch.
+version: 2
+
+updates:
+  # The web app (Next.js, Auth.js, Prisma): the public attack surface.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # prisma (the CLI) and @prisma/client MUST move together: Prisma refuses to
+      # run when the two versions differ. Ungrouped, Dependabot raised one PR for
+      # each, and BOTH were guaranteed to fail because each one on its own creates
+      # exactly that mismatch. Grouping them makes the pair a single reviewable
+      # change, whether it is a patch or a major.
+      prisma:
+        patterns: ["prisma", "@prisma/*"]
+      production:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+      development:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+    ignore:
+      # @types/node must track the Node MAJOR we actually run (24, set in the CI
+      # workflow and on the server), not the newest published. Types ahead of the
+      # runtime describe APIs that are not there, which typechecks clean and then
+      # fails in production. Bump this deliberately when the runtime moves.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 is the native (Go) compiler. It ships a tsc binary and no
+      # lib/typescript.js, so it exposes no JavaScript API, and `next build`
+      # requires one for its integrated typecheck: the build fails with "trying
+      # to use TypeScript but do not have the required package(s) installed"
+      # even though `tsc --noEmit` succeeds. Blocked until Next.js supports the
+      # native compiler, not on anything in this repo.
+      #
+      # Note this holds only for /web. sdk/ts calls tsc directly and builds fine
+      # on 7, which is why it is not held there.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  # The published CLI package.
+  - package-ecosystem: npm
+    directory: /cli
+    schedule:
+      interval: weekly
+      day: monday
+
+  # The TypeScript SDK.
+  - package-ecosystem: npm
+    directory: /sdk/ts
+    schedule:
+      interval: weekly
+      day: monday
+
+  # The signing service: the process that holds the CA and signing keys.
+  # Left ungrouped so every bump here gets read on its own.
+  - package-ecosystem: pip
+    directory: /signing-service
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+
+  # The Rust CLI.
+  - package-ecosystem: cargo
+    directory: /cli-rs
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      # ureq 3 is a complete API rewrite: Response became generic, Error::Status
+      # is gone, and the request builder and body handling all changed. Taking it
+      # means rewriting src/oci.rs, the registry client that holds and forwards
+      # registry credentials and refuses to send them to a non-https auth realm.
+      # ureq 2.x is maintained and carries no advisory, so this would be a rewrite
+      # of security-relevant networking code for no security gain. Revisit
+      # deliberately, or if an advisory ever lands against 2.x.
+      - dependency-name: "ureq"
+        update-types: ["version-update:semver-major"]
+
+  # Our own workflows. Actions are pinned to commit SHAs, so this is what keeps
+  # those pins current (Dependabot rewrites the SHA and updates the version
+  # comment beside it).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday

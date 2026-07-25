@@ -6,14 +6,14 @@ import { basename, join, relative } from "node:path";
 const inp = (name, def = "") =>
   process.env[`INPUT_${name.toUpperCase().replace(/[ -]/g, "_")}`]?.trim() ?? def;
 
-const MODE = inp("mode", "anchor").toLowerCase(); // anchor | sign | seal | verify
+const MODE = inp("mode", "anchor").toLowerCase(); 
 const APP = (inp("app") || process.env.SEALBOT_APP || "").replace(/\/$/, "");
 const TOKEN = inp("token");
 const ORG = inp("org");
 const OUTDIR = inp("output-dir");
 const FAIL_ON_TAMPER = !/^(false|0|no)$/i.test(inp("fail-on-tamper", "true"));
-const DO_ANCHOR = !/^(false|0|no)$/i.test(inp("anchor", "true"));   // sign: also anchor the digest
-const DO_ATTEST = !/^(false|0|no)$/i.test(inp("attest", "true"));   // sign: also emit SLSA provenance
+const DO_ANCHOR = !/^(false|0|no)$/i.test(inp("anchor", "true"));   
+const DO_ATTEST = !/^(false|0|no)$/i.test(inp("attest", "true"));   
 const FILES = inp("files");
 
 function fail(msg) { console.error(`::error::${msg}`); process.exit(1); }
@@ -22,8 +22,17 @@ if (!["anchor", "sign", "seal", "verify"].includes(MODE)) fail(`unknown mode '${
 if (MODE === "seal" && (!TOKEN || !ORG)) fail("mode 'seal' needs `token` and `org`.");
 if (MODE === "sign" && !TOKEN) fail("mode 'sign' needs `token` (an API key whose org has a code-signing cert).");
 
-// ---- minimal glob (no deps): supports *, **, and literal paths ----
-// `**/` matches zero or more directory segments; `**` any; `*` within a segment.
+function assertSecure(url, what) {
+  let u;
+  try { u = new URL(url); } catch { fail(`invalid ${what} URL: ${url}`); return; }
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(u.hostname);
+  if (u.protocol !== "https:" && !local) {
+    fail(`${what} must use https:// for a remote host (got ${u.protocol}//${u.hostname}). ` +
+         `Plaintext would expose the API key and let a network attacker forge the result.`);
+  }
+}
+assertSecure(APP, "`app`");
+
 function toRegex(glob) {
   const re = glob
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
@@ -87,15 +96,10 @@ async function sealFile(path) {
   };
 }
 
-// SLSA v1.0 provenance predicate, filled from the CI build context. The whole
-// point of provenance is that the builder describes the build — so we read the
-// repo, commit, ref, workflow, and run straight from the GitHub Actions env
-// (all optional, so a local/non-GHA run still produces a valid, if sparser,
-// statement). The API maps predicateType "slsaprovenance" → slsa.dev/provenance/v1.
 function slsaPredicate(path) {
   const e = process.env;
   const server = (e.GITHUB_SERVER_URL || "https://github.com").replace(/\/$/, "");
-  const repo = e.GITHUB_REPOSITORY;                 // owner/name
+  const repo = e.GITHUB_REPOSITORY;                 
   const repoUri = repo ? `git+${server}/${repo}` : undefined;
   const srcRef = repoUri && e.GITHUB_REF ? `${repoUri}@${e.GITHUB_REF}` : repoUri;
   return {
@@ -121,16 +125,6 @@ function slsaPredicate(path) {
   };
 }
 
-// Sign a build artifact digest-only under the org's code-signing cert, plus (by
-// default) a SLSA provenance attestation. The artifact never leaves the runner —
-// only its SHA-256 is sent. The API returns tlog-native Sigstore bundles backed
-// by Let's Seal's own transparency log, so consumers verify with stock cosign
-// against our trusted root WITHOUT --insecure-ignore-tlog:
-//   cosign verify-blob            --bundle <file>.cosign.bundle --trusted-root <(curl -s <APP>/trusted_root.json) ...
-//   cosign verify-blob-attestation --bundle <file>.att.bundle    --trusted-root <(curl -s <APP>/trusted_root.json) ...
-// Writes <file>.cosign.bundle (+ <file>.att.bundle). If a bundle is unavailable
-// (a transient log hiccup), falls back to the legacy .sig/.pem/.chain.pem
-// sidecars so signing never silently produces nothing.
 async function signFile(path) {
   const digest = sha256(await readFile(path));
   const base = OUTDIR ? join(OUTDIR, basename(path)) : path;
@@ -148,8 +142,6 @@ async function signFile(path) {
     await writeFile(`${base}.cosign.bundle`, nl(b.bundle).replace(/\n?$/, "\n"));
     out.bundle = relative(process.cwd(), `${base}.cosign.bundle`);
   } else {
-    // Fallback: no tlog bundle this time — emit the cosign sidecars so the artifact
-    // is still verifiable (with --certificate/--signature + --insecure-ignore-tlog).
     await writeFile(`${base}.sig`, nl(b.sig).replace(/\n?$/, "\n"));
     await writeFile(`${base}.pem`, nl(b.certPem).replace(/\n?$/, "\n"));
     await writeFile(`${base}.chain.pem`, nl(b.chainPem).replace(/\n?$/, "\n"));

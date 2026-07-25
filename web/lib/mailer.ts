@@ -37,9 +37,6 @@ function fromHeader(orgName?: string): string {
 
 const FONT = "system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
 
-// The Let's Seal lockup for the footer: the real scalloped seal mark (the same
-// one in the site nav) as a PNG, next to the wordmark. A PNG, not inline SVG,
-// because Gmail strips SVG; served over HTTPS so it proxies cleanly.
 function markHtml(size = 20): string {
   const site = process.env.APP_URL ?? "https://letsseal.org";
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-block;vertical-align:middle"><tr>
@@ -48,10 +45,6 @@ function markHtml(size = 20): string {
     </tr></table>`;
 }
 
-// Who sent this, and is their identity proven? Recipients decide whether to trust
-// a signing request from the inbox, before they click anything, so the issuer's
-// verified status has to be visible right there rather than one link away.
-// Verified means the brand proved DNS control of the domain (Tenant.verifiedDomain).
 type Issuer = { name: string; verifiedDomain?: string | null; logoUrl?: string | null };
 
 function issuerHtml(issuer: Issuer): string {
@@ -59,14 +52,6 @@ function issuerHtml(issuer: Issuer): string {
     ? `<span style="background:#2563eb;color:#ffffff;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap">&#10003; Verified</span>
        <span style="color:#5b6472;font-size:12px">${esc(issuer.verifiedDomain)}</span>`
     : `<span style="background:#eef0f4;color:#5b6472;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap">Unverified sender</span>`;
-  // The org's own uploaded logo, when it has one. Served over HTTPS (see
-  // /api/orgs/[slug]/logo) because inline data: URIs do not render in Gmail.
-  // A table cell, not a flex div, so it aligns in Outlook too.
-  // The three text rows use explicit line-heights so the stack is a known height
-  // (about 58px) in every client, not just whatever a given renderer's default
-  // line-height produces. The logo is sized to that and its cell is bottom-aligned,
-  // so the logo's base lands on the verified pill's baseline even if a client packs
-  // the text a pixel tighter than expected.
   const logoCell = issuer.logoUrl
     ? `<td style="width:70px;vertical-align:bottom;padding-right:12px">
          <img src="${esc(issuer.logoUrl)}" width="58" height="58" alt="${esc(issuer.name)}"
@@ -85,8 +70,6 @@ function issuerHtml(issuer: Issuer): string {
     </div>`;
 }
 
-// Wrap a message body in the standard frame: issuer identity at the top (so the
-// verified status is above the fold) and the Let's Seal mark in the footer.
 function shell(body: string, issuer?: Issuer): string {
   const site = process.env.APP_URL ?? "https://letsseal.org";
   return `<div style="font-family:${FONT};max-width:520px;margin:0 auto;color:#172033">
@@ -100,7 +83,6 @@ function shell(body: string, issuer?: Issuer): string {
     </div>`;
 }
 
-// The same identity line for the plain-text alternative.
 function issuerText(name: string, verifiedDomain?: string | null): string {
   return verifiedDomain
     ? `Sent by ${name} (VERIFIED: ${verifiedDomain})\n\n`
@@ -109,7 +91,6 @@ function issuerText(name: string, verifiedDomain?: string | null): string {
 
 const FOOTER_TEXT = "\n--\nLetsSeal. Cryptographically sealed and independently timestamped.\nAnyone can verify a Let's Seal document for free, no account needed.\n";
 
-// Send a signing invite. Returns true if actually sent.
 export async function sendSigningInvite(opts: {
   to: string;
   signerName: string;
@@ -124,7 +105,6 @@ export async function sendSigningInvite(opts: {
 }): Promise<boolean> {
   if (!isMailConfigured()) return false;
   const brand = opts.brandColor && /^#[0-9a-fA-F]{6}$/.test(opts.brandColor) ? opts.brandColor : "#1a73e8";
-  // Personal note from the sender, rendered as a quoted block (escaped, line breaks kept).
   const note = opts.message
     ? `<blockquote style="margin:18px 0;padding:10px 16px;border-left:3px solid ${brand};background:#f6f8fc;font-size:14px;color:#3a4353;white-space:pre-wrap">${esc(opts.message)}</blockquote>`
     : "";
@@ -193,9 +173,6 @@ export async function sendEnvelopeCompleted(opts: {
   return true;
 }
 
-// Notify the sender (org owner/admin) that everyone has signed — DocuSign also
-// pings the sender on completion. Links to the proof page, where the issuer can
-// review the full record and download the sealed document from the app.
 export async function sendEnvelopeCompletedSender(opts: {
   to: string;
   name: string;
@@ -268,8 +245,6 @@ export async function sendCredentialIssued(opts: {
   return true;
 }
 
-// Platform account email (from Let's Seal itself, not an org): confirm a new
-// signup owns the address before they can send on anyone's behalf.
 export async function sendVerificationEmail(opts: { to: string; name?: string; link: string }): Promise<boolean> {
   if (!isMailConfigured()) return false;
   const brand = "#2563eb";
@@ -285,7 +260,7 @@ export async function sendVerificationEmail(opts: { to: string; name?: string; l
       <p style="font-size:13px;color:#5b6472">This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>
 `);
   await send({
-    from: fromHeader(), // "Let's Seal <no-reply@…>" — platform sender, no org
+    from: fromHeader(), 
     to: opts.to,
     subject: "Verify your email · Let's Seal",
     html,
@@ -313,7 +288,7 @@ export async function sendDomainVerification(opts: {
       <p style="font-size:13px;color:#5b6472">This link expires in 24 hours. If you weren't expecting this, ignore this email — nothing changes and no one gains access to your domain.</p>
 `);
   await send({
-    from: fromHeader(), // platform sender — this is a Let's Seal system email, not org-sending
+    from: fromHeader(), 
     to: opts.to,
     subject: `Verify ${opts.domain} · Let's Seal`,
     html,
@@ -322,7 +297,6 @@ export async function sendDomainVerification(opts: {
   return true;
 }
 
-// Invite a coworker to a Let's Seal account (or a specific entity within it).
 export async function sendAccountInvitation(opts: {
   to: string; accountName: string; inviterName: string; roleLabel: string; link: string;
 }): Promise<boolean> {
@@ -340,7 +314,7 @@ export async function sendAccountInvitation(opts: {
       <p style="font-size:13px;color:#5b6472">You'll be asked to sign in or create a free account first. This link expires in 14 days. If you weren't expecting this, you can ignore it.</p>
 `);
   await send({
-    from: fromHeader(), // platform sender
+    from: fromHeader(), 
     to: opts.to,
     subject: `Join ${opts.accountName} on Let's Seal`,
     html,

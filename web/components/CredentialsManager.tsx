@@ -190,7 +190,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div><Label className="mb-1.5 block text-xs">{label}</Label>{children}</div>;
 }
 
-// Minimal CSV parse (header row → objects). Handles simple quoted fields.
 function parseCsv(text: string): any[] {
   const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];

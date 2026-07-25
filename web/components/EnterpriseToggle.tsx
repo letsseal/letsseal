@@ -22,7 +22,7 @@ export function EnterpriseToggle({ tenantId, tenantName, enabled }: { tenantId: 
       if (!res.ok) { setError(data.error ?? "Could not update"); setLoading(false); return; }
       setOn(next);
       setLoading(false);
-      router.refresh(); // re-render the sidebar/nav with the new state
+      router.refresh(); 
     } catch {
       setError("Something went wrong."); setLoading(false);
     }

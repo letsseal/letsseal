@@ -19,9 +19,6 @@ function cred(prefix: string, kind: "ID" | "SECRET"): string | undefined {
   );
 }
 
-// Registry of providers the browser flow can drive. Google is full OIDC (returns
-// an id_token); GitHub is OAuth (returns an access_token the service exchanges for
-// the verified email). Add Microsoft/Apple by copying a row + its endpoints.
 const REGISTRY: Omit<FlowProvider, "clientId" | "clientSecret">[] = [
   {
     id: "google", label: "Google", oidc: true,
@@ -51,16 +48,12 @@ export function flowProvider(id: string): FlowProvider | null {
   return p.clientId && p.clientSecret ? p : null;
 }
 
-/** The identity providers that are configured (have OAuth creds) for the browser flow. */
 export function enabledFlowProviders(): { id: string; label: string }[] {
   return REGISTRY.map(withCreds)
     .filter((p) => p.clientId && p.clientSecret)
     .map(({ id, label }) => ({ id, label }));
 }
 
-// The canonical app origin the OAuth redirect_uri is built from. Must match a URI
-// registered on the OAuth app. AUTH_URL is pinned in prod (behind the tunnel the
-// forwarded Host is wrong), so prefer it; fall back to the request origin in dev.
 export function appOrigin(reqOrigin?: string): string {
   const pinned = process.env.AUTH_URL?.trim() || process.env.APP_URL?.trim();
   return (pinned || reqOrigin || "http://localhost:3000").replace(/\/$/, "");
@@ -78,8 +71,6 @@ export function buildAuthorizeUrl(p: FlowProvider, opts: { state: string; nonce:
     scope: p.scope,
     state: opts.state,
   });
-  // OIDC replay-hardening + force an explicit account choice so the signer picks
-  // the identity to seal under (rather than silently reusing a stale session).
   if (p.oidc) {
     q.set("nonce", opts.nonce);
     q.set("prompt", "select_account");
@@ -87,9 +78,6 @@ export function buildAuthorizeUrl(p: FlowProvider, opts: { state: string; nonce:
   return `${p.authorize}?${q.toString()}`;
 }
 
-// Exchange the authorization code for the token we seal with: the id_token for
-// OIDC providers, the access_token for GitHub. Server-side only (uses the client
-// secret). Throws on any provider error.
 export async function exchangeCode(p: FlowProvider, code: string, redirect: string): Promise<string> {
   const body = new URLSearchParams({
     client_id: p.clientId!,
@@ -113,10 +101,9 @@ export async function exchangeCode(p: FlowProvider, code: string, redirect: stri
   return token;
 }
 
-// ---- pending-seal cookie (HMAC-signed, carries the flow across the redirect) ----
 
 export const FLOW_COOKIE = "ls_idseal";
-const MAX_AGE_S = 600; // 10 minutes to complete the OAuth round-trip
+const MAX_AGE_S = 600; 
 
 export type FlowState = {
   provider: string;
@@ -125,7 +112,7 @@ export type FlowState = {
   orgSlug: string;
   state: string;
   nonce: string;
-  exp: number; // epoch seconds
+  exp: number; 
 };
 
 function secret(): string {
@@ -142,7 +129,6 @@ export function newState(): { state: string; nonce: string } {
   return { state: b64url(randomBytes(24)), nonce: b64url(randomBytes(24)) };
 }
 
-// Serialize + HMAC the flow state into a cookie value: <payload>.<sig>.
 export function signFlow(f: Omit<FlowState, "exp">): { value: string; maxAge: number } {
   const full: FlowState = { ...f, exp: Math.floor(Date.now() / 1000) + MAX_AGE_S };
   const payload = b64url(Buffer.from(JSON.stringify(full)));
@@ -150,7 +136,6 @@ export function signFlow(f: Omit<FlowState, "exp">): { value: string; maxAge: nu
   return { value: `${payload}.${sig}`, maxAge: MAX_AGE_S };
 }
 
-// Verify + parse the cookie. Returns null on any tamper/expiry.
 export function verifyFlow(cookieValue: string | undefined): FlowState | null {
   if (!cookieValue) return null;
   const dot = cookieValue.lastIndexOf(".");

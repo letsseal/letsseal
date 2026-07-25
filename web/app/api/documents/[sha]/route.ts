@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { apiUser } from "@/lib/auth-helpers";
 import { readFile, fileExists } from "@/lib/storage";
+import { canonicalProofQuery } from "@/lib/proofs";
 
 const isHash = (s: string) => /^[0-9a-f]{64}$/.test(s);
 
@@ -10,8 +11,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sha:
   const ref = sha.toLowerCase();
   if (!isHash(ref)) return new Response("bad request", { status: 400 });
 
-  const rec = await db.sealedDocument.findUnique({
-    where: { sha256: ref },
+  const rec = await db.sealedDocument.findFirst({
+    ...canonicalProofQuery(ref),
     select: { pdfPath: true, title: true, orgId: true, envelope: { select: { orgId: true, title: true } } },
   });
   if (!rec) return new Response("not found", { status: 404 });

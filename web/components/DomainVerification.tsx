@@ -67,7 +67,6 @@ export default function DomainVerification({
 
   function reset() { setPending(null); setError(""); setCheckMsg(""); }
 
-  // Verified state
   if (verified) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
@@ -137,7 +136,6 @@ export default function DomainVerification({
           <button onClick={reset} className="text-sm text-muted-foreground hover:text-foreground">Use a different method</button>
         </div>
       ) : (
-        /* Start form */
         <div className="mt-5 space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Domain</label>

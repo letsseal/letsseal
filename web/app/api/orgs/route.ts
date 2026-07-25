@@ -46,8 +46,6 @@ export async function POST(req: NextRequest) {
     slug = `${base}-${n}`;
   }
 
-  // Issue the CA signing certificate before persisting so a cert failure
-  // doesn't leave a business that can't seal anything.
   try {
     await issueOrgCert(slug, trimmed);
   } catch (e) {
@@ -57,9 +55,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // New separate business → mint a tenant (brand) for it, with the creator as owner.
-  // `enterprise` intent (from the signup/new-business choice) turns on multi-entity +
-  // team features immediately, so the Account surface is there from the start.
   if (!attachTenantId) {
     let tSlug = slug;
     for (let n = 2; await db.tenant.findUnique({ where: { slug: tSlug } }); n++) tSlug = `${slug}-${n}`;

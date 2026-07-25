@@ -3,11 +3,23 @@
   var SELF = document.currentScript;
   var DEFAULT_APP = SELF ? new URL(SELF.src, location.href).origin : location.origin;
 
+  function safeUrl(u) {
+    try {
+      var parsed = new URL(u, location.href);
+      return (parsed.protocol === "https:" || parsed.protocol === "http:") ? parsed.href : null;
+    } catch (e) { return null; }
+  }
+
   function el(tag, attrs, kids) {
     var n = document.createElement(tag);
     if (attrs) for (var k in attrs) {
       if (k === "style") n.style.cssText = attrs[k];
       else if (k === "html") n.innerHTML = attrs[k];
+      else if (k === "href") {
+        var safe = safeUrl(attrs[k]);
+        if (safe === null) continue; 
+        n.setAttribute(k, safe);
+      }
       else n.setAttribute(k, attrs[k]);
     }
     (kids || []).forEach(function (c) { n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });

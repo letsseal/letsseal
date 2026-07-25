@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { canonicalProofQuery } from "@/lib/proofs";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ sha: string }> }) {
   const { sha } = await params;
   const sha256 = sha.toLowerCase();
-  const rec = await db.sealedDocument.findUnique({
-    where: { sha256 },
+  const rec = await db.sealedDocument.findFirst({
+    ...canonicalProofQuery(sha256),
     select: { detachedSig: true, sealType: true },
   });
   if (!rec || rec.sealType !== "detached" || !rec.detachedSig) {

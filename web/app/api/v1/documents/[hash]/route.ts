@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { upgradeAnchor } from "@/lib/signing";
 import { proofUrl, appUrl } from "@/lib/hosted";
 import { withCors, preflight } from "@/lib/cors";
+import { canonicalProofQuery } from "@/lib/proofs";
 
 const isHash = (s: string) => /^[0-9a-f]{64}$/.test(s);
 const json = (body: unknown, init?: ResponseInit) => withCors(NextResponse.json(body, init));
@@ -14,8 +15,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
   const sha256 = hash.toLowerCase();
   if (!isHash(sha256)) return json({ error: "sha256 (64 hex) required" }, { status: 400 });
 
-  const doc = await db.sealedDocument.findUnique({
-    where: { sha256 },
+  const doc = await db.sealedDocument.findFirst({
+    ...canonicalProofQuery(sha256),
     include: {
       org: { include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } } },
       envelope: { include: { org: { include: { tenant: { select: { verifiedDomain: true, domainVerifiedVia: true } } } } } },
@@ -53,14 +54,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
       kind: "document",
       sealed: true,
       issuer: doc.org?.name ?? doc.envelope?.org.name ?? null,
-      // Issuer-identity tier: the name is a self-asserted claim unless the org
-      // proved control of a globally-unique domain. Programmatic verifiers must
-      // not treat `issuer` as identity-verified unless verification.verified.
       verification: (() => {
         const o = doc.org ?? doc.envelope?.org ?? null;
         if (!o) return null;
-        // A suspended issuer (impersonation/abuse takedown) never reports verified —
-        // programmatic consumers get the safe answer plus an explicit flag.
         const suspended = o.status === "suspended";
         const dom = o.tenant?.verifiedDomain ?? null;
         if (dom && !suspended) {
@@ -68,9 +64,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ has
         }
         return { verified: false, domain: null, via: null, suspended };
       })(),
-      // The document title is deliberately private for contracts/hosted docs —
-      // the HTML proof page hides it from non-issuers (page.tsx gateContent). This
-      // keyless twin must match: only issued credentials expose their title.
       title: doc.source === "credential" ? (doc.title ?? doc.envelope?.title ?? null) : null,
       certCN: doc.certCN,
       sealedAt: doc.sealedAt.toISOString(),

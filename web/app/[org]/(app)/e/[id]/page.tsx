@@ -24,8 +24,6 @@ function signerLabel(s: { status: string; signedAt: Date | null; viewedAt: Date 
   return null;
 }
 
-// Human labels for the audit trail, phrased as "{who} {label}". field_filled is
-// intentionally absent so per-field noise stays out of the issuer timeline.
 const ACTION_LABEL: Record<string, string> = {
   created: "created the document",
   sent: "sent it for signing",
@@ -51,8 +49,6 @@ export default async function EnvelopePage({ params }: { params: Promise<{ org: 
   });
   if (!envelope || envelope.org.slug !== slug) notFound();
 
-  // Activity timeline from the tamper-evident audit log (already captured on
-  // open/sign/seal), formatted server-side to keep dates locale-stable.
   const trail = await getSigningTrail(envelope.id);
   const activity = trail.entries
     .filter((e) => ACTION_LABEL[e.action])

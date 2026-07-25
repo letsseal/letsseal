@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { verifyPdf, verifyDetached, verifyC2pa, verifyXml, verifySmime, verifyBlob, verifyIdentity, verifyAttestation, type VerifyResult } from "@/lib/signing";
-import { readFile, fileExists } from "@/lib/storage";
+import { canonicalProofQuery, readSidecar } from "@/lib/proofs";
 import { withCors, preflight } from "@/lib/cors";
 import { overContentLength, tooLarge } from "@/lib/limits";
-import { rateLimited } from "@/lib/ratelimit";
+import { rateLimitedAsync } from "@/lib/ratelimit";
 import { clientIp } from "@/lib/ip";
 
 const isXml = (b: Buffer) => {
@@ -36,7 +36,7 @@ const isC2paMedia = (b: Buffer) => {
 export function OPTIONS() { return preflight(); }
 
 export async function POST(req: NextRequest) {
-  if (rateLimited(`v1verify:${clientIp(req)}`, 60, 60_000))
+  if (await rateLimitedAsync(`v1verify:${clientIp(req)}`, 60, 60_000))
     return withCors(NextResponse.json({ error: "too many requests" }, { status: 429 }));
   if (overContentLength(req)) return withCors(NextResponse.json({ error: "file too large" }, { status: 413 }));
   const form = await req.formData().catch(() => null);
@@ -71,25 +71,34 @@ export async function POST(req: NextRequest) {
     } else if (isPdf(bytes)) {
       v = await verifyPdf(bytes);
     } else {
-      // No .sig supplied — match a stored detached or artifact (blob) seal by hash.
-      const rec = await db.sealedDocument.findUnique({ where: { sha256 }, select: { sealType: true, detachedSig: true } });
+      const rec = await db.sealedDocument.findFirst({
+        ...canonicalProofQuery(sha256),
+        select: { id: true, sha256: true, sealType: true, detachedSig: true },
+      });
       if (rec?.sealType === "detached" && rec.detachedSig) {
         const d = await verifyDetached(bytes, Buffer.from(rec.detachedSig, "base64"));
         v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer: d.signer };
-      } else if ((rec?.sealType === "blob" || rec?.sealType === "identity") && rec.detachedSig && (await fileExists(`hosted/${sha256}/artifact.pem`))) {
-        const leaf = (await readFile(`hosted/${sha256}/artifact.pem`)).toString("utf8");
-        const chain = (await fileExists(`hosted/${sha256}/artifact.chain.pem`)) ? (await readFile(`hosted/${sha256}/artifact.chain.pem`)).toString("utf8") : "";
-        // Identity seals surface the verified email as the signer; blob seals the cert CN.
-        const d = rec.sealType === "identity"
-          ? await verifyIdentity(bytes, rec.detachedSig, leaf + chain)
-          : await verifyBlob(bytes, rec.detachedSig, leaf + chain);
-        const signer = ("identity" in d && d.identity) ? d.identity : d.signer;
-        v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer };
-      } else if (rec?.sealType === "attestation" && (await fileExists(`hosted/${sha256}/attestation.bundle`))) {
-        const bundle = (await readFile(`hosted/${sha256}/attestation.bundle`)).toString("utf8");
-        const cert = (await readFile(`hosted/${sha256}/attestation.pem`)).toString("utf8");
-        const d = await verifyAttestation(bytes, bundle, cert);
-        v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted && d.subject_ok !== false, signer: d.signer };
+      } else if ((rec?.sealType === "blob" || rec?.sealType === "identity") && rec.detachedSig) {
+        const leaf = await readSidecar(rec, "artifact.pem");
+        if (!leaf) {
+          v = { sealed: true, sha256 };
+        } else {
+          const chain = (await readSidecar(rec, "artifact.chain.pem")) ?? "";
+          const d = rec.sealType === "identity"
+            ? await verifyIdentity(bytes, rec.detachedSig, leaf + chain)
+            : await verifyBlob(bytes, rec.detachedSig, leaf + chain);
+          const signer = ("identity" in d && d.identity) ? d.identity : d.signer;
+          v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted, signer };
+        }
+      } else if (rec?.sealType === "attestation") {
+        const bundle = await readSidecar(rec, "attestation.bundle");
+        const cert = await readSidecar(rec, "attestation.pem");
+        if (!bundle || !cert) {
+          v = { sealed: true, sha256 };
+        } else {
+          const d = await verifyAttestation(bytes, bundle, cert);
+          v = { sealed: d.sealed, sha256, intact: d.valid, valid: d.valid, trusted: d.trusted, authentic: d.valid && d.trusted && d.subject_ok !== false, signer: d.signer };
+        }
       } else {
         v = { sealed: false, sha256 };
       }

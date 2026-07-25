@@ -28,16 +28,14 @@ for (const k of REQUIRED) {
   if (process.env[k] && process.env[k].trim()) ok(`env ${k}`);
   else fail(`env ${k}`, "missing/empty");
 }
-// storage: all-or-nothing
 const s3keys = ["STORAGE_S3_BUCKET", "STORAGE_S3_ENDPOINT", "STORAGE_S3_REGION", "STORAGE_S3_ACCESS_KEY_ID", "STORAGE_S3_SECRET_ACCESS_KEY"];
 const s3set = s3keys.filter((k) => process.env[k] && process.env[k].trim());
 if (s3set.length === 0) warn("storage", "no STORAGE_S3_* → LOCAL DISK (ok for self-host; expected on a hosted VPS to be B2)");
 else if (s3set.length < s3keys.length) fail("storage", `partial S3 config — missing ${s3keys.filter((k) => !s3set.includes(k)).join(", ")}`);
 
-// ---- 2. Postgres ----
 try {
-  const { PrismaClient } = await import("@prisma/client");
-  const db = new PrismaClient();
+  const { prismaClient } = await import("./_db.mjs");
+  const db = prismaClient();
   await db.$queryRaw`SELECT 1`;
   const orgs = await db.organization.count();
   ok("postgres", `connected · ${orgs} org(s) · migrations applied`);
@@ -54,7 +52,6 @@ try {
   fail("signing-service", `unreachable at ${process.env.SIGNING_SERVICE_URL} — is letsseal-signing running? (${e.message ?? e})`);
 }
 
-// ---- 4. Backblaze B2 (if configured) — real PUT/GET/DELETE round-trip ----
 if (s3set.length === s3keys.length) {
   try {
     const { AwsClient } = await import("aws4fetch");
@@ -77,7 +74,6 @@ if (s3set.length === s3keys.length) {
   }
 }
 
-// ---- 5. SMTP (verify auth without sending) ----
 if (process.env.SMTP_HOST && process.env.SMTP_HOST.trim()) {
   try {
     const nodemailer = (await import("nodemailer")).default;
@@ -96,7 +92,6 @@ if (process.env.SMTP_HOST && process.env.SMTP_HOST.trim()) {
   warn("smtp", "SMTP_HOST unset → ALL email will silently no-op (invites, completion, credentials)");
 }
 
-// ---- report ----
 const icon = { ok: "✓", warn: "!", fail: "✗" };
 console.log("\n  Let's Seal — deploy pre-flight\n  " + "─".repeat(40));
 for (const r of results) console.log(`  ${icon[r.state]} ${r.name.padEnd(22)} ${r.msg}`);
