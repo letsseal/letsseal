@@ -1,4 +1,4 @@
-pyHanko[pkcs11,image-support]==0.35.2
+pyHanko[pkcs11,image-support]==0.36.0
 fastapi==0.140.0
 uvicorn[standard]==0.51.0
 python-multipart==0.0.32
