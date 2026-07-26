@@ -9,6 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  cacheHandler: require.resolve("./cache-handler.js"),
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

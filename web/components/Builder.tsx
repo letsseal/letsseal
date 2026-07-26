@@ -5,8 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Send, Plus, Trash2, PenLine, Type, Calendar, CheckSquare,
   Baseline, Users, MousePointer2, Check, Copy, ExternalLink, FileText, Loader2, Contact, Mail, AlertTriangle,
-  Settings2, MessageSquare, ListOrdered,
-} from "lucide-react";
+  Settings2, MessageSquare, ListOrdered, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import PdfCanvas, { FieldBox } from "./PdfCanvas";
-import { recipientColor, FIELD_TYPES, RECIPIENT_ROLES, roleMeta, isSigningRole } from "@/lib/signers";
+import { recipientColor, FIELD_TYPES, RECIPIENT_ROLES, roleMeta, isSigningRole, reorderMap, reorder } from "@/lib/signers";
 
 type Signer = { name: string; email: string; role: string; accessCode: string; title: string; department: string };
 type SentSigner = { name: string; email: string | null; role: string; order: number; accessCode: string | null; emailed: boolean; status: string; link: string | null };
@@ -50,6 +49,8 @@ export default function Builder({
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
   const [signers, setSigners] = useState<Signer[]>([{ name: "", email: "", role: "signer", accessCode: "", title: "", department: "" }]);
   const [sequential, setSequential] = useState(false);
   const [armedType, setArmedType] = useState<string | null>(null);
@@ -151,6 +152,14 @@ export default function Builder({
     if (selectedField?.signerIndex === i) setSelectedId(null);
   }
 
+  function moveSigner(from: number, to: number) {
+    if (from === to || to < 0 || to >= signers.length) return;
+    const remap = reorderMap(signers.length, from, to);
+    setSigners((p) => reorder(p, from, to));
+    setFields((p) => p.map((f) => ({ ...f, signerIndex: remap.get(f.signerIndex ?? 0) ?? f.signerIndex })));
+    setActiveSigner((a) => remap.get(a) ?? a);
+  }
+
   function changeRole(i: number, role: string) {
     setSigners((p) => p.map((x, j) => (j === i ? { ...x, role } : x)));
     if (isSigningRole(role)) return;
@@ -208,10 +217,34 @@ export default function Builder({
                 const signing = isSigningRole(s.role);
                 return (
                   <div key={i}
-                       className={`rounded-lg border p-2.5 mb-2 cursor-pointer transition ${active ? "ring-2" : "hover:bg-secondary"}`}
+                       onDragOver={(e) => { if (dragFrom !== null) { e.preventDefault(); setDragOver(i); } }}
+                       onDrop={(e) => {
+                         e.preventDefault();
+                         if (dragFrom !== null) moveSigner(dragFrom, i);
+                         setDragFrom(null); setDragOver(null);
+                       }}
+                       className={`rounded-lg border p-2.5 mb-2 cursor-pointer transition ${active ? "ring-2" : "hover:bg-secondary"} ${
+                         dragOver === i && dragFrom !== null && dragFrom !== i ? "border-primary border-dashed" : ""
+                       } ${dragFrom === i ? "opacity-50" : ""}`}
                        style={{ borderColor: active ? c.border : undefined, ...(active ? { ["--tw-ring-color" as any]: c.border } : {}) }}
                        onClick={() => setActiveSigner(i)}>
                     <div className="flex items-center gap-2 mb-2">
+                      {signers.length > 1 && (
+                        <button type="button"
+                                draggable
+                                onDragStart={() => { setDragFrom(i); setDragOver(i); }}
+                                onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); moveSigner(i, i - 1); }
+                                  if (e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); moveSigner(i, i + 1); }
+                                }}
+                                title={sequential ? "Drag to reorder, or use the arrow keys" : "Drag to reorder"}
+                                aria-label={`Reorder ${s.name.trim() || `recipient ${i + 1}`}, position ${i + 1} of ${signers.length}`}
+                                className="cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing shrink-0">
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       {sequential && signing && (
                         <span className="h-4 w-4 rounded-full text-[10px] font-semibold text-white flex items-center justify-center shrink-0" style={{ background: c.solid }}>{i + 1}</span>
                       )}

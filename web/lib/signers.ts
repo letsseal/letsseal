@@ -43,3 +43,18 @@ export const FIELD_TYPES = [
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number]["type"];
+
+export function reorderMap(count: number, from: number, to: number): Map<number, number> {
+  const positions = Array.from({ length: count }, (_, i) => i);
+  if (from >= 0 && from < count && to >= 0 && to < count) {
+    positions.splice(to, 0, ...positions.splice(from, 1));
+  }
+  return new Map(positions.map((oldIndex, newIndex) => [oldIndex, newIndex]));
+}
+
+export function reorder<T>(list: readonly T[], from: number, to: number): T[] {
+  const next = [...list];
+  if (from < 0 || from >= list.length || to < 0 || to >= list.length) return next;
+  next.splice(to, 0, ...next.splice(from, 1));
+  return next;
+}

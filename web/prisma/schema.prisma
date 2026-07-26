@@ -404,11 +404,27 @@ model Signer {
   accessCode  String? // shared code / SMS OTP
   idPhotoPath String? // captured ID or photo of signer
   signedAt    DateTime?
+  // Chasing an unsigned document. Counted per recipient rather than per envelope
+  // because recipients are invited at different times under sequential routing,
+  // so "three days since we asked" is only meaningful per person. remindersSent
+  // is the stop condition: reminders end at REMINDER_MAX whether or not anyone
+  // signs, so a document nobody intends to sign goes quiet instead of nagging
+  // forever. lastReminderAt is what the next due date is measured from.
+  remindersSent  Int       @default(0)
+  lastReminderAt DateTime?
+  // Per-recipient opt-out from chasing. Some recipients never need it: the
+  // sender is often a signer on their own document, and a colleague sitting two
+  // desks away is chased in person. Turning those off is a real saving, because
+  // every reminder is an external send against a shared, reputation-bearing
+  // account. Defaults on so a document sent and forgotten is still followed up.
+  remindersEnabled Boolean @default(true)
 
   fields Field[]
 
   @@index([envelopeId])
   @@index([envelopeId, status])
+  // The reminder sweep's question: which invited, unsigned recipients are due.
+  @@index([status, invitedAt])
 }
 
 // A field placed on the PDF: signature box, date, text, etc.

@@ -155,8 +155,12 @@ jobs:
         working-directory: web
         run: npm run typecheck
 
+      # A hung test must not sit until the six-hour job ceiling. node's
+      # --test-timeout names the offending test; this is the backstop for a hang
+      # outside any single test, such as a connection pool that never drains.
       - name: Test
         working-directory: web
+        timeout-minutes: 10
         run: npm test
 
       - name: Build

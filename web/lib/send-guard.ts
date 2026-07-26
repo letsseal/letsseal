@@ -6,9 +6,9 @@ const BURST_PER_MIN = 30;
 const TRUST_AGE_DAYS = 7; 
 const ACCOUNT_DAILY = 300; 
 
-export type SendKind = "invite" | "credential" | "completed" | "completed_sender";
+export type SendKind = "invite" | "credential" | "completed" | "completed_sender" | "reminder";
 
-const GATED: SendKind[] = ["invite", "credential"];
+const GATED: SendKind[] = ["invite", "credential", "reminder"];
 
 type GuardOrg = { sendingEnabled: boolean; sendingTrusted: boolean; createdAt: Date };
 

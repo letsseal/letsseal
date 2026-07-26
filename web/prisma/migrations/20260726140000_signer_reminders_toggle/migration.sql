@@ -1,0 +1,1 @@
+ALTER TABLE "Signer" ADD COLUMN "remindersEnabled" BOOLEAN NOT NULL DEFAULT true;

@@ -134,6 +134,59 @@ export async function sendSigningInvite(opts: {
   return true;
 }
 
+export async function sendSigningReminder(opts: {
+  to: string;
+  signerName: string;
+  envelopeTitle: string;
+  orgName: string;
+  verifiedDomain?: string | null;
+  logoUrl?: string | null;
+  brandColor?: string;
+  replyTo?: string;
+  link: string;
+  hasViewed: boolean;
+  finalReminder: boolean;
+}): Promise<boolean> {
+  if (!isMailConfigured()) return false;
+  const brand = opts.brandColor && /^#[0-9a-fA-F]{6}$/.test(opts.brandColor) ? opts.brandColor : "#1a73e8";
+  const opening = opts.hasViewed
+    ? `<p style="font-size:15px">You opened <b>${esc(opts.envelopeTitle)}</b> from <b>${esc(opts.orgName)}</b>, and it's still waiting for your signature.</p>`
+    : `<p style="font-size:15px"><b>${esc(opts.orgName)}</b> asked you to sign <b>${esc(opts.envelopeTitle)}</b>, and it's still outstanding.</p>`;
+  const closing = opts.finalReminder
+    ? `<p style="font-size:13px;color:#5b6472">This is the last reminder we'll send about this document. The link stays valid, so you can still sign whenever you're ready.</p>`
+    : "";
+  const html = shell(`
+      <p style="font-size:15px">Hi ${esc(opts.signerName || "there")},</p>
+      ${opening}
+      <p style="margin:28px 0">
+        <a href="${esc(opts.link)}"
+           style="background:${brand};color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600">
+          Review &amp; sign
+        </a>
+      </p>
+      ${closing}
+      <p style="font-size:13px;color:#5b6472">This link is unique to you, please don't forward it.</p>
+      <p style="font-size:12px;color:#8a92a0">If this is no longer relevant you can ignore this email, or reply to let ${esc(opts.orgName)} know.</p>`,
+    { name: opts.orgName, verifiedDomain: opts.verifiedDomain, logoUrl: opts.logoUrl });
+  await send({
+    from: fromHeader(opts.orgName),
+    replyTo: opts.replyTo || undefined,
+    to: opts.to,
+    subject: `Reminder: "${opts.envelopeTitle}" is waiting for your signature`,
+    html,
+    text: `${issuerText(opts.orgName, opts.verifiedDomain)}${
+      opts.hasViewed
+        ? `You opened "${opts.envelopeTitle}" from ${opts.orgName}, and it's still waiting for your signature.`
+        : `${opts.orgName} asked you to sign "${opts.envelopeTitle}", and it's still outstanding.`
+    }\n\nReview & sign (unique to you, please don't forward):\n${opts.link}\n${
+      opts.finalReminder
+        ? "\nThis is the last reminder we'll send about this document. The link stays valid, so you can still sign whenever you're ready.\n"
+        : ""
+    }${FOOTER_TEXT}`,
+  });
+  return true;
+}
+
 export async function sendEnvelopeCompleted(opts: {
   to: string;
   signerName: string;

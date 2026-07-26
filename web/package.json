@@ -8,10 +8,10 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
-    "test": "node --import ./tests/resolve-hooks.ts --test \"tests/*.test.ts\"",
+    "test": "node --import ./tests/resolve-hooks.ts --test --test-timeout=60000 \"tests/*.test.ts\"",
     "test:watch": "node --import ./tests/resolve-hooks.ts --test --watch \"tests/*.test.ts\"",
     "check": "npm run typecheck && npm run test",
-    "test:db": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://localhost:5432/letsseal_test?schema=public} node --import ./tests/resolve-hooks.ts --test \"tests/*.test.ts\""
+    "test:db": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://localhost:5432/letsseal_test?schema=public} node --import ./tests/resolve-hooks.ts --test --test-timeout=60000 \"tests/*.test.ts\""
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",

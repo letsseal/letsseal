@@ -28,6 +28,10 @@ const ACTION_LABEL: Record<string, string> = {
   created: "created the document",
   sent: "sent it for signing",
   invite_sent: "was emailed an invitation",
+  reminder_sent: "was sent a reminder",
+  reminders_disabled: "turned reminders off for a recipient",
+  reminders_enabled: "turned reminders on for a recipient",
+  signers_reordered: "changed the recipient order",
   routed: "advanced to the next signer",
   viewed: "opened the document",
   signed: "signed",
@@ -72,6 +76,7 @@ export default async function EnvelopePage({ params }: { params: Promise<{ org: 
       }}
       org={{ name: envelope.org.name, brandColor: envelope.org.brandColor }}
       signers={envelope.signers.map((s) => ({
+        id: s.id,
         name: s.name,
         email: s.email,
         kind: s.kind,
@@ -83,6 +88,9 @@ export default async function EnvelopePage({ params }: { params: Promise<{ org: 
         title: s.title,
         department: s.department,
         statusLabel: signerLabel(s),
+        remindersEnabled: s.remindersEnabled,
+        remindersSent: s.remindersSent,
+        invited: s.invitedAt !== null,
       }))}
     />
   );

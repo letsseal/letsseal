@@ -1,13 +1,15 @@
 "use client";
 
-import { Copy, ExternalLink, Contact, Check, Clock, ShieldCheck, Download, Anchor, Eye, Ban, ListOrdered, History } from "lucide-react";
+import { useState } from "react";
+import { Copy, ExternalLink, Contact, Check, Clock, ShieldCheck, Download, Anchor, Eye, Ban, ListOrdered, History, BellRing, BellOff, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { recipientColor } from "@/lib/signers";
+import { recipientColor, reorder } from "@/lib/signers";
 import EnvelopeDocPreview from "@/components/EnvelopeDocPreview";
 
 type Signer = {
+  id: string;
   name: string;
   email: string | null;
   kind: string;
@@ -19,6 +21,9 @@ type Signer = {
   title: string | null;
   department: string | null;
   statusLabel: string | null;
+  remindersEnabled: boolean;
+  remindersSent: number;
+  invited: boolean;
 };
 type Props = {
   slug: string;
@@ -54,6 +59,64 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function EnvelopeShare({ slug, envelope, org, signers, activity }: Props) {
+  const [chasing, setChasing] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(signers.map((s) => [s.id, s.remindersEnabled])),
+  );
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const toggleChasing = async (signerId: string, next: boolean) => {
+    const previous = chasing[signerId];
+    setChasing((c) => ({ ...c, [signerId]: next }));
+    setSaving(signerId);
+    try {
+      const res = await fetch(`/api/envelopes/${envelope.id}/signers/${signerId}/reminders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remindersEnabled: next }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(next ? "Reminders on for this recipient" : "Reminders off for this recipient");
+    } catch {
+      setChasing((c) => ({ ...c, [signerId]: previous }));
+      toast.error("Could not change reminders, please try again");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const [rows, setRows] = useState<Signer[]>(signers);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+
+  const orderIsHistory = envelope.sequential && envelope.status === "sent";
+  const locked = (s: Signer) => orderIsHistory && (s.invited || s.status === "signed" || s.status === "declined");
+  const reorderable = !envelope.completed && envelope.status !== "voided" && rows.length > 1;
+
+  const moveRow = async (from: number, to: number) => {
+    if (from === to || to < 0 || to >= rows.length) return;
+    if (locked(rows[from])) { toast.error("This recipient has already been asked to sign"); return; }
+    const next = reorder(rows, from, to);
+    const lastLocked = next.reduce((last, s, i) => (locked(s) ? i : last), -1);
+    if (next.some((s, i) => i < lastLocked && !locked(s))) {
+      toast.error("Recipients already asked to sign stay in the order they were asked");
+      return;
+    }
+    const previous = rows;
+    setRows(next);
+    try {
+      const res = await fetch(`/api/envelopes/${envelope.id}/signers/order`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signerIds: next.map((s) => s.id) }),
+      });
+      if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string })?.error ?? "failed");
+      toast.success(envelope.sequential ? "Signing order updated" : "Recipient order updated");
+    } catch (e) {
+      setRows(previous);
+      toast.error(e instanceof Error && e.message !== "failed" ? e.message : "Could not reorder, please try again");
+    }
+  };
+
   const copyLink = (token: string, msg: string) => {
     navigator.clipboard.writeText(`${window.location.origin}/sign/${token}`);
     toast.success(msg);
@@ -137,7 +200,7 @@ export default function EnvelopeShare({ slug, envelope, org, signers, activity }
               )}
             </div>
             <div className="overflow-hidden rounded-xl border bg-card">
-              {signers.map((s, i) => {
+              {rows.map((s, i) => {
                 const c = recipientColor(i);
                 const path = `/sign/${s.token}`;
                 const inPerson = !s.email;
@@ -146,9 +209,37 @@ export default function EnvelopeShare({ slug, envelope, org, signers, activity }
                 const viewed = s.status === "viewed";
                 const roleLabel = ROLE_LABEL[s.kind] ?? (s.role === "cc" ? "Copied" : s.role === "viewer" ? "Viewer" : "Signer");
                 return (
-                  <div key={s.token} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 [&:not(:last-child)]:border-b">
+                  <div key={s.token}
+                       onDragOver={(e) => { if (dragFrom !== null) { e.preventDefault(); setDragOver(i); } }}
+                       onDrop={(e) => {
+                         e.preventDefault();
+                         if (dragFrom !== null) moveRow(dragFrom, i);
+                         setDragFrom(null); setDragOver(null);
+                       }}
+                       className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 [&:not(:last-child)]:border-b ${
+                         dragOver === i && dragFrom !== null && dragFrom !== i ? "bg-secondary/60" : ""
+                       } ${dragFrom === i ? "opacity-50" : ""}`}>
+                    {reorderable && (
+                      locked(s) ? (
+                        <span className="h-5 w-4 shrink-0" title="Already asked to sign, so their place in the order is fixed" />
+                      ) : (
+                        <button type="button"
+                                draggable
+                                onDragStart={() => { setDragFrom(i); setDragOver(i); }}
+                                onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "ArrowUp") { e.preventDefault(); moveRow(i, i - 1); }
+                                  if (e.key === "ArrowDown") { e.preventDefault(); moveRow(i, i + 1); }
+                                }}
+                                title={envelope.sequential ? "Drag to change the signing order, or use the arrow keys" : "Drag to reorder"}
+                                aria-label={`Reorder ${s.name}, position ${i + 1} of ${rows.length}`}
+                                className="shrink-0 cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing">
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </button>
+                      )
+                    )}
                     {envelope.sequential && (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-muted-foreground">{s.order}</span>
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-muted-foreground">{i + 1}</span>
                     )}
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.solid }} />
                     <span className="font-medium">{s.name}</span>
@@ -159,6 +250,11 @@ export default function EnvelopeShare({ slug, envelope, org, signers, activity }
                     )}
                     {s.statusLabel && <span className="text-xs text-muted-foreground">· {s.statusLabel}</span>}
                     {s.accessCode && <span className="text-xs text-muted-foreground">· code <b>{s.accessCode}</b></span>}
+                    {s.remindersSent > 0 && !signed && !declined && (
+                      <span className="text-xs text-muted-foreground">
+                        · chased {s.remindersSent === 1 ? "once" : `${s.remindersSent} times`}
+                      </span>
+                    )}
                     <div className="ml-auto flex shrink-0 items-center gap-2">
                       <Badge variant="secondary" className="gap-1 font-normal">
                         {signed ? <><Check className="h-3 w-3 text-green-600" /> signed</>
@@ -166,6 +262,24 @@ export default function EnvelopeShare({ slug, envelope, org, signers, activity }
                           : viewed ? <><Eye className="h-3 w-3 text-blue-600" /> viewed</>
                           : <><Clock className="h-3 w-3" /> pending</>}
                       </Badge>
+                      {!signed && !declined && !inPerson && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          disabled={saving === s.id}
+                          onClick={() => toggleChasing(s.id, !chasing[s.id])}
+                          title={chasing[s.id]
+                            ? "Reminders on. Click to stop chasing this recipient."
+                            : "Reminders off. Click to chase this recipient."}
+                          aria-label={chasing[s.id] ? "Turn reminders off" : "Turn reminders on"}
+                          aria-pressed={chasing[s.id]}
+                        >
+                          {chasing[s.id]
+                            ? <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
+                            : <BellOff className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        </Button>
+                      )}
                       {!signed && !declined && (
                         inPerson ? (
                           <>
