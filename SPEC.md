@@ -44,6 +44,14 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
   - **PDF — PAdES**, embedded in the file, covering the **entire file**. A signature
     that covers only part of the file (content appended after signing via an
     incremental update) is **not** conformant and MUST be reported as altered.
+    The signature SHOULD carry an RFC-3161 signature timestamp (**PAdES B-T**);
+    the public TSAs the major CAs run for code signing are sufficient, and no
+    qualified (QTSP) timestamp is required for that level. A verifier MUST NOT
+    require one: the timestamp is a second, convenient witness to time, and the
+    authoritative witness is the anchor (§3), which does not depend on any TSA
+    still existing. The levels above B-T (B-LT, B-LTA) embed chain revocation
+    data, and are out of scope for an issuer that publishes no CRL or OCSP
+    endpoint.
   - **Image — C2PA (Content Credentials)**, a signed manifest embedded in the image
     (jpeg/png/webp/tiff/gif/avif/heic), read by any C2PA-aware tool. The end-entity
     cert MUST meet the C2PA cert profile (C2PA 2.x §14.5.1) — the SEAL `document`

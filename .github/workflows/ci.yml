@@ -248,6 +248,18 @@ jobs:
           LETSSEAL_P12_PASS: ci-not-a-real-passphrase
         run: ./.venv/bin/python test_seal.py
 
+      # The timestamp is requested from a service outside this repo, so passing a
+      # URL is not evidence a token came back. This reads the token back out of
+      # the sealed PDF, and separately proves an unreachable TSA degrades to an
+      # untimestamped seal instead of failing one. The service default asked for
+      # a timestamp and raised on every call for want of a validation context,
+      # and every caller had quietly opted out, so nothing was exercising it.
+      - name: Signature timestamps are embedded, and a TSA outage is not fatal
+        working-directory: signing-service
+        env:
+          LETSSEAL_P12_PASS: ci-not-a-real-passphrase
+        run: ./.venv/bin/python test_timestamp.py
+
       # A verification library can start rejecting a manifest whose signature,
       # certificate chain and hash binding all still verify, because what it
       # rejects is the manifest SHAPE. Only asserting the verdict a recipient

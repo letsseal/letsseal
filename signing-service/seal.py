@@ -13,12 +13,15 @@ automatic green check for external verifiers.
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from io import BytesIO
 
 from pyhanko.sign import signers, timestamps, fields
 from pyhanko.sign.signers.pdf_signer import PdfSignatureMetadata, PdfSigner
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TSA_URL = "http://timestamp.digicert.com"
 
@@ -51,27 +54,37 @@ def seal_pdf(
 
     cert_cn = _common_name(signer)
 
-    reader_writer = IncrementalPdfFileWriter(BytesIO(pdf_bytes))
-    fields.append_signature_field(
-        reader_writer,
-        sig_field_spec=fields.SigFieldSpec(sig_field_name=field_name),
-    )
+    def _sign(tsa: str | None) -> bytes:
+        reader_writer = IncrementalPdfFileWriter(BytesIO(pdf_bytes))
+        fields.append_signature_field(
+            reader_writer,
+            sig_field_spec=fields.SigFieldSpec(sig_field_name=field_name),
+        )
+        meta = PdfSignatureMetadata(
+            field_name=field_name,
+            reason=reason,
+            location=location,
+            subfilter=fields.SigSeedSubFilter.PADES,
+            embed_validation_info=False,
+            use_pades_lta=False,
+        )
+        pdf_signer = PdfSigner(
+            meta, signer=signer,
+            timestamper=timestamps.HTTPTimeStamper(url=tsa) if tsa else None,
+        )
+        out = BytesIO()
+        pdf_signer.sign_pdf(reader_writer, output=out)
+        return out.getvalue()
 
-    tst_client = timestamps.HTTPTimeStamper(url=tsa_url) if tsa_url else None
-
-    meta = PdfSignatureMetadata(
-        field_name=field_name,
-        reason=reason,
-        location=location,
-        subfilter=fields.SigSeedSubFilter.PADES,
-        embed_validation_info=bool(tsa_url),
-        use_pades_lta=bool(tsa_url),
-    )
-
-    pdf_signer = PdfSigner(meta, signer=signer, timestamper=tst_client)
-    out = BytesIO()
-    pdf_signer.sign_pdf(reader_writer, output=out)
-    sealed = out.getvalue()
+    if tsa_url:
+        try:
+            sealed = _sign(tsa_url)
+        except Exception:
+            logger.warning("TSA %s unavailable; sealing without a timestamp token",
+                           tsa_url, exc_info=True)
+            sealed = _sign(None)
+    else:
+        sealed = _sign(None)
 
     return SealResult(
         pdf=sealed,

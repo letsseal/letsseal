@@ -42,7 +42,7 @@ export async function issueCredential(
   const link = `${appUrl()}/d/${cred.id}`; 
 
   const pdf = await generateCertificatePdf(org, { ...input, credType: cred.credType, issuedOn }, link);
-  const sealed = await sealPdf(org.slug, pdf, { reason: `Issued: ${cred.credType} — ${input.title}`, timestamp: false });
+  const sealed = await sealPdf(org.slug, pdf, { reason: `Issued: ${cred.credType} — ${input.title}` });
   const pdfPath = `credentials/${cred.id}/sealed.pdf`;
   await saveFile(pdfPath, sealed.pdf);
 

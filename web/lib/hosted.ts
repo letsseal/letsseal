@@ -117,7 +117,7 @@ export async function hostedSeal(
     catch { toSeal = pdf; }
   }
 
-  const sealed = await sealPdf(org.slug, toSeal, { reason: opts.reason, timestamp: false });
+  const sealed = await sealPdf(org.slug, toSeal, { reason: opts.reason });
 
   const pdfPath = `hosted/${sealed.sha256}/sealed.pdf`;
   await saveFile(pdfPath, sealed.pdf);

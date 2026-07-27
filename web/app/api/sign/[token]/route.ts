@@ -269,7 +269,7 @@ async function completeAndSeal(envelopeId: string, orgSlug: string, ip: string, 
   }
 
   const filled = Buffer.from(await doc.save());
-  const res = await sealPdf(orgSlug, filled, { reason: `Executed: ${env.title}`, timestamp: false });
+  const res = await sealPdf(orgSlug, filled, { reason: `Executed: ${env.title}` });
   await saveFile(`envelopes/${envelopeId}/sealed.pdf`, res.pdf);
 
   let otsProof: string | null = null;

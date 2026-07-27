@@ -40,7 +40,7 @@ export async function sealPdf(
   const form = new FormData();
   form.append("org_slug", orgSlug);
   form.append("reason", opts.reason ?? "Document execution");
-  form.append("timestamp", String(opts.timestamp ?? false));
+  form.append("timestamp", String(opts.timestamp ?? true));
   form.append("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), "doc.pdf");
 
   const res = await fetch(`${SERVICE}/seal`, { method: "POST", headers: svcHeaders(), body: form });
