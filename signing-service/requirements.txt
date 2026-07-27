@@ -1,5 +1,5 @@
 pyHanko[pkcs11,image-support]==0.35.2
-fastapi==0.140.0
+fastapi==0.140.7
 uvicorn[standard]==0.51.0
 python-multipart==0.0.32
 opentimestamps-client==0.7.2
