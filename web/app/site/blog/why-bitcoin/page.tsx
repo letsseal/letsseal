@@ -141,7 +141,12 @@ export default function Page() {
         <H2>Why we chose Bitcoin</H2>
         <P>
           {
-            "The obvious alternative is a traditional timestamping authority, the RFC 3161 kind. That hands you a single trusted party whose signature, and whose clock, you simply have to believe, exactly what we designed the system to move past. A private or permissioned chain is the same problem wearing different clothes."
+            "The obvious alternative is a traditional timestamping authority, the RFC 3161 kind. That hands you a single trusted party whose signature, and whose clock, you simply have to believe, exactly what we designed the system to move past. A private or permissioned chain is the same problem wearing different clothes: someone still decides."
+          }
+        </P>
+        <P>
+          {
+            "Sealed PDFs carry an RFC 3161 timestamp too, and it is worth being exact about the job it does. It is the form PDF readers already understand, so it lifts the signature to PAdES B-T and appears in the validation panel of software that has never heard of us. It is a convenience, and it is optional: when the timestamping authority is unreachable at the moment of sealing, the document is sealed without one and the signature is unaffected. The proof of when rests on the anchor, which still stands in ten years whether or not any authority remains reachable, solvent, or willing."
           }
         </P>
         <P>
