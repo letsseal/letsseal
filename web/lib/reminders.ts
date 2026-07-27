@@ -138,6 +138,7 @@ export async function runReminders(opts: { dryRun?: boolean; limit?: number; sig
         link: `${base}/sign/${signer.token}`,
         hasViewed: d.hasViewed,
         finalReminder: signer.remindersSent + 1 >= REMINDER_MAX,
+        unsubscribeUrl: `${base}/api/reminders/unsubscribe?token=${signer.token}`,
       });
     } catch {
       emailed = false;

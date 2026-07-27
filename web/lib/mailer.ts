@@ -146,6 +146,7 @@ export async function sendSigningReminder(opts: {
   link: string;
   hasViewed: boolean;
   finalReminder: boolean;
+  unsubscribeUrl?: string;
 }): Promise<boolean> {
   if (!isMailConfigured()) return false;
   const brand = opts.brandColor && /^#[0-9a-fA-F]{6}$/.test(opts.brandColor) ? opts.brandColor : "#1a73e8";
@@ -166,13 +167,29 @@ export async function sendSigningReminder(opts: {
       </p>
       ${closing}
       <p style="font-size:13px;color:#5b6472">This link is unique to you, please don't forward it.</p>
-      <p style="font-size:12px;color:#8a92a0">If this is no longer relevant you can ignore this email, or reply to let ${esc(opts.orgName)} know.</p>`,
+      <p style="font-size:12px;color:#8a92a0">If this is no longer relevant you can ignore this email, or reply to let ${esc(opts.orgName)} know.${
+        opts.unsubscribeUrl
+          ? ` You can also <a href="${esc(opts.unsubscribeUrl)}" style="color:#8a92a0">stop reminders about this document</a>.`
+          : ""
+      }</p>`,
     { name: opts.orgName, verifiedDomain: opts.verifiedDomain, logoUrl: opts.logoUrl });
+
+  const listHeaders: Record<string, string> = opts.unsubscribeUrl
+    ? {
+        "List-Unsubscribe": `<${opts.unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      }
+    : {};
+
   await send({
     from: fromHeader(opts.orgName),
     replyTo: opts.replyTo || undefined,
     to: opts.to,
     subject: `Reminder: "${opts.envelopeTitle}" is waiting for your signature`,
+    headers: {
+      ...listHeaders,
+      "Auto-Submitted": "auto-generated",
+    },
     html,
     text: `${issuerText(opts.orgName, opts.verifiedDomain)}${
       opts.hasViewed

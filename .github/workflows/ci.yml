@@ -60,6 +60,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the migration-immutability check below asks what every
+          # past commit did to prisma/migrations, which a shallow clone cannot say.
+          fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -86,6 +90,36 @@ jobs:
         env:
           PGPASSWORD: letsseal
         run: psql -h localhost -U letsseal -d letsseal_test -c 'CREATE DATABASE letsseal_shadow'
+
+      # A migration is written ONCE and never touched again.
+      #
+      # Prisma records a checksum when a migration is applied, so editing one
+      # that has already run makes `migrate deploy` fail on every database that
+      # applied the old text: production, and every self-hoster. The database is
+      # fine; the tool simply refuses to continue, and the failure surfaces on
+      # the next deploy rather than in the commit that caused it.
+      #
+      # A comment is enough to do it. That is the tempting case, because tidying
+      # a comment feels like it changes nothing, and the drift check above will
+      # not object: the schema still matches.
+      #
+      # Stated as history rather than as a diff against a base, so it holds for
+      # pushes, pull requests and rewritten branches alike: no commit anywhere in
+      # this repository may MODIFY a file under prisma/migrations. Adding is what
+      # migrations are for; changing one is the mistake.
+      - name: Applied migrations are never edited
+        run: |
+          set -euo pipefail
+          modified=$(git log --diff-filter=M --format='%H' --name-only -- web/prisma/migrations \
+                     | grep -c 'migration\.sql$' || true)
+          if [ "$modified" -ne 0 ]; then
+            echo "::error::a migration under web/prisma/migrations was edited after being committed."
+            echo "Prisma checksums applied migrations, so this breaks 'migrate deploy' for anyone who already ran it."
+            echo "Add a NEW migration for the change instead. Commits that modified one:"
+            git log --diff-filter=M --format='  %h %an %s' --name-only -- web/prisma/migrations | grep -B4 'migration\.sql$' || true
+            exit 1
+          fi
+          echo "no migration has been edited after the fact ($(git log --diff-filter=A --format='%H' --name-only -- web/prisma/migrations | grep -c 'migration\.sql$' || true) added, 0 modified)"
 
       # A migration that does not reproduce the schema is a deployment that will
       # drift. Prisma reports the difference; an empty diff is the pass condition.

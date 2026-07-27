@@ -15,6 +15,7 @@ export type FieldBox = {
   h: number;
   signerIndex?: number;
   value?: string | null;
+  required?: boolean; 
 };
 
 const SNAP = 0.006;
@@ -333,6 +334,7 @@ function FieldTab({
       ) : (
         <span className="flex items-center gap-1 pl-3.5 pr-1 text-[10px] font-medium truncate" style={{ color: color.text }}>
           <span className="truncate">{f.label || FIELD_LABEL[f.type]}</span>
+          {f.required === false && <span className="shrink-0 font-normal opacity-70">optional</span>}
         </span>
       )}
 

@@ -92,6 +92,36 @@ if (process.env.SMTP_HOST && process.env.SMTP_HOST.trim()) {
   warn("smtp", "SMTP_HOST unset → ALL email will silently no-op (invites, completion, credentials)");
 }
 
+if (process.env.SMTP_HOST?.trim()) {
+  const from = process.env.SMTP_FROM ?? "";
+  const domain = (from.match(/<([^>]+)>/)?.[1] ?? from).split("@")[1];
+  if (!domain) {
+    warn("email auth", "SMTP_FROM has no domain, so authentication cannot be checked");
+  } else {
+    try {
+      const { Resolver } = await import("node:dns/promises");
+      const r = new Resolver();
+      r.setServers(["1.1.1.1", "8.8.8.8"]);
+      const txt = async (n) => { try { return (await r.resolveTxt(n)).map((c) => c.join("")); } catch { return []; } };
+
+      const spf = (await txt(domain)).find((t) => t.toLowerCase().startsWith("v=spf1"));
+      const dmarc = (await txt(`_dmarc.${domain}`)).find((t) => t.toLowerCase().startsWith("v=dmarc1"));
+      const missing = [];
+      if (!spf) missing.push("SPF");
+      if (!dmarc) missing.push("DMARC");
+      if (missing.length) {
+        warn("email auth", `${domain} has no ${missing.join(" or ")} → mail will be filtered. Run: node scripts/check-email-dns.mjs`);
+      } else if (/aspf\s*=\s*s/i.test(dmarc)) {
+        warn("email auth", `${domain} DMARC uses strict SPF alignment (aspf=s), which fails when the Return-Path is a subdomain. Run: node scripts/check-email-dns.mjs`);
+      } else {
+        ok("email auth", `${domain} has SPF + DMARC · check DKIM with scripts/check-email-dns.mjs`);
+      }
+    } catch (e) {
+      warn("email auth", `could not resolve DNS for ${domain} (${e.message?.split("\n")[0] ?? e})`);
+    }
+  }
+}
+
 const icon = { ok: "✓", warn: "!", fail: "✗" };
 console.log("\n  Let's Seal — deploy pre-flight\n  " + "─".repeat(40));
 for (const r of results) console.log(`  ${icon[r.state]} ${r.name.padEnd(22)} ${r.msg}`);

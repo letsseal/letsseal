@@ -24,6 +24,7 @@ type SignerInput = {
 type FieldInput = {
   type?: unknown; label?: unknown; page?: unknown;
   x?: unknown; y?: unknown; w?: unknown; h?: unknown; signerIndex?: unknown;
+  required?: unknown;
 };
 
 function validateSigners(signers: SignerInput[]): string | null {
@@ -48,13 +49,14 @@ function validateSigners(signers: SignerInput[]): string | null {
 const FIELD_TYPES = new Set(["signature", "initials", "date", "text", "checkbox"]);
 const unitFraction = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
 
-function normalizeField(f: FieldInput): { type: string; label: string | null; page: number; x: number; y: number; w: number; h: number } | null {
+function normalizeField(f: FieldInput): { type: string; label: string | null; page: number; x: number; y: number; w: number; h: number; required: boolean } | null {
   if (typeof f.type !== "string" || !FIELD_TYPES.has(f.type)) return null;
   if (typeof f.page !== "number" || !Number.isInteger(f.page) || f.page < 0 || f.page > 5000) return null;
   if (!unitFraction(f.x) || !unitFraction(f.y) || !unitFraction(f.w) || !unitFraction(f.h)) return null;
   if (f.w === 0 || f.h === 0) return null;
   const label = typeof f.label === "string" && f.label.trim() ? f.label.trim().slice(0, 120) : null;
-  return { type: f.type, label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h };
+  const required = f.required !== false;
+  return { type: f.type, label, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h, required };
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

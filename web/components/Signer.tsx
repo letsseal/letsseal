@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import PdfCanvas, { FieldBox } from "./PdfCanvas";
-import { recipientColor } from "@/lib/signers";
+import { recipientColor, blockingFields } from "@/lib/signers";
 
 const SIGNATURE_FONTS = [
   { name: "Dancing Script", css: "var(--font-sig-1), cursive" },
@@ -99,9 +99,11 @@ export default function Signer({ token }: { token: string }) {
   const myFields = data.envelope.fields
     .filter((f) => f.mine)
     .sort((a, b) => a.page - b.page || a.y - b.y);
-  const filledCount = myFields.filter((f) => values[f.id!] !== undefined && values[f.id!] !== "").length;
-  const nextField = myFields.find((f) => values[f.id!] === undefined || values[f.id!] === "");
-  const allDone = filledCount === myFields.length;
+  const mustFill = myFields.filter((f) => f.required !== false);
+  const blocking = blockingFields(myFields, values);
+  const filledCount = mustFill.length - blocking.length;
+  const nextField = blocking[0]; 
+  const allDone = blocking.length === 0;
 
   const previewFields: FieldBox[] = data.envelope.fields.map((f) => ({
     ...f, value: f.mine ? values[f.id!] ?? null : f.value ?? null,
@@ -132,7 +134,7 @@ export default function Signer({ token }: { token: string }) {
   }
 
   async function submit() {
-    if (!allDone) { toast.error("Please complete all your fields first."); return; }
+    if (!allDone) { toast.error("Please complete all required fields first."); return; }
     if (data!.signer.hasAccessCode && !accessCode) { toast.error("Enter your access code to finish."); return; }
     setSubmitting(true);
     const res = await fetch(`/api/sign/${token}`, {
@@ -160,7 +162,7 @@ export default function Signer({ token }: { token: string }) {
             <div className="text-xs text-muted-foreground truncate">{data.envelope.org.name} · signing as {data.signer.name}</div>
           </div>
           <div className="flex-1" />
-          <Badge variant="secondary" className="font-normal hidden sm:flex">{filledCount} / {myFields.length} done</Badge>
+          <Badge variant="secondary" className="font-normal hidden sm:flex">{filledCount} / {mustFill.length} done</Badge>
           {data.signer.hasAccessCode && (
             <Input placeholder="Access code" value={accessCode} onChange={(e) => setAccessCode(e.target.value)}
                    className="h-9 w-32 hidden sm:block" />
@@ -189,7 +191,7 @@ export default function Signer({ token }: { token: string }) {
       )}
       {allDone && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30 flex items-center gap-2 rounded-full bg-green-600 px-5 py-3 text-white font-medium shadow-lg">
-          <Check className="h-4 w-4" /> All fields complete — press Finish
+          <Check className="h-4 w-4" /> All required fields complete, press Finish
         </div>
       )}
 

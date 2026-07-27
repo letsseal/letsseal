@@ -8,6 +8,7 @@ import { appendAudit } from "@/lib/audit";
 import { sendEnvelopeCompleted, sendEnvelopeCompletedSender } from "@/lib/mailer";
 import { recordSend } from "@/lib/send-guard";
 import { advanceSequence } from "@/lib/envelope-routing";
+import { blockingFields } from "@/lib/signers";
 import { clientIp } from "@/lib/ip";
 import { attemptCountAsync, recordFailureAsync } from "@/lib/ratelimit";
 import { ctEqual } from "@/lib/ct";
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
         value: (f.signerId === signer.id || f.signerId === null) ? f.value : null,
         signerId: f.signerId, signerName: f.signer?.name ?? null,
         mine: f.signerId === signer.id,
+        required: f.required,
       })),
     },
   });
@@ -131,6 +133,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       },
     });
     if (ahead > 0) return NextResponse.json({ error: "It's not your turn to sign yet." }, { status: 409 });
+  }
+
+  const myFields = await db.field.findMany({
+    where: { envelopeId: signer.envelope.id, signerId: signer.id },
+    select: { id: true, required: true },
+  });
+  const missing = blockingFields(myFields, values ?? {}).length;
+  if (missing > 0) {
+    return NextResponse.json(
+      { error: `${missing} required field${missing > 1 ? "s are" : " is"} still empty.` },
+      { status: 400 },
+    );
   }
 
   const ip = clientIp(req);

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Send, Plus, Trash2, PenLine, Type, Calendar, CheckSquare,
   Baseline, Users, MousePointer2, Check, Copy, ExternalLink, FileText, Loader2, Contact, Mail, AlertTriangle,
-  Settings2, MessageSquare, ListOrdered, GripVertical } from "lucide-react";
+  Settings2, MessageSquare, ListOrdered, GripVertical, Asterisk } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,7 @@ export default function Builder({
       setFields((env.fields ?? []).map((f: any) => ({
         id: f.id, type: f.type, label: f.label ?? undefined, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h,
         signerIndex: Math.max(0, idOf(f.signerId) ?? 0),
+        required: f.required !== false,
       })));
     })();
   }, [existingEnvelopeId]);
@@ -113,7 +114,7 @@ export default function Builder({
     if (!isSigningRole(signers[activeSigner]?.role ?? "signer")) { toast.error("This recipient only receives a copy — switch to a signer to place fields."); return; }
     const [w, h] = FIELD_TYPES.find((f) => f.type === armedType)!.size;
     const id = genId();
-    setFields((p) => [...p, { id, type: armedType, page, x, y, w, h, signerIndex: activeSigner }]);
+    setFields((p) => [...p, { id, type: armedType, page, x, y, w, h, signerIndex: activeSigner, required: true }]);
     setSelectedId(id);
   }, [armedType, activeSigner, signers]);
 
@@ -131,7 +132,7 @@ export default function Builder({
       message: message.trim() || undefined,
       sequential,
       signers: signers.map((s) => ({ name: s.name, email: s.email || undefined, role: s.role, accessCode: s.accessCode || undefined, title: s.title || undefined, department: s.department || undefined })),
-      fields: fields.map((f) => ({ type: f.type, label: f.label?.trim() || undefined, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h, signerIndex: f.signerIndex ?? 0 })),
+      fields: fields.map((f) => ({ type: f.type, label: f.label?.trim() || undefined, page: f.page, x: f.x, y: f.y, w: f.w, h: f.h, signerIndex: f.signerIndex ?? 0, required: f.required !== false })),
     };
     const res = await fetch(`/api/envelopes/${envelopeId}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
@@ -357,6 +358,21 @@ export default function Builder({
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: recipientColor(selectedField.signerIndex ?? 0).solid }} />
                     This field is {recipientColor(selectedField.signerIndex ?? 0).name}
                   </div>
+                  <button type="button"
+                          onClick={() => patch(selectedField.id, { required: selectedField.required === false })}
+                          aria-pressed={selectedField.required !== false}
+                          className={`flex items-center gap-2 w-full rounded-md border px-2.5 py-2 mt-3 text-xs transition ${selectedField.required !== false ? "border-primary/40 bg-primary/5 text-foreground" : "hover:bg-secondary text-muted-foreground"}`}>
+                    <Asterisk className="h-3.5 w-3.5" />
+                    <span className="font-medium">Required to sign</span>
+                    <span className={`ml-auto relative h-4 w-7 rounded-full transition ${selectedField.required !== false ? "bg-primary" : "bg-input"}`}>
+                      <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${selectedField.required !== false ? "left-[14px]" : "left-0.5"}`} />
+                    </span>
+                  </button>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    {selectedField.required !== false
+                      ? "The recipient can't finish signing until this field is filled."
+                      : "Marked optional on the document. The recipient can leave it blank and still finish."}
+                  </p>
                   <Button variant="outline" size="sm" className="w-full gap-1.5 mt-3 text-destructive hover:text-destructive"
                           onClick={() => { setFields((p) => p.filter((f) => f.id !== selectedField.id)); setSelectedId(null); }}>
                     <Trash2 className="h-3.5 w-3.5" /> Remove field

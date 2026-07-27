@@ -8,14 +8,14 @@ export type RecipientColor = {
 };
 
 export const RECIPIENT_COLORS: RecipientColor[] = [
-  { name: "blue",   solid: "#2563eb", border: "#3b82f6", fill: "rgba(59,130,246,0.10)", fillActive: "rgba(59,130,246,0.20)", text: "#1d4ed8" },
-  { name: "violet", solid: "#7c3aed", border: "#8b5cf6", fill: "rgba(139,92,246,0.10)", fillActive: "rgba(139,92,246,0.20)", text: "#6d28d9" },
-  { name: "emerald",solid: "#059669", border: "#10b981", fill: "rgba(16,185,129,0.10)", fillActive: "rgba(16,185,129,0.20)", text: "#047857" },
-  { name: "amber",  solid: "#d97706", border: "#f59e0b", fill: "rgba(245,158,11,0.12)", fillActive: "rgba(245,158,11,0.22)", text: "#b45309" },
-  { name: "rose",   solid: "#e11d48", border: "#f43f5e", fill: "rgba(244,63,94,0.10)",  fillActive: "rgba(244,63,94,0.20)",  text: "#be123c" },
-  { name: "cyan",   solid: "#0891b2", border: "#06b6d4", fill: "rgba(6,182,212,0.10)",  fillActive: "rgba(6,182,212,0.20)",  text: "#0e7490" },
-  { name: "indigo", solid: "#4f46e5", border: "#6366f1", fill: "rgba(99,102,241,0.10)", fillActive: "rgba(99,102,241,0.20)", text: "#4338ca" },
-  { name: "pink",   solid: "#db2777", border: "#ec4899", fill: "rgba(236,72,153,0.10)", fillActive: "rgba(236,72,153,0.20)", text: "#be185d" },
+  { name: "blue",    solid: "#2563eb", border: "#3b82f6", fill: "rgba(59,130,246,0.10)", fillActive: "rgba(59,130,246,0.20)", text: "#1d4ed8" },
+  { name: "emerald", solid: "#059669", border: "#10b981", fill: "rgba(16,185,129,0.10)", fillActive: "rgba(16,185,129,0.20)", text: "#047857" },
+  { name: "amber",   solid: "#d97706", border: "#f59e0b", fill: "rgba(245,158,11,0.12)", fillActive: "rgba(245,158,11,0.22)", text: "#b45309" },
+  { name: "fuchsia", solid: "#c026d3", border: "#d946ef", fill: "rgba(217,70,239,0.10)", fillActive: "rgba(217,70,239,0.20)", text: "#a21caf" },
+  { name: "cyan",    solid: "#0891b2", border: "#06b6d4", fill: "rgba(6,182,212,0.10)",  fillActive: "rgba(6,182,212,0.20)",  text: "#0e7490" },
+  { name: "rose",    solid: "#e11d48", border: "#f43f5e", fill: "rgba(244,63,94,0.10)",  fillActive: "rgba(244,63,94,0.20)",  text: "#be123c" },
+  { name: "lime",    solid: "#65a30d", border: "#84cc16", fill: "rgba(132,204,22,0.12)", fillActive: "rgba(132,204,22,0.22)", text: "#4d7c0f" },
+  { name: "violet",  solid: "#7c3aed", border: "#8b5cf6", fill: "rgba(139,92,246,0.10)", fillActive: "rgba(139,92,246,0.20)", text: "#6d28d9" },
 ];
 
 export function recipientColor(index: number): RecipientColor {
@@ -43,6 +43,13 @@ export const FIELD_TYPES = [
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number]["type"];
+
+export function blockingFields<T extends { id?: string | null; required?: boolean | null }>(
+  fields: T[],
+  values: Record<string, string | undefined>,
+): T[] {
+  return fields.filter((f) => f.required !== false && !String(values[f.id ?? ""] ?? "").trim());
+}
 
 export function reorderMap(count: number, from: number, to: number): Map<number, number> {
   const positions = Array.from({ length: count }, (_, i) => i);
