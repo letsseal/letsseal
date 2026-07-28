@@ -6,12 +6,17 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-letsseal}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-letsseal_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-letsseal}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   signing-service:
     build:
@@ -54,8 +59,8 @@ services:
       - SIGNING_SERVICE_URL=${SIGNING_SERVICE_URL:-http://signing-service:8081}
       - CA_DIR=${CA_DIR:-/ca/out}
       # Core & Security (Pass-through variables set in Coolify)
-      - AUTH_SECRET
-      - LETSSEAL_SERVICE_TOKEN
+      - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET is required}
+      - LETSSEAL_SERVICE_TOKEN=${LETSSEAL_SERVICE_TOKEN:?LETSSEAL_SERVICE_TOKEN is required}
       - AUDIT_HMAC_SECRET
       - CRON_SECRET
       - APP_URL
