@@ -5,7 +5,7 @@ const APEX = "letsseal.org";
 const VERIFY_HOST = "verify.letsseal.org";
 const APP_HOST = "app.letsseal.org";
 
-const VERIFY_PREFIXES = ["/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/icon", "/trusted_root", "/invite"];
+const VERIFY_PREFIXES = ["/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/icon", "/trusted_root", "/revocations", "/invite"];
 const ALIAS_HOSTS = new Set([
   "letsseal.com",
   "www.letsseal.com",
@@ -14,7 +14,7 @@ const ALIAS_HOSTS = new Set([
   "www.letsseal.org",
 ]);
 
-const SHARED_PREFIXES = ["/site", "/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/llms", "/SPEC", "/trusted_root", "/invite", "/bimi"];
+const SHARED_PREFIXES = ["/site", "/verify", "/d/", "/report", "/api", "/_next", "/favicon", "/robots", "/sitemap", "/llms", "/SPEC", "/trusted_root", "/revocations", "/invite", "/bimi"];
 
 function cspStrict(nonce: string): string {
   return baseCsp(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`);
