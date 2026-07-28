@@ -13,6 +13,6 @@ opentimestamps-client==0.7.2
 # Seals issued under the older shape stay verifiable: verify_c2pa accepts a
 # manifest whose ONLY defect is the missing field, and only when the signature,
 # the chain and the hash binding all pass. test_c2pa.py holds that line.
-c2pa-python==0.37.1
+c2pa-python==0.37.2
 signxml==5.1.0
 requests==2.34.2  # OIDC identity: fetch provider JWKS + GitHub API (oidc.py)
