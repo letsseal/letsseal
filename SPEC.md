@@ -116,10 +116,24 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
 
 ## 3. The anchor (time)
 
+The anchor is what makes the time claim checkable by someone who trusts no party named
+in the proof, so the requirement below is a property of the ledger rather than the name
+of one.
+
 - The proof MUST include an OpenTimestamps `.ots` file committing to the SHA-256 of the
   sealed document.
-- "Confirmed" status requires a real `ots verify` against a Bitcoin attestation — not a
-  calendar's pending receipt. Until then the anchor is *pending*.
+- The `.ots` MUST commit to a **public, append-only ledger that nobody owns**: one whose
+  history is written by open participation, readable and checkable by anyone running
+  ordinary software, and settled beyond the reach of any single party able to rewrite,
+  revoke or withhold it. A ledger governed by a foundation, a consortium or a
+  permissioned validator set restores the one decision this layer exists to remove.
+- **Confirmed** status requires a real `ots verify` against an attestation on such a
+  ledger. A calendar's receipt is a promise to anchor, so until the attestation lands
+  the anchor is *pending*.
+- The profile Let's Seal issues today anchors to Bitcoin, which holds that property and
+  the longest continuous public record of holding it. The `.ots` format carries
+  attestations from other ledgers, so a conforming implementation MAY anchor elsewhere,
+  and a verifier reads the attestation it finds rather than assuming the chain.
 - Anyone verifies the anchor with the stock client, with no Let's Seal server involved:
 
   ```

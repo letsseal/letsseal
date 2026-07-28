@@ -176,6 +176,15 @@ A seal always proves which certificate signed it. On top of that, an organisatio
 
 This is domain control as identity, the same model the web took for TLS. It proves who controls the seal, not a person's legal identity, and it says so plainly.
 
+## How the CA is run
+
+The practices behind every certificate are published in full: the hierarchy and key
+protection, how a domain is validated before it is bound into a certificate, what each
+certificate profile carries, how revocation works and how far back each reason reaches.
+See [CPS.md](CPS.md), which follows the RFC 3647 framework and names the file in this
+repository that performs each practice, so every statement in it can be checked against
+the code.
+
 ## The SEAL standard
 
 **Open to verify. Open to implement. Impossible to lock up.**
