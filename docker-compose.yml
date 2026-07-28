@@ -1,0 +1,118 @@
+name: letsseal
+
+services:
+  db:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-letsseal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-letsseal_password}
+      POSTGRES_DB: ${POSTGRES_DB:-letsseal}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  signing-service:
+    build:
+      context: ./signing-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      # Defaults
+      - LETSSEAL_CA_DIR=${LETSSEAL_CA_DIR:-/ca/out}
+      # Pass-through variables (set in Coolify)
+      - LETSSEAL_SERVICE_TOKEN
+      - LETSSEAL_P12_PASS
+      - LETSSEAL_ENV
+      - OIDC_GOOGLE_CLIENT_ID
+      - OIDC_MICROSOFT_CLIENT_ID
+      - OIDC_MICROSOFT_ISSUER
+      - OIDC_APPLE_CLIENT_ID
+      - OIDC_EXTRA_PROVIDER
+      - OIDC_EXTRA_CLIENT_ID
+      - OIDC_EXTRA_ISSUER
+      - OIDC_GITHUB_ENABLED
+    volumes:
+      - ./ca:/ca
+    env_file:
+      - path: .env
+        required: false
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Defaults & Internal Routing
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-letsseal}:${POSTGRES_PASSWORD:-letsseal_password}@db:5432/${POSTGRES_DB:-letsseal}?schema=public}
+      - SIGNING_SERVICE_URL=${SIGNING_SERVICE_URL:-http://signing-service:8081}
+      - CA_DIR=${CA_DIR:-/ca/out}
+      # Core & Security (Pass-through variables set in Coolify)
+      - AUTH_SECRET
+      - LETSSEAL_SERVICE_TOKEN
+      - AUDIT_HMAC_SECRET
+      - CRON_SECRET
+      - APP_URL
+      - DATABASE_POOL_MAX
+      # Proxy & Auth Config
+      - TRUSTED_PROXY
+      - AUTH_TRUST_HOST
+      - AUTH_URL
+      - AUTH_SESSION_MAX_AGE
+      # OAuth Providers
+      - AUTH_GOOGLE_ID
+      - AUTH_GOOGLE_SECRET
+      - AUTH_GITHUB_ID
+      - AUTH_GITHUB_SECRET
+      - AUTH_FACEBOOK_ID
+      - AUTH_FACEBOOK_SECRET
+      - AUTH_MICROSOFT_ENTRA_ID_ID
+      - AUTH_MICROSOFT_ENTRA_ID_SECRET
+      - AUTH_MICROSOFT_ENTRA_ID_ISSUER
+      - AUTH_APPLE_ID
+      - AUTH_APPLE_SECRET
+      - AUTH_GITLAB_ID
+      - AUTH_GITLAB_SECRET
+      - AUTH_DISCORD_ID
+      - AUTH_DISCORD_SECRET
+      - AUTH_LINKEDIN_ID
+      - AUTH_LINKEDIN_SECRET
+      # Identity Sealing
+      - IDENTITY_GOOGLE_ID
+      - IDENTITY_GOOGLE_SECRET
+      - IDENTITY_GITHUB_ID
+      - IDENTITY_GITHUB_SECRET
+      # SMTP
+      - SMTP_HOST
+      - SMTP_PORT
+      - SMTP_USER
+      - SMTP_PASS
+      - SMTP_FROM
+      - SES_CONFIGURATION_SET
+      # Storage
+      - STORAGE_S3_BUCKET
+      - STORAGE_S3_ENDPOINT
+      - STORAGE_S3_REGION
+      - STORAGE_S3_ACCESS_KEY_ID
+      - STORAGE_S3_SECRET_ACCESS_KEY
+      - STORAGE_S3_PREFIX
+      # Redis Rate Limiting
+      - UPSTASH_REDIS_REST_URL
+      - UPSTASH_REDIS_REST_TOKEN
+    volumes:
+      - ./ca:/ca
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - db
+      - signing-service
+
+volumes:
+  postgres_data:
