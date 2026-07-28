@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ShieldX, ArrowLeft, Download } from "lucide-react";
+import { ShieldX, ArrowLeft, Download, FileArchive } from "lucide-react";
 import { db } from "@/lib/db";
 import { apiUser } from "@/lib/auth-helpers";
 import { readFile, fileExists } from "@/lib/storage";
@@ -213,6 +213,10 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
                   <Link href={`/${orgSlug}/documents`}><ArrowLeft className="h-3.5 w-3.5" /> Back to documents</Link>
                 </Button>
               )}
+              <Button asChild variant="outline" size="sm" className="gap-1.5"
+                      title="Every proof, the pinned root and the commands to check them, in one file">
+                <a href={`/api/d/${sha256}/evidence`}><FileArchive className="h-3.5 w-3.5" /> Evidence bundle</a>
+              </Button>
               {docOnFile && (
                 <Button asChild size="sm" className="gap-1.5">
                   <a href={`/api/documents/${sha256}`} target="_blank"><Download className="h-3.5 w-3.5" /> Download sealed copy</a>
