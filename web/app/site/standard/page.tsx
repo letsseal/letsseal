@@ -95,10 +95,12 @@ export default function StandardPage() {
           <H2 className="mt-3.5">Two checks, both independent of us</H2>
           <div className="mt-8 space-y-6">
             <Step n="1" title="The seal, integrity + issuer">
-              Validate the document&rsquo;s embedded PAdES signature: it must be cryptographically valid, its
-              certificate must chain to the pinned SEAL root, and it must cover the <strong>entire file</strong> (no
-              content appended after signing). A valid signature from a certificate that does <em>not</em> chain to the
-              root is a forgery vector, reported as unrecognised, never authentic.
+              Validate the signature in the artifact&rsquo;s format-native form, PAdES in a PDF, C2PA in an image,
+              XML-DSig in XML, S/MIME in email, or a detached CAdES sidecar for anything else. Four facts have to
+              hold: the bytes are <strong>intact</strong>, the signature is <strong>valid</strong>, the certificate
+              chains to the pinned SEAL root (<strong>trusted</strong>), and the signature covers the artifact
+              <strong>completely</strong> for its format. A valid signature from a certificate chaining elsewhere is a
+              forgery vector, reported as unrecognised, never authentic.
               <div className="mt-3 text-[13px] text-stone-500">
                 Pinned root SHA-256: <code className="break-all font-mono text-[12px] text-stone-700">{ROOT_CA_FINGERPRINT_SHA256}</code> ·{" "}
                 <a className="text-blue-600 hover:underline" href="/site/trust">root of trust</a>
@@ -111,8 +113,12 @@ export default function StandardPage() {
             </Step>
           </div>
           <div className="mt-8 rounded-2xl border border-stone-200 bg-stone-50 p-5">
-            <div className={`${serif} text-[17px] text-stone-900`}>Authentic = valid ∧ intact ∧ trusted.</div>
-            <p className="mt-1.5 text-[14px] text-stone-600">Never a “pass” from a valid-but-untrusted seal. The anchor then adds independent proof of when it existed.</p>
+            <div className={`${serif} text-[17px] text-stone-900`}>Authentic = intact ∧ valid ∧ trusted ∧ complete.</div>
+            <p className="mt-1.5 text-[14px] text-stone-600">
+              All four, every time. A pass from any subset would accept a document whose bytes moved after sealing, or
+              one that had content added afterwards. The anchor then adds independent proof of when it existed, and the
+              revocation list is consulted where it can be reached.
+            </p>
           </div>
         </Container>
       </section>

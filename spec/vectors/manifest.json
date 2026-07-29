@@ -23,7 +23,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "27697fc861c127e52f0c94fb42755f4ccc9694c68796a96a02b856b071eee291",
+      "sha256": "e6d8f3e127e58b272c63b1f6992054c0763da5a07a25185cd658af1a941e5b18",
       "require": {
         "sealed": true,
         "intact": true,
@@ -45,7 +45,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "6f28eaffca6a7418f52a9f093fc3bf21cd127ee6a6bfd1ac18501d1da3ea0547",
+      "sha256": "823d01a6b2ed71f86d94d9262baaae74ccebfe2f2a2a7b40e930ce4938f525c5",
       "require": {
         "sealed": true,
         "intact": false,
@@ -67,7 +67,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "96d49e682fedd346ca150a7cef72d042dbd29354c69fd348d3ea3d17801b1cda",
+      "sha256": "c1ddb9621fd3722ee6691ea42c63718488ac1632e8347d4b25515a445624933e",
       "require": {
         "sealed": true,
         "intact": true,
@@ -89,7 +89,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "ef54729d1cede40001651f0422d7b9e26585f9a51dd3714c5fde6fd0e141f89b",
+      "sha256": "0708720e35e50ed63c1f64334593ccd77bf70943b2b25ad9bf11d6c9e343334c",
       "require": {
         "sealed": true,
         "intact": true,
@@ -150,6 +150,23 @@
       },
       "teaches": "The same detached signature paired with an artifact that has changed by one byte.",
       "catches": "A verifier that checks a signature is well formed without binding it to the bytes in hand."
+    },
+    {
+      "id": "007-unsealed",
+      "files": [
+        "document.pdf"
+      ],
+      "subject": "document.pdf",
+      "sha256": "dfab7e2e853e122d3905c7779a1fa0e81682de02bb457e6656d1974228ce2672",
+      "require": {
+        "sealed": false,
+        "authentic": false
+      },
+      "observed": {
+        "reason": "no signature present"
+      },
+      "teaches": "A perfectly ordinary PDF that was never sealed.",
+      "catches": "A verifier that reports an unsigned file as altered, or worse reaches for a verdict about a seal that does not exist."
     }
   ]
 }

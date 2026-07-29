@@ -250,6 +250,13 @@ def main() -> int:
          "The same detached signature paired with an artifact that has changed by one byte.",
          "A verifier that checks a signature is well formed without binding it to the bytes in hand.")
 
+    emit("007-unsealed", {"document.pdf": src},
+         {"sealed": False, "authentic": False},
+         {"reason": "no signature present"},
+         "A perfectly ordinary PDF that was never sealed.",
+         "A verifier that reports an unsigned file as altered, or worse reaches for a "
+         "verdict about a seal that does not exist.")
+
     manifest = {
         "standard": "SEAL",
         "specification": "https://letsseal.org/SPEC.md",

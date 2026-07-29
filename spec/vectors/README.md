@@ -44,6 +44,7 @@ records what the reference verifier says today, for information.
 | 004-pades-incremental-update | content appended after signing | entire_file false, authentic false |
 | 005-detached-valid | a detached CAdES/CMS seal over a non-PDF artifact | authentic |
 | 006-detached-altered | that signature paired with a changed artifact | intact false, authentic false |
+| 007-unsealed | an ordinary PDF that was never sealed | sealed false, authentic false |
 
 **003 is the one to get right.** A cryptographically valid signature whose
 certificate chains somewhere else is the forgery vector SPEC.md section 8 calls

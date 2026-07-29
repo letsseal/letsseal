@@ -35,6 +35,7 @@ normative:
   RFC5652:
   RFC5758:
   RFC6962:
+  RFC7468:
   RFC8259:
   RFC8551:
   RFC8552:
@@ -171,9 +172,13 @@ SEAL specifies:
 * an RFC 6962 transparency log profile, including the exact bytes a signed tree head
   covers and the identity by which the log's key is pinned ({{the-transparency-log}});
 * a canonical convention for referencing a proof ({{the-proof-convention}});
+* what it means for a signature to cover an artifact in its entirety, stated once per
+  seal form ({{coverage}});
 * the semantics of revocation reason codes, which decide how far back a withdrawal of
   trust reaches ({{revocation}});
-* a normative verification algorithm ({{verification}}).
+* a normative verification algorithm ({{verification}}), together with the vocabulary a
+  verifier reports: the four facts a seal establishes ({{facts}}), the four verdicts and
+  their precedence ({{verdicts}}), and the four anchor states ({{anchor-states}}).
 
 The core of a SEAL proof is a seal and an anchor. The transparency log, the supply-chain
 profile and the identity profile are additive profiles that a conforming implementation
@@ -190,16 +195,18 @@ disagree, the disagreement is a defect in one of them and reports are welcome.
 Some requirements stated here reach ahead of what the reference implementation exercises
 today, and naming them is more useful than leaving a reader to discover them. The
 published revocation list is served unsigned. The time-bounded revocation semantics of
-{{revocation}} and the certificate-validity rule of {{verification}} are specified against
-a confirmed anchor's proven time, while the deployed callers evaluate revocation without
-supplying that time, so every revocation currently reaches every seal, which is the safe
-direction. The PDF verification path consults the revocation list for the leaf
-certificate, and the path check of {{verify-revocation}} is exercised in full on the
-detached path. The log serves inclusion and consistency proofs, and the leaf entry bytes
-and the ledger commitment on a Signed Tree Head are held rather than served. The Log ID of
-{{log-id}} is computed by the implementation and reachable to its operator, and publishing
-it beside the root fingerprint remains to be done. Each of these is tracked as an
-implementation defect against this document.
+{{revocation}} and the certificate-validity rule of {{validity-time}} are specified
+against a confirmed anchor's proven time; the reference verifier supplies that time where
+a confirmed anchor is present, and a caller that evaluates revocation without supplying it
+has every revocation reach every seal, which is the safe direction. The reference verifier
+consults the revocation list for the leaf certificate and reports `unchecked` where it
+cannot reach it; extending that consultation to every certificate in the path, as
+{{verify-revocation}} requires, remains to be done. The log serves inclusion and
+consistency proofs, and the leaf entry bytes and the ledger commitment on a Signed Tree
+Head are held rather than served. The Log ID of {{log-id}} is computed by the
+implementation and reachable to its operator, and publishing it beside the root
+fingerprint remains to be done. Each of these is tracked as an implementation defect
+against this document.
 
 # Conventions and Definitions
 
@@ -236,12 +243,14 @@ Trusted:
 : A property of a seal: the signing certificate chains to the pinned root under
   {{RFC5280}} path validation.
 
-Complete:
-: A property of a seal: the range the signature covers is the artifact in its entirety.
+Entire file:
+: A property of a seal: the range the signature covers is the artifact in its entirety, as
+  {{coverage}} defines entirety for that artifact's format. A verifier reports this
+  property under the name `entire_file`.
 
 Authentic:
-: A property of an artifact: its seal is intact, valid, trusted and complete, all four
-  together.
+: A property of an artifact: its seal is intact, valid and trusted and covers the entire
+  file, all four together.
 
 Signed Tree Head (STH):
 : A signed statement binding a transparency log's size, Merkle root hash and timestamp,
@@ -254,6 +263,13 @@ Confirmed anchor:
 Pending anchor:
 : An anchor for which a calendar server has issued a receipt and for which a ledger
   attestation has yet to appear.
+
+Absent anchor:
+: The state reported where no anchor proof accompanies the artifact.
+
+Unverified anchor:
+: The state reported where an anchor proof accompanies the artifact and the verifier was
+  unable to check it. {{anchor-states}} holds the four states together.
 
 # Architecture
 
@@ -278,10 +294,11 @@ A SEAL proof has two independent parts and one convention.
                    one stable way to reference the proof
 ~~~
 
-Each part is checkable on its own, with separate software. The core determination of
-{{verification}} step 2 stands without the anchor; the refinements in
-{{verify-revocation}} and the certificate-validity rule of {{verification}} use the
-anchor's proven time where one is available, and fall back to the current time otherwise.
+Each part is checkable on its own, with separate software. The four facts of {{facts}} are
+established from the seal alone; the certificate-validity rule of {{validity-time}} and
+the revocation rule of {{verify-revocation}} use the anchor's proven time where a
+confirmed anchor is available, and where none is, validity is judged at the time of
+verification and a revocation of any reason reaches the seal.
 The seal establishes integrity and the sealing certificate. The anchor establishes time, and
 its evidence survives the withdrawal, expiry or compromise of the sealing key, which is
 what makes the revocation semantics in {{revocation}} workable.
@@ -381,9 +398,10 @@ certificate and the intermediates needed to build the path to the root MUST be c
 with the signature, so that a verifier holding the root alone can complete path
 validation.
 
-The seal establishes two facts: that the artifact is byte-for-byte what was sealed, and
-which certificate produced the signature. {{security-considerations}} states what follows
-from those two facts about the identity of the party behind the certificate.
+A seal establishes what the artifact is, byte-for-byte, and which certificate produced the
+signature. {{facts}} states the four separate facts a verifier establishes in order to
+reach that conclusion, and {{security-considerations}} states what follows from it about
+the identity of the party behind the certificate.
 
 ## PDF: PAdES
 
@@ -392,9 +410,9 @@ the `SubFilter` value `ETSI.CAdES.detached`, whose byte range covers the entire 
 
 A signature that covers a prefix of the file, which is the state a PDF reaches when
 content is appended by an incremental update after signing, is non-conformant for this
-profile and MUST be reported as altered. This rule is the reason completeness is a
-separate input to the verification algorithm in {{verification}} rather than a consequence
-of signature validity.
+profile and MUST be reported as `altered`. This rule is the reason coverage is a separate
+fact in {{facts}}, defined per form in {{coverage}}, rather than a consequence of
+signature validity.
 
 The signature SHOULD carry an RFC 3161 signature timestamp {{RFC3161}}, which raises it
 to PAdES level B-T. Public timestamp authorities operated for code signing are sufficient
@@ -418,7 +436,10 @@ in the C2PA default set.
 
 A conforming verifier configures the pinned root as a C2PA trust anchor. A manifest that
 validates and chains to that anchor is trusted. A manifest that validates under some
-other certificate is valid and untrusted, and {{verification}} decides the outcome.
+other certificate is valid and untrusted, and {{verdicts}} decides the outcome.
+
+The manifest's hard binding is what covers the asset, with the manifest store itself
+excluded, and that binding is what a verifier evaluates for coverage under {{coverage}}.
 
 A conforming implementation MAY omit an RFC 3161 timestamp from the manifest, in which
 case time comes from the anchor alone, and the signing path runs entirely on the issuer's
@@ -453,8 +474,9 @@ to the artifact's filename. The `messageDigest` signed attribute carries the SHA
 digest of the artifact, and the signer's certificate chain is embedded in the
 `certificates` field of the SignedData, so that the sidecar is self-contained.
 
-A detached signature over the artifact's digest covers the artifact in its entirety by
-construction, so completeness follows from validity for this form.
+A detached signature is made over the artifact's digest, so it covers the artifact in its
+entirety by construction and coverage follows from intactness for this form, as
+{{coverage}} records.
 
 The digest of the artifact is the only input the signer requires. An implementation MAY
 therefore compute the digest on the holder's own machine and transmit only that digest,
@@ -534,6 +556,24 @@ An implementation SHOULD retain the pending proof and upgrade it once the attest
 appears, since the upgraded proof is what a third party needs in order to reach the
 confirmed conclusion offline.
 
+## Anchor states {#anchor-states}
+
+A verifier reports the anchor as exactly one of four states, and reports it alongside the
+verdict of {{verdicts}} rather than folded into it:
+
+| State | Reported when |
+|---|---|
+| `confirmed` | An attestation on the ledger commits this digest, and the ledger position it landed in gives the time. |
+| `pending` | A calendar server has accepted the digest and the attestation has yet to settle. |
+| `absent` | No anchor proof accompanies the artifact. |
+| `unverified` | An anchor proof accompanies the artifact and the verifier was unable to check it. |
+
+`pending` and `unverified` are distinct on purpose. `pending` asserts that a calendar
+accepted the digest, which is a claim about the proof in hand. `unverified` asserts
+nothing beyond the verifier's own inability to look. A verifier MUST therefore report a
+failure of its own tooling as `unverified`, and MUST NOT report it as `pending`, since
+doing so would manufacture a claim out of a tooling problem.
+
 # The Transparency Log {#the-transparency-log}
 
 An implementation MAY record every seal in a public append-only Merkle transparency log,
@@ -612,8 +652,35 @@ zeros. A signer MUST reject a root hash outside that form, and MUST reject a neg
 size or a timestamp outside that form, so that the signing bytes cannot be made ambiguous
 by a malformed input.
 
-An implementation MUST publish the log certificate and its chain alongside the STH, so
-that an STH is self-contained.
+An implementation offering the log MUST serve the Signed Tree Head as a JSON object
+{{RFC8259}} carrying at least the following members:
+
+`treeSize`:
+: the tree size, as a non-negative integer.
+
+`rootHash`:
+: the Merkle root hash, as 64 lowercase hexadecimal characters.
+
+`timestamp`:
+: the timestamp, as an integer number of milliseconds since the UNIX epoch.
+
+`signature`:
+: the DER-encoded ECDSA signature over the byte string above, base64 encoded {{RFC4648}}.
+
+`logCert` and `logChain`:
+: the log certificate and the intermediates needed to build the path to the pinned root,
+  as PEM {{RFC7468}}.
+
+`anchorState`:
+: the anchor state of the head itself, from the vocabulary of {{anchor-states}}, since a
+  head carrying a ledger commitment is what {{log-misbehaviour}} turns on.
+
+The three signed values appear in the object in the same form the signature covers, so a
+verifier reconstructs the signed byte string from `treeSize`, `rootHash` and `timestamp`
+and checks the signature against it. Serving the certificate and the chain in the same
+object is what makes an STH self-contained: a verifier checks the signature against the
+certificate, the certificate against the pinned root, and the signing key against the
+pinned Log ID of {{log-id}}, with nothing further to fetch.
 
 ## Log identity {#log-id}
 
@@ -641,11 +708,20 @@ An implementation offering the log MUST serve:
 * consistency proofs, which establish that the tree of size M is a prefix of the tree of
   size N, per {{RFC6962}} Section 2.1.2.
 
-An inclusion proof MUST name the tree size it was computed against, and the index, root
-hash and audit path returned MUST all describe that same tree. A relying party SHOULD
-request a proof against the tree size of a Signed Tree Head it already holds, so that it
-can check the proof against that head. A request naming a tree size larger than the
-current tree MUST be refused rather than served against a smaller tree.
+An inclusion proof is served as a JSON object {{RFC8259}} carrying the members `index`,
+`treeSize`, `leafHash`, `rootHash` and `proof`, where `index` is the leaf's zero-based
+position in append order, `treeSize` is the size of the tree the proof was computed
+against, `leafHash` and `rootHash` are lowercase hexadecimal SHA-256 digests, and `proof`
+is the audit path as an ordered array of lowercase hexadecimal sibling hashes. The `index`
+and `treeSize` members are REQUIRED: the audit-path arithmetic of {{RFC6962}} Section
+2.1.1 walks the leaf's position within a tree of a given size, and a relying party holding
+the audit path alone is unable to perform it.
+
+The index, root hash and audit path returned MUST all describe the tree named by
+`treeSize`. A relying party SHOULD request a proof against the tree size of a Signed Tree
+Head it already holds, so that it can check the proof against that head. A request naming
+a tree size larger than the current tree MUST be refused rather than served against a
+smaller tree.
 
 A relying party checks both proofs with the arithmetic in {{RFC6962}} using the leaf
 hash, the audit path and a signed root, and reaches its conclusion with no trust in the
@@ -657,9 +733,10 @@ An implementation offering the log MUST periodically commit a Signed Tree Head t
 ledger described in {{the-anchor}}, by anchoring the root hash of the head, and MUST
 publish enough anchored heads for an observer to audit its history. This pins the log's
 history to a clock outside the log operator's control, and it is the property that
-{{log-misbehaviour}} relies on. An implementation SHOULD serve the ledger commitment for a
-head alongside the head itself, since a relying party applying the rule of
-{{log-misbehaviour}} needs the commitment in hand.
+{{log-misbehaviour}} relies on. The `anchorState` member of {{sth}} reports where a given
+head stands, and an implementation SHOULD serve the ledger commitment itself alongside the
+head, since a relying party applying the rule of {{log-misbehaviour}} checks that
+commitment rather than the state reported for it.
 
 # The Proof Convention {#the-proof-convention}
 
@@ -752,10 +829,11 @@ address at a named moment. A conforming presentation states it in those terms.
 
 # Verification Algorithm {#verification}
 
-This section is normative. It states the core determination, which uses the artifact, its
-seal, the pinned root and, for time, the anchor. The additional checks in
-{{verify-revocation}} and {{verify-log}} apply where an implementation offers those
-components.
+This section is normative. It states the four facts a verifier establishes ({{facts}}),
+what coverage of an artifact means in each seal form ({{coverage}}), the procedure, the
+moment at which certificate validity is judged ({{validity-time}}), the revocation step
+({{verify-revocation}}), and the verdict vocabulary a verifier reports ({{verdicts}}). The
+additional checks in {{verify-log}} apply where an implementation offers that component.
 
 ## Inputs
 
@@ -763,59 +841,118 @@ A verifier requires the artifact bytes and the pinned root certificate. It furth
 requires the seal, which is embedded in the artifact for the PDF, image and XML forms and
 supplied as a sidecar for the detached form, and, for time, the `.ots` anchor.
 
+## Facts to establish {#facts}
+
+The seal establishes four facts. A verifier MUST establish them separately and MUST NOT
+collapse them, since each fails for a different reason and a reader acting on the verdict
+needs to know which:
+
+| Fact | Established when |
+|---|---|
+| `intact` | The digest carried over the signed range equals the artifact in hand. |
+| `valid` | The signature verifies under the public key in the signing certificate. |
+| `trusted` | The signing certificate chains to the pinned root ({{trust-anchor}}) under {{RFC5280}} path validation. |
+| `entire_file` | The signature covers the artifact completely, as {{coverage}} defines completeness for that artifact's format. |
+
+`intact` and `valid` answer different questions in particular. A signature object can
+verify while the content it covers has moved underneath it, so a verifier reading `valid`
+alone reports tampering as an issuer problem and sends the reader after the wrong thing.
+`entire_file` stands apart in the same way: where an implementation reports a single
+intactness flag that already incorporates coverage, it states that relationship
+explicitly, so that a reader can tell which of the two failed.
+
+## Coverage, per format {#coverage}
+
+Completeness is defined by the artifact's format, so this profile states the rule per
+delivery form rather than as one sentence that fits the PDF form alone:
+
+| Form | `entire_file` holds when |
+|---|---|
+| PDF (PAdES) | The signature covers the entire file. Content appended after signing, including by an incremental update, leaves it false. |
+| Detached (CAdES/CMS) | The signature is made over the artifact's digest, so completeness follows from `intact`. |
+| XML (XML Signature) | The signature covers the document with the signature element itself excluded, as the enveloped transform requires. |
+| Image (C2PA) | The manifest's hard binding covers the asset as {{C2PA}} defines it, with the manifest store excluded. |
+| Email (S/MIME) | The signature covers the signed part of the message in full. |
+
+A verifier MUST evaluate `entire_file` for every form whose underlying format permits a
+signature to cover part of the artifact.
+
 ## Procedure
 
 1. Compute the SHA-256 digest of the artifact.
 
-2. Validate the seal, establishing four properties separately:
+2. Validate the format-native signature that {{the-seal}} defines for this artifact's
+   format, and establish the four facts of {{facts}}.
 
-   * intact: the digest carried in the signature matches the bytes now present over the
-     range the signature covers;
-   * valid: the signature verifies cryptographically under the public key in the signing
-     certificate;
-   * trusted: the signing certificate chains to the pinned root under {{RFC5280}} path
-     validation;
-   * complete: the range the signature covers is the artifact in its entirety.
+3. Judge the validity period of the certificates in the path at the moment
+   {{validity-time}} fixes, and state which moment was used.
 
-   All four together establish integrity and the sealing certificate.
+4. Verify the anchor against the ledger ({{the-anchor}}), and report the anchor state from
+   the vocabulary of {{anchor-states}}. An attestation for the artifact's digest
+   establishes that the artifact existed by the time of the ledger position named in it.
+   The anchor establishes time and contributes no part of authenticity.
 
-   A verifier MUST determine and report these separately, and MUST NOT collapse them.
-   Intactness and validity in particular answer different questions: a signature object
-   can verify while the content it covers has moved underneath it, and a verifier reading
-   validity alone would report tampering as an issuer problem. Completeness is separate in
-   the same way: where an implementation reports a single intactness flag that already
-   incorporates completeness, it states that relationship explicitly, so that a reader can
-   tell which of the two failed.
+5. Consult the published revocation list and apply the reason semantics it carries, as
+   {{verify-revocation}} requires, and report the revocation state, which is `unchecked`
+   where the list is out of reach.
 
-3. Verify the anchor against the ledger. An attestation for the artifact's digest
-   establishes that the artifact existed by the time of the ledger position named in the
-   attestation. An anchor carrying only a calendar receipt is reported as pending.
+6. Report exactly one verdict from {{verdicts}}, together with the anchor state from step
+   4 and the revocation state from step 5.
 
-4. The artifact is SEAL-authentic if and only if step 2 holds in all four properties. A
-   valid signature made under a certificate that chains to some other trust anchor
-   establishes only that some key signed those bytes; a verifier MUST report that outcome
-   as unrecognised, and MUST NOT report it as authentic. The anchor contributes
-   independent evidence of time.
+## Certificate validity moment {#validity-time}
 
-The rule of step 4 is the whole of the determination: authentic means intact and valid and
-trusted and complete, all four together. A verifier MUST NOT render a passing verdict from
-the presence of a signature, or from integrity alone, or from any subset of the
-properties. An untrusted seal fails.
+Where a `confirmed` anchor ({{anchor-states}}) is present, a verifier MUST judge
+certificate validity at the anchored time. Where none is present, a verifier MUST judge
+certificate validity at the time of verification. A verifier SHOULD state which of the two
+moments it used.
 
-## Certificate validity time
-
-A verifier SHOULD evaluate certificate validity periods at the time established by a
-confirmed anchor, where one is available, and at the current time otherwise. Binding
-validity to proven time is what allows a seal made under a certificate that has since
-expired to remain verifiable, and it withholds that benefit from a seal with no
-independent evidence of when it was made.
+This is what the anchor is for. Judging a seal against the clock on the day it is read
+would make every seal expire with its certificate, so a five-year certificate would carry
+a five-year evidence horizon and an artifact sealed correctly in 2026 would stop verifying
+in 2031 through nothing but the passage of time. Binding validity to proven time keeps a
+seal made under a certificate that has since expired verifiable, and withholds that
+benefit from a seal with no independent evidence of when it was made.
 
 ## Revocation {#verify-revocation}
 
-Where a revocation list is published, a verifier MUST consult it for every certificate in
-the path and apply the reason semantics of {{revocation}}, using a confirmed anchor as
-the evidence of when the artifact existed. A certificate whose revocation reaches the
-seal makes the seal untrusted, and step 4 then reports it as unrecognised.
+A verifier MUST consult the issuer's published revocation list ({{revocation}}) where it
+can reach it, and MUST apply the reason semantics that list carries to every certificate
+in the path, using a `confirmed` anchor as the evidence of when the artifact existed. A
+compromise reason withdraws trust from every seal made under the certificate whatever its
+date. An orderly retirement leaves seals demonstrably made before the revocation time
+standing, which is a question a confirmed anchor answers. A reason the verifier has no
+rule for is handled as a compromise. A certificate whose revocation reaches the seal makes
+`trusted` false, and {{verdicts}} then reports the seal as `unrecognised`.
+
+A verifier that cannot reach the list MUST report the revocation state as `unchecked`.
+Offline verification is a property worth keeping, and a verifier reporting `authentic,
+revocation unchecked` has told the truth about what it did. A verifier reporting
+`authentic` while never looking has not.
+
+## Verdicts {#verdicts}
+
+A verifier reports exactly one verdict, and MUST apply the four in the following
+precedence, since more than one can hold at once and the reason reported is the one that
+applies first:
+
+| Order | Verdict | Reported when |
+|---|---|---|
+| 1 | `unsealed` | The artifact carries no signature. |
+| 2 | `altered` | `intact` is false, or `valid` is false, or `entire_file` is false. |
+| 3 | `unrecognised` | The signature is valid over these bytes and its certificate chains elsewhere than the pinned root. |
+| 4 | `authentic` | `intact`, `valid`, `trusted` and `entire_file` all hold. |
+
+An artifact is SEAL-authentic if and only if all four facts hold. A valid signature made
+under a certificate that chains to some other trust anchor establishes only that some key
+signed those bytes, which is a forgery vector, so a verifier MUST report that outcome as
+`unrecognised` and MUST distinguish it from `authentic` in every presentation it produces,
+including machine-readable ones. A verifier MUST NOT render a passing verdict from any
+subset of the four facts, and in particular MUST NOT do so from the presence of a
+signature alone.
+
+The anchor state of {{anchor-states}} and the revocation state of {{verify-revocation}}
+are reported alongside the verdict rather than folded into it, so that `authentic, anchor
+pending` and `authentic, revocation unchecked` are both sayable.
 
 ## Transparency log {#verify-log}
 
@@ -835,28 +972,10 @@ ID before relying on the head, since an inclusion proof is a statement about a r
 and carries no weight on its own. A relying party SHOULD reject a Signed Tree Head with no
 ledger commitment where the log's policy claims one.
 
-These checks establish that the seal is on public record and that the record has only
-ever grown by addition. They contribute to the determination of {{verification}} where an
-implementation's policy requires log presence.
-
-## Reporting
-
-A verifier reports one of the following outcomes for the seal, and reports the anchor
-state alongside it:
-
-Authentic:
-: intact, valid, trusted and complete.
-
-Unrecognised:
-: valid, and outside the pinned trust anchor. A verifier MUST distinguish this outcome
-  from authentic in every presentation it produces, including machine-readable ones.
-
-Altered:
-: the bytes covered by the signature have changed since sealing, or the signature covers
-  a part of the artifact only.
-
-Unsealed:
-: no seal was found.
+These checks establish that the seal is on public record and that the record has only ever
+grown by addition. They are reported alongside the verdict, which turns on the four facts
+of {{facts}} alone, and an implementation whose own policy requires log presence states
+that requirement as its own rather than as a fifth fact of this profile.
 
 # Security Considerations {#security-considerations}
 
@@ -885,25 +1004,27 @@ Any party can generate a key, issue itself a certificate, and produce a signatur
 verifies. Cryptographic validity is therefore available to an attacker at zero cost, and
 it is the chain to the pinned root that carries the meaning.
 
-This is the reason step 4 of {{verification}} turns on all the properties together, and
-the reason this document requires the unrecognised outcome to be distinguished from the
-authentic one everywhere it is presented. A verifier that renders a passing verdict from
-the presence of a signature, or from integrity alone, converts an attacker's
-self-issued certificate into a proof of authenticity. Implementers should treat the
-per-property flags as inputs to a single determination, and should avoid exposing an
-interface in which a caller can read one flag and skip the others.
+This is the reason the `authentic` verdict of {{verdicts}} turns on all four facts
+together, and the reason that section requires `unrecognised` to be distinguished from
+`authentic` everywhere a verdict is presented. A verifier that renders a passing verdict
+from the presence of a signature, or from integrity alone, converts an attacker's
+self-issued certificate into a proof of authenticity. Implementers should treat the four
+facts as inputs to a single verdict, and should avoid exposing an interface in which a
+caller can read one fact and skip the others.
 
-## Completeness of the signature's coverage
+## Coverage of the signature
 
 Several signed container formats permit content to be added after signing. In PDF, an
 incremental update appends a revision, leaving a signature that remains cryptographically
 valid over a prefix of the file while the file a reader displays has changed. A verifier
 that reports such a file as signed and unaltered misreports it.
 
-Completeness is therefore a distinct input to the determination, and this profile requires
-the signature to cover the artifact in its entirety. A verifier MUST evaluate completeness
-for every form where the underlying format permits partial coverage, and MUST report a
-partially covered artifact as altered.
+Coverage is therefore a fact of its own in {{facts}}, defined per delivery form in
+{{coverage}}, and a partially covered artifact falls to the `altered` verdict under the
+precedence of {{verdicts}}. Stating coverage per form is what keeps this fact meaningful
+for the forms whose completeness rule differs from the PDF one, since a signature that
+excludes its own signature element or its own manifest store covers the artifact in full
+as its format defines fullness.
 
 ## Log operator trust and the gossip problem {#log-misbehaviour}
 
@@ -952,8 +1073,9 @@ Where a subscriber key is in another party's hands, the moment that began cannot
 established. Every seal made under the certificate is therefore suspect regardless of
 date, and this profile makes `key_compromise` and `ca_compromise` reach all of them. An
 implementation MUST use one of those reasons whenever compromise is suspected as well as
-when it is proven, and MUST treat an unrecognised reason as compromise, so that the
-failure direction of an implementation error is towards distrust.
+when it is proven. A reason a verifier has no rule for is handled as a compromise under
+{{revocation}}, so that the failure direction of an implementation error is towards
+distrust.
 
 Where a certificate is retired in good order, seals made before the retirement carry no
 such uncertainty. Honouring that case requires evidence of when the seal was made that a
@@ -962,6 +1084,14 @@ sealing time would let the issuer decide which of its past seals survive. A conf
 anchor is such evidence. A verifier that honours a time-bounded revocation on any weaker
 basis, including a signature timestamp from an authority of the issuer's choosing or a
 sealing time asserted by the issuer, has widened the trust it places in named parties.
+The same proven time governs certificate validity periods under {{validity-time}}, so a
+verifier holding a confirmed anchor answers both questions from one moment.
+
+A verifier that cannot reach the published list reports the revocation state as
+`unchecked` under {{verify-revocation}}. That report is what keeps the offline case honest:
+a reader who is told that revocation went unchecked knows what is missing, whereas a
+verdict rendered in silence about revocation reads as though the list had been consulted
+and found clear.
 
 Compromise of the identity intermediate is bounded by its constraints: it can sign leaf
 certificates only, and its extended key usage covers email protection and code signing,
@@ -998,8 +1128,12 @@ domain's mail administration.
 
 An OpenTimestamps calendar server aggregates digests and commits them to the ledger. The
 proof a calendar returns immediately is a receipt: a promise that the digest will be
-committed. That promise is worth exactly the calendar's reliability, which is why this
-profile requires a pending anchor to be reported as pending.
+committed. That promise is worth exactly the calendar's reliability, which is why
+{{anchor-states}} requires such an anchor to be reported as `pending`. The same section
+keeps `unverified` separate from `pending` for the matching reason: a verifier whose own
+check of a proof fails has learned something about its own reach rather than about the
+calendar, and reporting that as `pending` would turn a tooling problem into a claim that a
+calendar had accepted the digest.
 
 The confirmed case is different in kind. A confirmed proof is a path of hash operations
 from the artifact's digest to a value recorded in the ledger, and a verifier checks that
@@ -1050,14 +1184,17 @@ Verification of the core proof uses the artifact, the sidecars and the pinned ro
 relying party holding those reaches a conclusion while offline, and a proof made today
 remains checkable for as long as the relying party retains its copy and the ledger
 remains readable. The checks that consult published documents, namely revocation and the
-transparency log, require either reachability or a cached copy. A signature on the
-revocation list is what gives a cached copy integrity of its own, and a relying party
-caching an unsigned list is trusting the transport that delivered it and its own storage
-for as long as it keeps the copy. An implementation SHOULD state a maximum age beyond
-which a relying party treats a cached revocation list as stale, and SHOULD choose the
-behaviour on staleness deliberately, since failing towards distrust converts an outage
-into a wave of failed verifications while failing towards trust converts it into a window
-for a revoked key.
+transparency log, require either reachability or a cached copy, and a verifier with
+neither reports the revocation state as `unchecked` under {{verify-revocation}}, which
+leaves the verdict and the gap in it both visible. A signature on the revocation list is
+what gives a cached copy integrity of its own, and a relying party caching an unsigned
+list is trusting the transport that delivered it and its own storage for as long as it
+keeps the copy. An implementation SHOULD state a maximum age beyond which a relying party
+treats a cached revocation list as stale, and SHOULD choose the behaviour on staleness
+deliberately, since treating a stale list as reaching every seal converts an outage into a
+wave of failed verifications while treating it as clear opens a window for a revoked key.
+Reporting the state as `unchecked` and leaving the verdict to stand is the third course,
+and it is the one this profile specifies where the list is out of reach.
 
 # IANA Considerations
 
@@ -1128,13 +1265,18 @@ pinned in its place.
 # Conformance Vectors
 
 This appendix is informative. A set of test vectors is published with the implementation
-{{SEAL-IMPL}}: sealed artifacts paired with the four per-property flags of
-{{verification}} step 2 and the outcome of {{verification}} step 4 that a conforming
-verifier reports for each, together with the trust anchor to pin and a manifest naming the
-expected verdicts. They cover a valid PAdES seal, a byte-modified PAdES file, a seal
-chaining to another root, a PAdES file carrying a post-signature incremental update, a
-valid detached CAdES seal, and a byte-modified detached seal, which is the set that
-exercises the seal forms of {{the-seal}} and the determination of {{verification}}.
+{{SEAL-IMPL}}: sealed artifacts paired with the four facts of {{facts}} and the verdict of
+{{verdicts}} that a conforming verifier reports for each, together with the trust anchor
+to pin and a manifest naming the expected verdicts in the vocabulary of {{verdicts}}. They
+cover a valid PAdES seal, a byte-modified PAdES file, a seal chaining to another root, a
+PAdES file carrying a post-signature incremental update, a valid detached CAdES seal, and
+a byte-modified detached seal, which is the set that exercises the seal forms of
+{{the-seal}} and the verdict precedence of {{verdicts}}.
+
+A vector fixes the four facts as well as the verdict, so a verifier that reaches a verdict
+from a subset of them is caught by the suite rather than by a reader. A manifest carrying
+verdicts alone would pass a verifier that established three of the four facts and named
+the verdict correctly for the artifacts it happened to be given.
 
 The vectors stop there deliberately. A confirmed ledger attestation is produced by the
 ledger over hours, so a vector for a confirmed anchor is something a suite can carry only

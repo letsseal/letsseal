@@ -42,9 +42,9 @@ def verdict_for(vec: dict) -> dict:
             return {"sealed": False}
         s = V.verify_detached(str(subject), str(HERE / vec["id"] / sig))
 
-    if s.get("sealed"):
-        s["authentic"] = bool(
-            s.get("intact") and s.get("valid") and s.get("trusted") and s.get("entire_file"))
+    s["authentic"] = bool(
+        s.get("sealed") and s.get("intact") and s.get("valid")
+        and s.get("trusted") and s.get("entire_file"))
     return s
 
 

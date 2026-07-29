@@ -215,6 +215,22 @@ of one.
   ots verify sealed.pdf.ots        # (against sealed.pdf)
   ```
 
+### 3.1 Anchor states
+
+A verifier reports the anchor as exactly one of:
+
+| State | Meaning |
+|---|---|
+| `confirmed` | An attestation on the ledger commits this digest, and the block it landed in gives the time. |
+| `pending` | A calendar has accepted the digest and the attestation has yet to settle. |
+| `absent` | No anchor proof was supplied with the artifact. |
+| `unverified` | The verifier was unable to check the proof it holds. |
+
+`pending` and `unverified` are separate on purpose. `pending` asserts that a calendar
+accepted the digest, which is a claim about the proof. `unverified` asserts nothing beyond
+the verifier's own inability to look, so reporting a failed check as `pending` would
+manufacture a claim out of a tooling problem.
+
 ## 4. The proof convention
 
 - Every proof has a canonical permalink: **`/d/<sha256>`** (the lowercase hex SHA-256 of
@@ -282,7 +298,18 @@ log, so mis-issuance is detectable by anyone.
 - The head is a **Signed Tree Head (STH)** `{treeSize, rootHash, timestamp}`, signed by
   a dedicated log key whose certificate chains to the SEAL root, over the canonical
   bytes `letsseal.sth.v1\n<treeSize>\n<rootHex>\n<tsMs>\n`. The STH is itself
-  OpenTimestamps-anchored to Bitcoin, pinning the log's history to a public clock.
+  anchored by the mechanism of §3, pinning the log's history to a public clock outside the log operator's control.
+- The STH signature is **ECDSA on P-256 over SHA-256** of those bytes, DER-encoded and
+  carried as base64. It is served with the log certificate and its chain as PEM, so an
+  STH is self-contained: a verifier checks the signature against the certificate, and the
+  certificate against the pinned root, without fetching anything further.
+- The STH is served as JSON carrying at least `treeSize`, `rootHash` (lowercase hex),
+  `timestamp` (integer milliseconds), `signature` (base64 DER), `logCert` and `logChain`
+  (PEM), and the anchor state of the head itself.
+- An inclusion proof is served as JSON carrying `index`, `treeSize`, `leafHash`,
+  `rootHash` and `proof` (an ordered array of lowercase-hex sibling hashes). The index and
+  the tree size are REQUIRED, because RFC 6962 audit-path arithmetic cannot be performed
+  without them.
 - Anyone verifies **inclusion** with an audit proof at `/api/log/proof?sha256=<hex>`
   against an STH of the same `treeSize`, and **consistency** (append-only, never
   rewritten) with `/api/log/consistency?first=&second=` — standard RFC-6962 math, no
@@ -318,23 +345,99 @@ verified at seal time** — attributing a signature to a controllable channel
 
 ## 8. Verification algorithm (normative)
 
-Given a file (and, for the anchor, its `.ots`):
+A verifier is given an artifact, and where they exist its detached signature sidecar and
+its `.ots` anchor proof.
 
-1. Compute `sha256(file)`.
-2. **Seal:** validate the embedded PAdES signature.
-   - Signature cryptographically valid, **and**
-   - certificate chains to the pinned SEAL root, **and**
-   - coverage is the **entire file**.
-   - → all three ⇒ *integrity + issuer* established.
-3. **Anchor:** `ots verify` the `.ots` against the public ledger.
-   - → a Bitcoin attestation ⇒ *existed by that block's time*.
-4. A document is **SEAL-authentic** iff step 2 holds (valid **and** trusted **and**
-   entire-file). A valid signature from a certificate that does **not** chain to the
-   pinned root is a forgery vector and MUST be reported as *unrecognised*, never as
-   authentic. The anchor adds independent proof of time.
+### 8.1 Facts to establish
 
-> **Authentic = valid ∧ intact ∧ trusted.** Never render a "pass" verdict from
-> `sealed`/`intact` alone — an untrusted seal must fail.
+The seal establishes four facts. A verifier MUST establish them separately and MUST NOT
+collapse them, because each fails for a different reason and a reader acting on the
+verdict needs to know which:
+
+| Fact | Established when |
+|---|---|
+| `intact` | The digest over the signed range equals the artifact in hand. |
+| `valid` | The signature verifies under the signing certificate's public key. |
+| `trusted` | The signing certificate chains to the pinned SEAL root (§2). |
+| `entire_file` | The signature covers the artifact completely, as §8.2 defines completeness for that format. |
+
+`intact` and `valid` are distinct in particular. A signature can verify under its
+certificate while the bytes it committed to have changed, so a verifier reading only
+`valid` reports tampering as an issuer problem and sends the reader after the wrong thing.
+
+### 8.2 Coverage, per format
+
+Completeness is defined by the format, so the rule is stated per form rather than as one
+sentence that fits only PDFs:
+
+| Form | `entire_file` holds when |
+|---|---|
+| PDF (PAdES) | The signature covers the entire file. Content appended after signing, including by incremental update, leaves it false. |
+| Detached (CAdES/CMS) | The signature is over the artifact's digest, so completeness follows from `intact`. |
+| XML (XML-DSig) | The signature covers the document with the signature element itself excluded, as the enveloped transform requires. |
+| Image (C2PA) | The manifest's hard binding covers the asset as C2PA defines it, with the manifest store excluded. |
+| Email (S/MIME) | The signature covers the signed part of the message in full. |
+
+### 8.3 Steps
+
+1. **Digest.** Compute `sha256(artifact)`.
+
+2. **Seal.** Validate the format-native signature defined in §2 for this artifact's type,
+   and establish the four facts of §8.1.
+
+3. **Certificate validity moment.** Where a **confirmed** anchor (§3) is present, a
+   verifier MUST judge certificate validity at the anchored time. Otherwise it judges
+   validity at the time of verification, and SHOULD say which it did.
+
+   This is what the anchor is for. Judging a seal against the clock on the day it is
+   read would make every seal expire with its certificate, so a five-year certificate
+   would carry a five-year evidence horizon and a document sealed correctly in 2026
+   would stop verifying in 2031 through nothing but the passage of time.
+
+4. **Anchor.** Verify the `.ots` against the ledger (§3) and report the anchor state from
+   the vocabulary in §3.1. The anchor establishes time and contributes no part of
+   authenticity.
+
+5. **Revocation.** A verifier MUST consult the issuer's published revocation list where it
+   can reach it, and MUST apply the reason semantics that list carries: a compromise
+   withdraws trust from every seal under the certificate whatever its date, while an
+   orderly retirement leaves seals demonstrably made before the revocation date standing,
+   which is a question a confirmed anchor answers. A reason the verifier does not
+   recognise is handled as a compromise.
+
+   A verifier reports the revocation state as exactly one of **checked-clear** (the list
+   was read and reaches nothing here), **revoked** (an entry reaches this seal), or
+   **unchecked** (the list was out of reach, or the certificate could not be identified
+   well enough to match against it). A verifier that cannot reach the list MUST report
+   **unchecked**, and MUST NOT report checked-clear for a certificate it did not match,
+   since that asserts a check which did not happen. Offline
+   verification is a property worth keeping, and a verifier reporting `authentic,
+   revocation unchecked` has told the truth. Reporting `authentic` while never looking
+   has not.
+
+6. **Verdict.** Report exactly one verdict from §8.4.
+
+### 8.4 Verdicts
+
+A conforming verifier reports one of four verdicts, and MUST apply them in this
+precedence, because more than one can be true at once and the reason reported should be
+the one that applies first:
+
+| Order | Verdict | Reported when |
+|---|---|---|
+| 1 | `unsealed` | The artifact carries no signature. |
+| 2 | `altered` | `intact` is false, or `valid` is false, or `entire_file` is false. |
+| 3 | `unrecognised` | The signature is valid over these bytes and the verifier does not accept the certificate that made it: it chains elsewhere than the pinned root, or a revocation reaching this seal has withdrawn trust from it (§8.3 step 5). |
+| 4 | `authentic` | `intact` and `valid` and `trusted` and `entire_file` all hold. |
+
+**An artifact is SEAL-authentic if and only if all four facts hold.** A valid signature
+from a certificate that does not chain to the pinned root is a forgery vector and MUST be
+reported as `unrecognised`. A verifier MUST NOT render a passing verdict from any subset
+of the four, and in particular MUST NOT do so from the presence of a signature alone.
+
+The anchor state and the revocation state are reported alongside the verdict rather than
+folded into it, so that `authentic, anchor pending` and `authentic, revocation unchecked`
+are both sayable.
 
 ---
 
@@ -351,12 +454,19 @@ Given a file (and, for the anchor, its `.ots`):
 ## 10. Reference implementation
 
 - **Verifier:** [`spec/verify.py`](spec/verify.py) — a standalone reference verifier. It
-  pins the published root, validates the PAdES chain and full-file coverage, and runs
-  `ots verify` for the anchor. No Let's Seal server involved. Run it:
+  pins a published root, establishes the four facts of §8.1 over an embedded PAdES seal or
+  a detached CAdES sidecar, runs `ots verify` for the anchor and reports its state from
+  §3.1, judges certificate validity at the anchored time where one is confirmed, and
+  consults a revocation list where it is given one. No Let's Seal server involved. Run it:
 
   ```
   python spec/verify.py sealed.pdf sealed.pdf.ots
+  python spec/verify.py sealed.pdf --root my-ca.pem --revocations https://example.org/revocations.json
   ```
+
+  `--root` pins a trust anchor other than the published one, which is what a self-hosted
+  deployment and the conformance vectors in `spec/vectors/` both need. The C2PA, XML-DSig
+  and S/MIME forms verify with the stock third-party tools named in §2.
 
 - **Sealer + service:** the Let's Seal signing + verification service ([`signing-service/`],
   Apache-2.0) implements §2–§8 end-to-end.

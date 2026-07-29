@@ -26,6 +26,9 @@ Options:
   --check-revocation    consult CRL/OCSP online, hard-fail
 """
 import sys
+import re
+import json
+import urllib.request
 import os
 import hashlib
 import subprocess
@@ -110,6 +113,7 @@ def verify_seal(pdf_bytes, at_time=None, check_revocation=False):
         "entire_file": coverage == "ENTIRE_FILE",
         "coverage": coverage,
         "signer": status.signing_cert.subject.human_friendly,
+        "serial": format(status.signing_cert.serial_number, "x"),
     }
 
 
@@ -128,6 +132,20 @@ def _detached_signer(sig_path):
         return leaf.subject.human_friendly
     except Exception:
         return ""
+
+
+def _detached_serial(sig_path):
+    """The signing certificate's serial, as lowercase hex, read from the signature."""
+    try:
+        out = subprocess.run(["openssl", "pkcs7", "-inform", "DER", "-in", sig_path,
+                              "-print_certs", "-noout", "-text"],
+                             capture_output=True, text=True, timeout=15).stdout
+        m = re.search(r"Serial Number:\s*\n?\s*([0-9a-fA-F:\s]+)", out)
+        if m:
+            return m.group(1).replace(":", "").split()[0].lower()
+    except Exception:
+        pass
+    return None
 
 
 def verify_detached(file_path, sig_path, at_time=None, timeout=30):
@@ -166,26 +184,92 @@ def verify_detached(file_path, sig_path, at_time=None, timeout=30):
         return {"sealed": True, "detached": True, "intact": False, "valid": False, "trusted": False,
                 "entire_file": False, "signer": "(openssl unavailable)"}
     return {"sealed": True, "detached": True, "intact": bool(valid), "valid": bool(valid),
-            "trusted": bool(trusted),
+            "serial": _detached_serial(sig_path), "trusted": bool(trusted),
             "entire_file": bool(valid), "signer": _detached_signer(sig_path)}
 
 
-def verify_anchor(pdf_path, ots_path):
+def verify_anchor(file_path, ots_path):
+    """Check an OpenTimestamps proof. Returns (state, attested_unix).
+
+    `state` is one of the four SPEC.md section 3.1 states. A tool failure reports
+    `unverified` rather than `pending`, because `pending` asserts that a calendar
+    accepted the digest, which is a claim about the proof, while an inability to
+    look asserts nothing at all.
+
+    `attested_unix` is the moment the ledger attests to, where the client reports
+    one. SPEC.md section 8.3 makes it the moment certificate validity is judged, so
+    it has to come back with the state rather than being read off the screen.
+    """
     try:
         r = subprocess.run(
-            ["ots", "verify", "-f", pdf_path, ots_path],
+            ["ots", "verify", "-f", file_path, ots_path],
             capture_output=True, text=True, timeout=90,
         )
-        out = (r.stdout + r.stderr).lower()
-        if "success" in out or "bitcoin block" in out:
-            return "confirmed"
-        if "pending" in out or "not been confirmed" in out or "incomplete" in out:
-            return "pending"
-        return "unknown"
+        out = (r.stdout + r.stderr)
+        low = out.lower()
+        if "success" in low or "block" in low:
+            return "confirmed", _attested_time(out)
+        if "pending" in low or "not been confirmed" in low or "incomplete" in low:
+            return "pending", None
+        return "unverified", None
     except FileNotFoundError:
-        return "no-ots-client"
+        return "unverified", None
     except Exception:
-        return "error"
+        return "unverified", None
+
+
+def _attested_time(text):
+    """The date an ots client reports for a confirmed attestation, as unix seconds.
+
+    Returns None when no date can be read. That matters: a confirmed anchor whose
+    time cannot be parsed still confirms existence, but it cannot be used to fix the
+    validity moment, and the verifier says which moment it used rather than quietly
+    choosing one.
+    """
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", text)
+    if not m:
+        return None
+    y, mo, d = (int(g) for g in m.groups())
+    try:
+        return int(datetime(y, mo, d, tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        return None
+
+
+_UNCONDITIONAL = {"key_compromise", "ca_compromise", "unspecified"}
+
+
+def check_revocation(serial_hex, source, sealed_at=None):
+    """Returns (state, entry). state is checked-clear, revoked, or unchecked."""
+    if not source or not serial_hex:
+        return "unchecked", None
+    try:
+        if source.startswith("http://") or source.startswith("https://"):
+            with urllib.request.urlopen(source, timeout=15) as fh:
+                doc = json.load(fh)
+        else:
+            with open(source) as fh:
+                doc = json.load(fh)
+    except Exception:
+        return "unchecked", None
+
+    want = (serial_hex or "").lower().lstrip("0")
+    for e in doc.get("revoked", []):
+        if str(e.get("serial", "")).lower().lstrip("0") != want:
+            continue
+        reason = str(e.get("reason", "")).lower()
+        if reason not in _UNCONDITIONAL and reason in {
+                "superseded", "cessation_of_operation", "affiliation_changed", "privilege_withdrawn"}:
+            revoked_at = e.get("revoked_at")
+            if sealed_at and revoked_at:
+                try:
+                    when = datetime.strptime(revoked_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    if sealed_at < int(when.timestamp()):
+                        return "checked-clear", e
+                except ValueError:
+                    pass
+        return "revoked", e
+    return "checked-clear", None
 
 
 def main():
@@ -193,7 +277,7 @@ def main():
         print(__doc__)
         sys.exit(2)
     args = sys.argv[1:]
-    flags = {"--attime", "--root"}
+    flags = {"--attime", "--root", "--revocations"}
     positional = [a for i, a in enumerate(args)
                   if not a.startswith("--") and not (i and args[i - 1] in flags)]
     file_path = positional[0]
@@ -203,7 +287,7 @@ def main():
     check_rev = "--check-revocation" in args
     if "--root" in args:
         set_pinned_root(args[args.index("--root") + 1])
-    at_moment = datetime.fromtimestamp(at_unix, tz=timezone.utc) if at_unix else None
+    revocations = args[args.index("--revocations") + 1] if "--revocations" in args else None
     file_bytes = open(file_path, "rb").read()
     is_pdf = file_bytes[:5] == b"%PDF-"
     if sig_path is None and not is_pdf and os.path.exists(file_path + ".sig"):
@@ -214,38 +298,62 @@ def main():
     print(f"file     {file_path}")
     print(f"sha256   {hashlib.sha256(file_bytes).hexdigest()}")
 
+    attested = None
+    if ots_path and os.path.exists(ots_path):
+        anchor, attested = verify_anchor(file_path, ots_path)
+    else:
+        anchor = "absent"
+
+    if at_unix is None and anchor == "confirmed" and attested is not None:
+        at_unix = attested
+        moment = f"at the anchored time {at_unix}"
+    elif at_unix is not None:
+        moment = f"at the supplied time {at_unix}"
+    else:
+        moment = "at the current time"
+    at_moment = datetime.fromtimestamp(at_unix, tz=timezone.utc) if at_unix else None
+
     if is_pdf:
         s = verify_seal(file_bytes, at_time=at_moment, check_revocation=check_rev)
         if not s["sealed"]:
-            print("\nRESULT   NOT A SEAL — no signature found.")
+            print("\nRESULT   UNSEALED. No signature is present.")
             sys.exit(1)
         kind = s["coverage"]
     elif sig_path:
         s = verify_detached(file_path, sig_path, at_time=at_unix)
         kind = "detached CMS"
     else:
-        print("\nRESULT   NOT A SEAL — no PAdES signature and no .sig sidecar.")
+        print("\nRESULT   UNSEALED. No embedded signature and no .sig sidecar.")
         sys.exit(1)
 
     authentic = s["intact"] and s["valid"] and s["trusted"] and s["entire_file"]
+    rev_state, rev_entry = check_revocation(s.get("serial"), revocations, sealed_at=attested)
+
     print(f"issuer   {s['signer']}")
     print(f"seal     intact={s['intact']}  valid={s['valid']}  trusted={s['trusted']}  "
           f"entire_file={s['entire_file']}  ({kind})")
-    print(f"checked  cert validity {'at anchor time ' + str(at_unix) if at_unix else 'at current time'}"
-          + ("  with revocation" if check_rev else ""))
-
-    if ots_path and os.path.exists(ots_path):
-        anchor = verify_anchor(file_path, ots_path)
-        print(f"anchor   {anchor}")
-    else:
-        anchor = None
-        print(f"anchor   no .ots supplied")
+    print(f"checked  cert validity {moment}")
+    print(f"anchor   {anchor}" + (f", attesting {attested}" if attested else ""))
+    print(f"revoked  {rev_state}" + (f" ({rev_entry.get('reason')})" if rev_entry else ""))
 
     print()
+    if rev_state == "revoked":
+        print(f"RESULT   UNRECOGNISED. The signing certificate is revoked "
+              f"({rev_entry.get('reason')}), so authenticity is not established.")
+        sys.exit(1)
+
     if authentic:
-        tail = " Anchored to the public ledger." if anchor == "confirmed" else ""
+        bits = []
+        if anchor == "confirmed":
+            bits.append("anchored to the public ledger")
+        elif anchor == "pending":
+            bits.append("anchor pending")
+        if rev_state == "unchecked":
+            bits.append("revocation unchecked")
+        tail = (" " + ", ".join(bits).capitalize() + ".") if bits else ""
         print(f"RESULT   AUTHENTIC. Sealed, unaltered, and chaining to the pinned root.{tail}")
         sys.exit(0)
+
     if not s["intact"]:
         print("RESULT   ALTERED. The bytes differ from the bytes that were sealed.")
     elif not s["valid"]:

@@ -1,10 +1,11 @@
 # SEAL Conformance Checklist
 
-**For SEAL Version 1.1**, as defined by [SPEC.md](SPEC.md). SPEC.md states no revocation
-requirement, so [§5](#5-verifier-revocation) reproduces the reason-code semantics the
-Let's Seal CA operates under ([CPS.md](CPS.md) §4.9, version 1.0). An implementation
-verifying Let's Seal seals applies those semantics, and a self-hosted CA states its own in
-its own policy.
+**For SEAL Version 1.1**, as defined by [SPEC.md](SPEC.md). SPEC §8.3 step 5 requires a
+verifier to consult the issuer's published revocation list and to apply the reason
+semantics that list carries, so [§5](#5-verifier-revocation) states that requirement and
+spells out the reason codes the Let's Seal CA operates under ([CPS.md](CPS.md) §4.9,
+version 1.0). An implementation verifying Let's Seal seals applies those codes, and a
+self-hosted CA states its own in its own policy.
 
 This is the list an independent implementer ticks off to answer one question: **is my
 implementation conformant?** Every item below traces to a numbered section of the
@@ -41,9 +42,11 @@ An implementation claims conformance in one or both roles:
 
 A verifier claims conformance for the formats it handles. An implementation that verifies
 PDFs alone is a conformant SEAL verifier for PDF, and says so: it satisfies the core
-requirements C-1 to C-12, C-3a included, and C-14, the PDF block C-15 to C-17, C-26 to
-C-31 wherever an anchor is supplied, and the self-test C-58 to C-60, and it names the
-formats it covers. C-13 applies where the identity profile is claimed.
+requirements C-1 to C-12, C-3a included, C-14, and C-61 to C-63; the PDF block C-15 to
+C-17; the anchor requirements C-25 to C-31, applied to the anchor proof it is given, and
+C-64 always, since `absent` is the state for an artifact supplied without one; the revocation requirements
+C-38 to C-43 and C-68; and the self-test C-58 to C-60, and it names the formats it covers.
+C-13 applies where the identity profile is claimed.
 
 Conformance to [§1](#1-verifier-the-core-algorithm) and
 [§2](#2-verifier-per-format-requirements) is testable against the vectors in
@@ -58,20 +61,25 @@ The heart of the standard. These apply to every artifact format.
 
 **C-1.** The verifier MUST compute `sha256(file)` over the artifact's complete raw bytes,
 and MUST use the lowercase hexadecimal form of that digest wherever a digest is displayed
-or used as an identifier. [SPEC §8 step 1, §4]
+or used as an identifier. [SPEC §8.3 step 1, §4]
 
 **C-2.** The verifier MUST locate the seal in the artifact's format-native delivery form:
 PAdES embedded in a PDF, C2PA embedded in an image, XML-DSig enveloped in an XML document,
 S/MIME for an email message, or a detached CAdES/CMS `.sig` sidecar for any other artifact.
-[SPEC §2]
+The algorithm of SPEC §8.3 is one algorithm over all five forms, and step 2 validates the
+format-native signature §2 defines for the artifact in hand. [SPEC §2, §8.3 step 2]
 
-**C-3.** The verifier MUST establish that the signature is cryptographically valid.
-[SPEC §8 step 2]
+**C-3.** The verifier MUST establish that the signature is **valid**: it verifies under the
+signing certificate's public key. The signature validated is the format-native signature
+§2 defines for the artifact's type, so the algorithm is one algorithm across all five
+forms. [SPEC §8.1, §8.3 step 2]
 
 **C-3a.** The verifier MUST establish that the sealed bytes are **intact**: the digest over
 the signed byte range still matches the bytes in hand. A signature object can verify while
 the bytes it covers have moved, so this is a separate check from C-3, and vectors 002 and
-006 are the cases that separate them. [SPEC §8, closing rule]
+006 are the cases that separate them. The four facts MUST be established separately and
+MUST NOT be collapsed, because each fails for a different reason and a reader acting on the
+verdict needs to know which. [SPEC §8.1]
 
 **C-4.** The verifier MUST establish that the signing certificate chains to a SEAL root it
 has pinned by SHA-256 fingerprint, taken from the issuing CA's published location rather
@@ -79,21 +87,23 @@ than from an operating system, Adobe, or mail-client trust store. The Let's Seal
 `CN=Let's Seal Root CA, O=Let's Seal, C=GB`, fingerprint
 `02:68:6D:EE:20:67:31:C4:59:C1:7A:9F:58:36:7B:0B:0B:BA:5D:24:C6:85:D8:6D:1F:74:49:86:2D:C0:FE:BE`.
 A self-hosted deployment pins its own root, and the vectors of [§7](#7-self-test) ask a
-verifier to pin `spec/vectors/root.crt`. [SPEC §2, §8 step 2, CPS §9.16]
+verifier to pin `spec/vectors/root.crt`. [SPEC §2, §8.1, §8.3 step 2, CPS §9.16]
 
-**C-5.** The verifier MUST establish that the signature's coverage is the **entire file**.
-[SPEC §2, §8 step 2]
+**C-5.** The verifier MUST establish **`entire_file`**: that the signature covers the
+artifact completely, as SPEC §8.2 defines completeness for that artifact's format. C-61
+carries the per-format rule. [SPEC §8.1, §8.2]
 
 **C-6.** The verifier MUST report an artifact as **SEAL-authentic** if and only if all four
 of C-3a, C-3, C-4 and C-5 hold: intact **and** valid **and** trusted **and** entire-file.
-[SPEC §8 step 4 and closing rule; Open point 16]
+Four conjuncts, and only four. [SPEC §8.1, §8.4]
 
-**C-7.** A valid signature whose certificate fails to chain to the pinned root MUST be
+**C-7.** A valid signature whose certificate chains elsewhere than the pinned root MUST be
 reported as **unrecognised**. Reporting it as authentic is a conformance failure, because
-the specification names this exact case a forgery vector. [SPEC §8 step 4]
+the specification names this exact case a forgery vector. [SPEC §8.4]
 
-**C-8.** The verifier MUST NOT render a "pass" verdict from `sealed` or `intact` alone. An
-untrusted seal fails. [SPEC §8, closing rule]
+**C-8.** The verifier MUST NOT render a passing verdict from any subset of the four facts
+of C-6, and in particular MUST NOT render one from the presence of a signature alone. An
+untrusted seal fails. [SPEC §8.4]
 
 **C-9.** The verifier MUST NOT require an RFC-3161 signature timestamp for a verdict. The
 timestamp is a convenient second witness to time; the authoritative witness is the anchor
@@ -116,9 +126,48 @@ verification. The seal asserts integrity and the sealing certificate. [SPEC §2]
 "provider-verified email", and MUST NOT use "verified identity".
 [SPEC §7, "Boundary (normative)"]
 
-**C-14.** The verifier MUST reach the verdict of C-6 from the artifact, the pinned root,
-and public standards alone, so the proof stands on its own for as long as those three
-exist. [SPEC §2, §9, §10]
+**C-14.** The verifier MUST reach the verdict of C-6 from the artifact, the pinned root
+and public standards, reporting revocation as `unchecked` where the published list is out
+of reach (C-68), so the proof stands on its own for as long as those three exist.
+[SPEC §2, §8.3 step 5, §9, §10]
+
+**C-61.** **Coverage, per format.** Completeness is defined by the format, so a verifier
+MUST apply the rule for the form in hand:
+
+| Form | `entire_file` holds when |
+|---|---|
+| PDF (PAdES) | The signature covers the entire file. Content appended after signing, including by incremental update, leaves it false. |
+| Detached (CAdES/CMS) | The signature is over the artifact's digest, so completeness follows from `intact`. |
+| XML (XML-DSig) | The signature covers the document with the signature element itself excluded, as the enveloped transform requires. |
+| Image (C2PA) | The manifest's hard binding covers the asset as C2PA defines it, with the manifest store excluded. |
+| Email (S/MIME) | The signature covers the signed part of the message in full. |
+
+[SPEC §8.2]
+
+**C-62.** **Verdicts.** The verifier MUST report exactly one verdict, drawn from this
+vocabulary and applied in this precedence, because more than one can be true at once and
+the reason reported is the one that applies first:
+
+| Order | Verdict | Reported when |
+|---|---|---|
+| 1 | `unsealed` | The artifact carries no signature. |
+| 2 | `altered` | `intact` is false, or `valid` is false, or `entire_file` is false. |
+| 3 | `unrecognised` | The signature is valid over these bytes and its certificate chains elsewhere than the pinned root. |
+| 4 | `authentic` | `intact` and `valid` and `trusted` and `entire_file` all hold. |
+
+The anchor state (C-64) and the revocation state (C-68) MUST be reported alongside the
+verdict rather than folded into it, so that `authentic, anchor pending` and `authentic,
+revocation unchecked` are both sayable. An implementation MAY word these terms for its
+audience, and where it does it MUST keep the four cases distinct and MUST keep the
+precedence. [SPEC §8.4]
+
+**C-63.** **The moment certificate validity is judged.** Where a **confirmed** anchor is
+present, the verifier MUST judge certificate validity at the anchored time. Otherwise it
+MUST judge validity at the time of verification, and it SHOULD say which of the two it did.
+This is what the anchor is for: judging a seal against the clock on the day it is read
+would make every seal expire with its certificate, so a five-year certificate would carry a
+five-year evidence horizon and a document sealed correctly in 2026 would stop verifying in
+2031 through nothing but the passage of time. [SPEC §8.3 step 3]
 
 ---
 
@@ -129,18 +178,20 @@ A verifier satisfies the block for each format it claims.
 ### 2.1 PDF (PAdES)
 
 **C-15.** The signature MUST be a PAdES signature embedded in the file, covering the
-entire file. [SPEC §2, "PDF"]
+entire file, which is what `entire_file` means for this form under C-61.
+[SPEC §2, "PDF", §8.2]
 
 **C-16.** A signature covering only part of the file, for example where content was
 appended after signing by an incremental update, is non-conformant and MUST be reported as
-**altered**. [SPEC §2, "PDF"]
+**altered**, the verdict C-62 gives when `entire_file` is false.
+[SPEC §2, "PDF", §8.2, §8.4]
 
 **C-17.** C-9 applies to PAdES in particular: the verifier MUST NOT require an RFC-3161
 signature timestamp in order to reach a verdict, and the specification places that
 timestamp at SHOULD for the issuer (C-50). The PAdES levels above B-T, namely B-LT and
 B-LTA, embed chain revocation data drawn from CRL or OCSP endpoints, and SEAL carries
-revocation in the published list of [§5](#5-verifier-revocation) instead.
-[SPEC §2, "PDF"]
+revocation in the published list of [§5](#5-verifier-revocation) instead, which SPEC §8.3
+step 5 makes a step of the algorithm. [SPEC §2, "PDF", §8.3 step 5]
 
 ### 2.2 Image (C2PA)
 
@@ -148,7 +199,9 @@ revocation in the published list of [§5](#5-verifier-revocation) instead.
 media file, readable by any C2PA-aware tool. SPEC §2 names jpeg, png, webp, tiff, gif,
 avif and heic; the reference sealer accepts those and heif, dng, mp4, quicktime, mp3, flac
 and m4a. The covered media set is recorded in [Open point 19](#open-points) rather than
-closed here. [SPEC §2, "Image"]
+closed here. Coverage for this form is the manifest's hard binding over the asset as C2PA
+defines it, with the manifest store excluded, which is what `entire_file` means for an
+image under C-61. [SPEC §2, "Image", §8.2]
 
 **C-19.** The verifier MUST configure the published SEAL root as a C2PA trust anchor. A
 manifest that validates and chains to it is trusted; a manifest that validates while
@@ -167,7 +220,9 @@ document with the signature element itself excluded (enveloped transform plus C1
 verifier MUST pin the published SEAL root as the trust anchor; a signature that validates
 and chains to it is trusted, and one that validates while chaining elsewhere is valid but
 untrusted. It verifies with stock tooling, for example
-`xmlsec1 --verify --trusted-pem letsseal-root.crt signed.xml`. [SPEC §2, "XML"]
+`xmlsec1 --verify --trusted-pem letsseal-root.crt signed.xml`. Coverage for this form is
+the document with the signature element excluded, which is what `entire_file` means for
+XML under C-61. [SPEC §2, "XML", §8.2]
 
 ### 2.4 Email message (S/MIME)
 
@@ -176,8 +231,9 @@ untrusted. It verifies with stock tooling, for example
 signer's chain embedded. A signature that validates and chains to the pinned root is
 trusted; one that validates while chaining elsewhere is valid but untrusted. It verifies
 with stock tooling, for example
-`openssl smime -verify -in message.eml -CAfile letsseal-root.crt`.
-[SPEC §2, "Email message"]
+`openssl smime -verify -in message.eml -CAfile letsseal-root.crt`. Coverage for this form
+is the signed part of the message in full, which is what `entire_file` means for email
+under C-61. [SPEC §2, "Email message", §8.2]
 
 **C-23.** A verifier presenting results inside a desktop mail client MUST describe the
 signature as present but untrusted until the published root is imported into that client's
@@ -192,7 +248,8 @@ MUST hash the file's raw bytes exactly as signed, with no S/MIME text canonicali
 (LF to CRLF) applied to the content before hashing; with `openssl cms` this is what the
 `-binary` flag secures. The reference invocation is
 `openssl cms -verify -inform DER -in file.sig -content file -binary -CAfile letsseal-root.crt`.
-[SPEC §2, "Any other file"]
+The signature is over the artifact's digest, so `entire_file` follows from `intact` for
+this form under C-61. [SPEC §2, "Any other file", §8.2]
 
 ---
 
@@ -200,8 +257,9 @@ MUST hash the file's raw bytes exactly as signed, with no S/MIME text canonicali
 
 **C-25.** A conforming proof MUST include an OpenTimestamps `.ots` file committing to the
 SHA-256 of the sealed document. That is an obligation on the party constructing the proof
-(C-51). Where an `.ots` is supplied, the verifier MUST check it against that digest.
-[SPEC §3; Open point 3]
+(C-51). Where an `.ots` is supplied, the verifier MUST check it against that digest, and
+where none is supplied it MUST report the anchor as `absent` (C-64) beside the verdict,
+which C-62 keeps separate from the verdict itself. [SPEC §3, §3.1, §8.4]
 
 **C-26.** The `.ots` MUST commit to a **public, append-only ledger that nobody owns**: one
 whose history is written by open participation, readable and checkable by anyone running
@@ -215,7 +273,9 @@ attestation on such a ledger. [SPEC §3]
 
 **C-28.** The verifier MUST report **pending** while only a calendar receipt exists, since
 a calendar's receipt is a promise to anchor and the attestation has yet to land. Pending
-and confirmed MUST be distinguishable in the verifier's output. [SPEC §3]
+and confirmed MUST be distinguishable in the verifier's output. A check the verifier was
+unable to run is `unverified` rather than `pending`, which C-64 states in full.
+[SPEC §3, §3.1]
 
 **C-29.** The verifier MUST read the attestation it finds rather than assuming a
 particular ledger. Bitcoin is the profile Let's Seal issues today; the `.ots` format
@@ -223,11 +283,32 @@ carries attestations from other ledgers, and a conforming implementation MAY anc
 elsewhere. [SPEC §3]
 
 **C-30.** The verifier MUST treat the anchor as independent proof of time that adds to the
-seal, and MUST keep the authenticity verdict of C-6 resting on the seal alone. A confirmed
-anchor establishes that the document existed by that block's time. [SPEC §8 steps 3 and 4]
+seal, and MUST keep the authenticity verdict of C-6 resting on the seal alone: the anchor
+establishes time and contributes no conjunct of the four. A confirmed anchor establishes
+that the document existed by that block's time, and that time is the moment certificate
+validity is judged under C-63, which is the one place the anchor bears on the seal.
+[SPEC §8.3 steps 3 and 4, §8.4]
 
 **C-31.** The anchor MUST be checkable with the stock client and no Let's Seal server, for
 example `ots verify sealed.pdf.ots` against `sealed.pdf`. [SPEC §3]
+
+**C-64.** **Anchor states.** The verifier MUST report the anchor as exactly one of four
+states, and MUST report it beside the verdict rather than folded into it (C-62):
+
+| State | Reported when |
+|---|---|
+| `confirmed` | An attestation on the ledger commits this digest, and the block it landed in gives the time. |
+| `pending` | A calendar has accepted the digest and the attestation has yet to settle. |
+| `absent` | No anchor proof was supplied with the artifact. |
+| `unverified` | The verifier was unable to check the proof it holds. |
+
+`pending` and `unverified` are distinct, and a verifier MUST keep them distinct: `pending`
+asserts that a calendar accepted the digest, which is a claim about the proof, while
+`unverified` asserts only the verifier's own inability to look. A tool failure, a missing
+`ots` client or a timeout is therefore `unverified`, since reporting it as `pending` would
+manufacture a claim out of a tooling problem. An implementation MAY word these states for
+its audience, and where it does it MUST keep the four cases distinct. [SPEC §3.1, §8.3
+step 4, §8.4]
 
 ---
 
@@ -241,7 +322,11 @@ for the issuer [SPEC §6], so a verifier claiming log conformance states so expl
 `{v, sha256, sealType, certCN, ts}` in exactly that key order, `v` being the payload
 version and `1` today. The key order is fixed by SPEC.md §6, which this item restates, because a serialisation
 that sorts the keys yields a different leaf hash and fails every inclusion proof against
-the log. [SPEC §6; Open points 7 and 18]
+the log. Canonicalisation is by that fixed member order: the members are emitted in the
+order given, with no whitespace between tokens, encoded as UTF-8, with `ts` a bare integer
+number of milliseconds since the Unix epoch and strings escaped as RFC 8259 requires. An
+implementation that sorts the members, as RFC 8785 JCS does, computes a different leaf
+hash. [SPEC §6, Conventions; Open point 18]
 
 **C-33.** Interior nodes MUST be `SHA-256(0x01 ‖ left ‖ right)`. [SPEC §6]
 
@@ -249,18 +334,21 @@ the log. [SPEC §6; Open points 7 and 18]
 a dedicated log key whose certificate chains to the SEAL root, over exactly the canonical
 bytes `letsseal.sth.v1\n<treeSize>\n<rootHex>\n<tsMs>\n`. A verifier checking an STH MUST
 reconstruct those bytes byte-for-byte and MUST validate the log key's chain to the pinned
-root. [SPEC §6, CPS §7.3]
+root. C-65 gives the signature algorithm and encoding over those bytes, and C-66 the wire
+form they are served in. [SPEC §6, CPS §7.3]
 
 **C-35.** The log MUST anchor its Signed Tree Head to a public ledger under
 [§3](#3-verifier-the-anchor), so the log's history is pinned to a clock outside the
 operator's control. A head MAY be served before its anchor lands, in which case its anchor
-state MUST be reported, using the vocabulary `none`, `pending` and `confirmed`. A verifier
-MAY check a landed anchor by the rules of §3. [SPEC §6]
+state MUST be reported, drawn from the four states of C-64: `confirmed`, `pending`,
+`absent` and `unverified`. A verifier MAY check a landed anchor by the rules of §3.
+[SPEC §6, §3.1]
 
 **C-36.** **Inclusion.** A verifier MUST check an audit proof, obtained for example from
 `/api/log/proof?sha256=<hex>`, against an STH of the same `treeSize`, using standard
-RFC 6962 arithmetic: recompute the root hash from the leaf and the proof path and compare
-it to the STH's `rootHash`. The check MUST rest on that arithmetic rather than on the
+RFC 6962 arithmetic: recompute the root hash from the leaf, the leaf's index and the proof
+path, and compare it to the STH's `rootHash`. The inputs that arithmetic needs are the ones
+C-67 makes REQUIRED in the proof. The check MUST rest on that arithmetic rather than on the
 server's word. [SPEC §6]
 
 **C-37.** **Consistency.** A verifier MUST check that the log is append-only and never
@@ -268,20 +356,40 @@ rewritten by fetching a consistency proof, obtained for example from
 `/api/log/consistency?first=&second=`, and verifying by standard RFC 6962 arithmetic that
 the tree of size `first` is a prefix of the tree of size `second`. [SPEC §6]
 
+**C-65.** **The STH signature.** The signature over the canonical bytes of C-34 MUST be
+ECDSA on P-256 over SHA-256 of those bytes, DER-encoded and carried as base64. It MUST be
+served with the log certificate and its chain as PEM, so an STH stands on its own: the
+verifier checks the signature against the certificate, and the certificate against the
+pinned root of C-4, fetching nothing further. [SPEC §6]
+
+**C-66.** **The STH wire form.** An STH MUST be served as JSON carrying at least
+`treeSize`, `rootHash` (lowercase hexadecimal), `timestamp` (an integer number of
+milliseconds), `signature` (base64 DER, per C-65), `logCert` and `logChain` (PEM), and the
+anchor state of the head itself, drawn from the vocabulary of C-64. A verifier reconstructs
+the signed bytes of C-34 from `treeSize`, `rootHash` and `timestamp`. [SPEC §6]
+
+**C-67.** **The inclusion proof wire form.** An inclusion proof MUST be served as JSON
+carrying `index`, `treeSize`, `leafHash`, `rootHash` and `proof`, an ordered array of
+lowercase-hexadecimal sibling hashes. `index` and `treeSize` are REQUIRED, because RFC 6962
+audit-path arithmetic is performed with them and cannot be performed without them.
+[SPEC §6]
+
 ---
 
 ## 5. Verifier: revocation
 
-SPEC.md states no revocation requirement. The items below reproduce the reason-code
-semantics the Let's Seal CA operates under (CPS.md §4.9, version 1.0), which an
-implementation verifying Let's Seal seals applies and which a self-hosted CA states in its
-own policy. [Open point 5]
+SPEC §8.3 step 5 makes revocation a step of the verification algorithm: a verifier MUST
+consult the issuer's published revocation list where it can reach it, MUST apply the reason
+semantics that list carries, and MUST report revocation as unchecked where the list is out
+of reach (C-68). The items below carry that requirement and reproduce the concrete reason
+codes the Let's Seal CA operates under (CPS.md §4.9, version 1.0), which an implementation
+verifying Let's Seal seals applies and which a self-hosted CA states in its own policy.
 
 **C-38.** The verifier MUST obtain the revocation list from the published location
 (<https://letsseal.org/revocations.json> for the Let's Seal CA). Where the issuing CA
 publishes a signature over that list, the verifier SHOULD check it against the signing key
 rather than resting on the transport that delivered it, so the list can be fetched once,
-cached, and used offline. [CPS §4.9, §2.1; Open point 17]
+cached, and used offline. [SPEC §8.3 step 5, CPS §4.9, §2.1; Open point 17]
 
 **C-39.** Each entry carries the certificate serial in lowercase hexadecimal, the subject,
 the reason code, the revocation timestamp in UTC, and an optional note, with entries
@@ -295,23 +403,37 @@ whatever its date. For the two compromise reasons the key was in another party's
 from a moment nobody can establish; for `unspecified` no ground was recorded, so the safe
 reading is that the key may have been exposed, and `ca/setup-ca.sh` emits it as a valid
 reason. `ca_compromise` names an intermediate, and by C-39 the match runs over the whole
-chain, so it withdraws trust from every certificate issued under that intermediate.
-[CPS §4.9, §5.7]
+chain, so it withdraws trust from every certificate issued under that intermediate. This is
+SPEC §8.3 step 5's rule that a compromise reaches every seal under the certificate whatever
+its date. [SPEC §8.3 step 5, CPS §4.9, §5.7]
 
 **C-41.** **Reasons that leave earlier seals standing.** For `superseded`,
 `cessation_of_operation`, `affiliation_changed` and `privilege_withdrawn`, the verifier
 MUST continue to trust seals demonstrably made before the revocation date, because the key
-was retired in good order. [CPS §4.9]
+was retired in good order. This is SPEC §8.3 step 5's rule that an orderly retirement
+leaves seals demonstrably made before the revocation date standing.
+[SPEC §8.3 step 5, CPS §4.9]
 
 **C-42.** Under C-41, the evidence that a seal was made before the revocation date is the
 anchor: a confirmed anchor places the seal before a given public-ledger block, checkable
 without consulting the CA. A verifier applying C-41 MUST rest the date claim on such
-independent evidence. [CPS §4.9]
+independent evidence, which is the question SPEC §8.3 step 5 says a confirmed anchor
+answers. [SPEC §8.3 step 5, CPS §4.9]
 
-**C-43.** A reason code the verifier does not recognise MUST be handled as retroactively
-invalidating, as `key_compromise` is, since for a trust decision the safe direction is the
-strict one. The reference implementation reaches that outcome by recording an unlisted
-reason as `unspecified`, which C-40 already treats unconditionally. [CPS §4.9]
+**C-43.** A reason code the verifier does not recognise MUST be handled as a compromise,
+retroactively invalidating as `key_compromise` is, since for a trust decision the safe
+direction is the strict one. The reference implementation reaches that outcome by recording
+an unlisted reason as `unspecified`, which C-40 already treats unconditionally.
+[SPEC §8.3 step 5, CPS §4.9]
+
+**C-68.** **Revocation reported, including when it was out of reach.** A verifier that
+cannot reach the published list MUST report revocation as **unchecked**, and MUST report
+the revocation state beside the verdict rather than folded into it (C-62). Offline
+verification stays a conformant way to verify: a verifier reporting `authentic, revocation
+unchecked` has told the reader what it did. Reporting `authentic` while never looking, or
+while a fetch failed silently, is a conformance failure. A verifier that did reach the list
+and matched no entry against the chain reports the state its vocabulary gives for a clear
+check, which the reference verifier prints as `checked-clear`. [SPEC §8.3 step 5, §8.4]
 
 ---
 
@@ -342,8 +464,9 @@ organisation certificate. The subject `CN`/`O` remains a subscriber-chosen label
 [SPEC §2, CPS §3.1, §3.2.2]
 
 **C-49.** **Entire-file coverage.** The issuer MUST produce a signature covering the
-entire file, in the artifact's format-native delivery form as listed in
-[§2](#2-verifier-per-format-requirements). [SPEC §2, §8]
+artifact completely, in the artifact's format-native delivery form as listed in
+[§2](#2-verifier-per-format-requirements) and to the per-format rule of C-61.
+[SPEC §2, §8.2]
 
 **C-50.** For PDF, the signature SHOULD carry an RFC-3161 signature timestamp (PAdES B-T).
 The public TSAs the major CAs run for code signing are sufficient, and a qualified (QTSP)
@@ -417,22 +540,24 @@ pinning the suite's `root.crt`, and MUST report which vectors it ran. A field ab
 vector's `require` block is unconstrained, and an implementation reports it as it sees fit.
 [CONFORMANCE §7]
 
-**C-59.** The verdict vocabulary a verifier reports MUST distinguish at least these cases,
-which are the outcomes the algorithm defines: **authentic** (C-6); **unrecognised** (C-7,
-a signature valid over the bytes in hand whose certificate chains outside the pinned root);
-and **altered**, which covers the bytes differing from those sealed (C-3a), the signature
-failing to verify over the bytes in hand (C-3), and coverage falling short of the entire
-file (C-5, C-16). Vectors 002 and 006 exercise a document whose bytes moved after sealing,
-and 004 exercises coverage short of the entire file. Anchor state MUST be reported
-separately as **confirmed** or **pending** (C-27, C-28). [SPEC §2, §3, §8]
+**C-59.** The verdict vocabulary a verifier reports MUST distinguish the four cases of
+C-62, in their precedence: **unsealed**, an artifact carrying no signature at all;
+**altered**, which covers the bytes differing from those sealed (C-3a), the signature
+failing to verify over the bytes in hand (C-3), and coverage falling short of the artifact
+(C-5, C-16); **unrecognised** (C-7, a signature valid over the bytes in hand whose
+certificate chains outside the pinned root); and **authentic** (C-6, all four facts).
+Vectors 002 and 006 exercise a document whose bytes moved after sealing, and 004 exercises
+coverage short of the entire file. Anchor state MUST be reported separately, drawn from the
+four states of C-64, and revocation state separately with it (C-68), so that `authentic,
+anchor pending` and `authentic, revocation unchecked` are both sayable. [SPEC §2, §3.1, §8]
 
 **C-60.** The negative vectors are the load-bearing ones: an implementation MUST fail a
 seal whose certificate chains outside the pinned root (vector 003), MUST fail an artifact
 whose bytes differ from those sealed (vectors 002 and 006), and MUST fail a PDF whose
 signature covers less than the entire file (vector 004). An implementation MUST also
-decline to report a pending anchor as proof of time; that clause is stated ahead of its
-fixture, for the reason in [Open point 15](#open-points). An implementation that passes
-only the positive vectors has demonstrated nothing about C-7 or C-8. [SPEC §8]
+decline to report a pending or unverified anchor as proof of time; that clause is stated
+ahead of its fixture, for the reason in [Open point 15](#open-points). An implementation
+that passes only the positive vectors has demonstrated nothing about C-7 or C-8. [SPEC §8]
 
 ---
 
@@ -442,84 +567,91 @@ Places where the specification admits more than one reading. These are recorded 
 than resolved, so an implementer knows where two conformant-looking implementations may
 diverge, and so the ambiguity can be closed in a later version.
 
-1. **SPEC §8 step 2 names PAdES alone** ("validate the embedded PAdES signature") while
-   §2 defines five delivery forms. The algorithm is read format-generically throughout
-   this document, since §8 step 4's rule is stated in terms of valid, trusted and
-   entire-file rather than in terms of PDF.
-2. **"Coverage is the entire file" for enveloped forms.** §2 spells the rule out for PDF.
-   For XML-DSig the signature by construction excludes the signature element (§2 says so),
-   and a C2PA manifest sits inside the file it describes, so a literal "entire file" reading
-   cannot hold for either. What coverage means for C2PA in particular is undefined.
-3. **A proof with no `.ots`.** §3 says a proof MUST include one, while §8 makes
-   authenticity turn on step 2 alone. The specification gives no verdict term for a seal
-   that is valid, trusted and entire-file but unanchored. The reference verifier runs
-   without one and reports "no .ots supplied", which is why C-25 states the `.ots` as an
-   obligation on the proof and the check as one a verifier performs on what it is given.
-4. **§8 step 3 names Bitcoin** ("a Bitcoin attestation") while §3 says a verifier reads the
-   attestation it finds and an implementation MAY anchor elsewhere. §3 is treated as
-   governing.
-5. **Revocation is absent from SPEC.md.** §8's algorithm has no revocation step, and the
-   reference verifier defaults to soft-fail offline. Whether consulting the revocation list
-   is required of a conforming verifier, or is an option a verifier declares, is stated
-   only in CPS §4.3 and §9.6 and belongs in the specification.
-6. **The moment at which certificate validity is judged** is unspecified. The reference
-   verifier supports checking at the anchor's proven time and otherwise checks at the
-   current time; the two give different answers for a seal made under a since-expired
-   certificate, which is exactly the case the anchor exists to settle.
-7. **"canonical-JSON" in the §6 leaf is undefined**, while the key order is load-bearing.
-   The Let's Seal log serialises `{v, sha256, sealType, certCN, ts}` in that fixed order
-   (`web/lib/translog.ts`), which C-32 records, and a canonicalisation that sorts keys,
-   RFC 8785 JCS among them, yields a different leaf hash and fails every inclusion proof
-   against this log. String escaping, number formatting and separator conventions are open
-   on top of that. Naming the serialisation and the key order in §6 would close this.
-8. **The STH signature encoding is unspecified.** §6 gives the exact bytes to be signed and
-   says a dedicated log key signs them, and leaves the algorithm, the signature encoding,
-   and the wire form in which an STH plus its signature are served undefined.
-9. **Inclusion proof inputs.** §6 cites `/api/log/proof?sha256=<hex>`; RFC 6962 audit-proof
-   arithmetic also needs the leaf index and the tree size, and the response shape carrying
-   them is undefined in the specification. The Let's Seal log serves
-   `{index, treeSize, leafHash, rootHash, proof[]}` (`web/lib/translog.ts`), with the proof
-   pinned to a caller-supplied `treeSize`; naming that shape in §6 would close this.
-10. **The `anchor` state vocabulary in the §4 JSON** is given as "state + block" without an
-    enumeration. §3 names `confirmed` and `pending`; the log's own heads add `none`
-    (C-35), and the reference verifier also emits `unknown`, `error` and `no-ots-client`,
-    which the specification does not define.
-11. **No verdict term for "no seal present."** §2 gives "altered" and §8 gives
-    "unrecognised", and an artifact carrying no signature at all has no named outcome. The
-    reference verifier prints "NOT A SEAL".
-12. **§8's entire-file rule against the §5 supply-chain forms.** A cosign blob signature is
-    digest-only by §5's own words, so "coverage is the entire file" has to mean "over the
-    artifact's SHA-256" there. That reconciliation is left implicit.
+An entry a later version of SPEC.md settles is struck through and marked **Closed**, with
+the section that settled it named. Closed entries keep their number, so a review citing
+"Open point 6" still lands on the same question and reads how it was answered.
+
+1. ~~SPEC §8 step 2 names PAdES alone.~~ **Closed.** SPEC.md §8.3 step 2 now validates
+   "the format-native signature defined in §2" for the artifact's type, so the algorithm is
+   one algorithm over all five delivery forms (C-2, C-3), and §8.2 states coverage per
+   format rather than in terms of PDF.
+2. ~~"Coverage is the entire file" for enveloped forms.~~ **Closed.** SPEC.md §8.2 defines
+   `entire_file` per format: the entire file for PDF, following from `intact` for a detached
+   signature, the document with the signature element excluded for XML-DSig, the hard
+   binding with the manifest store excluded for C2PA, and the signed part in full for
+   S/MIME. C-61 carries the table.
+3. ~~A proof with no `.ots`.~~ **Closed.** SPEC.md §3.1 names `absent` for an artifact
+   supplied with no anchor proof, and §8.4 reports anchor state beside the verdict rather
+   than folded into it, so a seal that is intact, valid, trusted and entire-file with no
+   anchor is `authentic, anchor absent` (C-25, C-62, C-64).
+4. ~~§8 step 3 names Bitcoin.~~ **Closed.** SPEC.md §8.3 step 4 now verifies the `.ots`
+   against the ledger of §3 and reports the state from the §3.1 vocabulary, naming no
+   particular chain, which is the reading C-29 already took.
+5. ~~Revocation is absent from SPEC.md.~~ **Closed.** SPEC.md §8.3 step 5 makes consulting
+   the published revocation list a step of the algorithm, fixes the reason semantics, and
+   requires an `unchecked` report where the list is out of reach (C-38 to C-43, C-68). The
+   concrete reason codes stay with the issuing CA's policy, CPS §4.9 for the Let's Seal CA.
+6. ~~The moment at which certificate validity is judged.~~ **Closed.** SPEC.md §8.3 step 3
+   judges validity at the anchored time where a confirmed anchor is present and at
+   verification time otherwise, with a SHOULD to say which (C-63).
+7. ~~"canonical-JSON" in the §6 leaf is undefined.~~ **Closed.** SPEC.md's Conventions
+   define canonical JSON as the members in the order the shape gives, with no insignificant
+   whitespace, encoded as UTF-8, integers with no fraction part or exponent, and RFC 8259
+   string escapes; §6 fixes the leaf's member order as `{v, sha256, sealType, certCN, ts}`
+   and states that sorting, RFC 8785 JCS among them, computes a different leaf hash (C-32).
+8. ~~The STH signature encoding is unspecified.~~ **Closed.** SPEC.md §6 fixes the
+   signature as ECDSA on P-256 over SHA-256 of the canonical bytes, DER-encoded and carried
+   as base64, served with the log certificate and chain as PEM so an STH is self-contained,
+   and names the JSON members an STH carries (C-65, C-66).
+9. ~~Inclusion proof inputs.~~ **Closed.** SPEC.md §6 names the served shape
+   `{index, treeSize, leafHash, rootHash, proof[]}`, with `index` and `treeSize` REQUIRED
+   because RFC 6962 audit-path arithmetic is performed with them (C-67).
+10. ~~The `anchor` state vocabulary.~~ **Closed.** SPEC.md §3.1 fixes it at `confirmed`,
+    `pending`, `absent` and `unverified` (C-64). The log's own heads draw from the same four
+    (C-35), and the strings a verifier used to emit for a check it could not run, `unknown`,
+    `error` and `no-ots-client` among them, are `unverified`, which §3.1 keeps distinct from
+    `pending` on purpose. The §4 JSON's `anchor` member carries a state from that vocabulary
+    plus the block.
+11. ~~No verdict term for "no seal present."~~ **Closed.** SPEC.md §8.4 now fixes the
+    vocabulary at `unsealed`, `altered`, `unrecognised` and `authentic`, with a precedence
+    order, and the reference verifier reports `UNSEALED`.
+12. **§8.2's coverage table against the §5 supply-chain forms.** §8.2 settles the detached
+    case, where completeness follows from `intact` because the signature is over the digest,
+    and the same reasoning reads over a cosign blob signature, which §5 calls digest-only.
+    The table names the five delivery forms of §2 rather than the supply-chain forms, so
+    that reconciliation is left implicit.
 13. **Behaviours SPEC.md states descriptively, which this document reads as normative.**
     §4's lowercase-hex permalink (C-1); §2's "verifies with stock tooling and no Let's Seal
     server" (C-14, C-21, C-22, C-24); §2's "a conforming verifier configures / pins the
     published SEAL root" (C-19, C-21); §2's note on what a desktop mail client shows
     (C-23); §3's sentence that a proof includes an `.ots` (C-25); §6's sentence that the
-    STH is OpenTimestamps-anchored (C-35); and CPS §4.9 and §7.2 on revocation (C-38,
-    C-39). C-58 rests on no SPEC.md sentence at all and takes its authority from
+    STH is OpenTimestamps-anchored (C-35); and CPS §7.2 on the entry shape of the
+    revocation list (C-39), the requirement to consult that list now resting on SPEC §8.3
+    step 5. C-58 rests on no SPEC.md sentence at all and takes its authority from
     [§7](#7-self-test) of this document. Promoting these sentences to MUSTs in SPEC.md
     would settle each one; until then each is a reading, recorded here.
 14. **The intermediate CAs are absent from SPEC.md.** §2 pins the root only, while CPS
     §1.3.1 describes an Intermediate CA and an Identity CA, and the reference verifier ships
     the intermediate as an untrusted helper certificate. Whether a verifier must supply the
     intermediate itself, or expects it in the signature, is unstated.
-15. **The vectors cover the seal.** `spec/vectors/` ships six fixtures over SPEC §2 and §8,
+15. **The vectors cover the seal.** `spec/vectors/` ships seven fixtures over SPEC §2 and §8,
     which is [§1](#1-verifier-the-core-algorithm) and
     [§2](#2-verifier-per-format-requirements) of this document. Anchor vectors are absent
     because a confirmed ledger attestation cannot be manufactured offline, and a fabricated
     one would undermine the only thing a conformance suite is for; revocation vectors rest
-    on the CPS §4.9 reason semantics and are the next to be written. C-25 to C-31, C-32 to
-    C-37 and C-38 to C-43 therefore have fixtures still to come, and C-60's pending-anchor
-    clause with them.
-16. **SPEC §8 counts the conjuncts two ways.** Step 2 and step 4 name valid, trusted and
-    entire-file, while the closing rule names valid, intact and trusted. `spec/verify.py`
-    computes `intact and valid and trusted and entire_file`, and
-    `spec/vectors/manifest.json` defines authentic the same way. C-6 takes that four-term
-    reading, which is the one that catches vector 002, a PDF with one byte of page content
-    changed: the manifest requires `intact: false` there and constrains the other fields
-    freely, since an implementation may reasonably report the certificate chain as sound
-    while the bytes have moved. Under a three-term reading such an implementation calls
-    that document authentic. Stating the four terms in one place in §8 would settle this.
+    on SPEC §8.3 step 5 with the CPS §4.9 reason codes and are the next to be written.
+    C-25 to C-31 and C-64, C-32 to C-37 and C-65 to C-67, and C-38 to C-43 and C-68
+    therefore have fixtures still to come, and C-60's pending-anchor clause with them.
+    The four verdicts of §8.4 are each exercised: `authentic` by 001 and 005, `altered`
+    by 002, 004 and 006, `unrecognised` by 003, and `unsealed` by 007.
+16. ~~SPEC §8 counts the conjuncts two ways.~~ **Closed.** SPEC.md §8.1 lists the four
+    facts and §8.4 states the rule once: an artifact is SEAL-authentic if and only if
+    `intact` and `valid` and `trusted` and `entire_file` all hold. Four conjuncts, and only
+    four, which C-6 carries. That is the reading which catches vector 002, a PDF with one
+    byte of page content changed: the manifest requires `intact: false` there and constrains
+    the other fields freely, since an implementation may reasonably report the certificate
+    chain as sound while the bytes have moved. `spec/verify.py` and
+    `spec/vectors/manifest.json` compute authenticity the same way.
 17. **The Let's Seal revocation list is served as plain JSON today.** CPS §4.9 describes a
     list carrying its own integrity through a signature by the log key. `ca/setup-ca.sh`
     writes `out/revoked.json` with `version`, `revoked` and `updated_at`;
@@ -537,3 +669,10 @@ diverge, and so the ambiguity can be closed in a later version.
     reference sealer accepts those and heif, dng, mp4, quicktime, mp3, flac and m4a. C-18
     states the requirement on the manifest and records the formats, leaving the covered set
     for §2 to settle.
+20. **The verdict a revoked certificate earns.** §8.3 step 5 withdraws trust from a seal a
+    revocation reaches, and §8.4's four verdicts turn on the four facts: `unrecognised` is
+    defined for a certificate that chains elsewhere than the pinned root, and a revoked
+    certificate chains to it. Such a seal is therefore outside `authentic`, which requires
+    `trusted`, and outside the literal wording of the other three. `spec/verify.py` reports
+    it as `UNRECOGNISED` with the reason named, which reads the withdrawal of trust as
+    `trusted` turning false; naming that mapping in §8.4 would close this.
