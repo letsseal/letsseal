@@ -260,9 +260,16 @@ relying parties can both rely on it:
 
 | Reason | Effect on seals made before the revocation |
 |---|---|
-| `key_compromise`, `ca_compromise` | Untrusted, whatever their date. The key was in another party's hands from a moment nobody can establish, so every seal under it is affected. |
+| `key_compromise`, `ca_compromise`, `unspecified` | Untrusted, whatever their date. The key was in another party's hands from a moment nobody can establish, so every seal under it is affected. |
 | `superseded`, `cessation_of_operation`, `affiliation_changed`, `privilege_withdrawn` | Trusted. The key was retired in good order, so seals demonstrably made before the revocation date stand. |
 | A reason a verifier does not recognise | Handled as `key_compromise`. For a trust decision, the safe direction is the strict one. |
+
+`unspecified` sits in the first row for the same reason the last row does. A reason
+that says nothing about how a key was lost cannot support the claim that earlier
+seals are safe, so it is classified with the strict cases rather than the orderly
+ones. The issuing tooling and the verifier derive that classification from the same
+list, so an operator is told at revocation time exactly what a relying party will
+later conclude.
 
 The time-bounded case is meaningful here because the anchor supplies **independent
 evidence of when a document existed**. A confirmed anchor places the seal before a given

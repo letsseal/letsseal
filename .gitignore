@@ -53,3 +53,7 @@ scripts/mirror/
 /AGENTS.md
 /GEMINI.md
 /.cursor/
+
+# Conformance vector signing keys. The vectors are published; the throwaway CA
+# that issued them is not, and the publication gate rejects any key file outright.
+spec/vectors/.keys/

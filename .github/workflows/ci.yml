@@ -281,6 +281,15 @@ jobs:
           LETSSEAL_P12_PASS: ci-not-a-real-passphrase
         run: ./.venv/bin/python test_seal_types.py
 
+      # The conformance vectors and the reference verifier check each other. These
+      # are the fixtures an independent implementation calibrates against, so the
+      # two drifting apart quietly would miscalibrate everyone using them. Writing
+      # them caught the reference verifier reporting an altered document as having
+      # an unrecognised issuer, which is the right verdict for the wrong reason.
+      - name: Conformance vectors agree with the reference verifier
+        working-directory: spec/vectors
+        run: ../../signing-service/.venv/bin/python run.py
+
       # A CA that cannot withdraw a certificate is not finished. This asserts the
       # distinction that matters: after revocation the signature is still `valid`
       # (it really was made by that key) but no longer `trusted`.

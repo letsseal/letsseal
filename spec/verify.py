@@ -16,6 +16,14 @@ the anchor, the `ots` client (pip install opentimestamps-client).
 
 Usage:  python verify.py sealed.pdf [sealed.pdf.ots]
         python verify.py file file.sig [file.ots]
+
+Options:
+  --root <pem>          pin a different trust anchor: your own CA when
+                        self-hosting, or the throwaway CA that issued the
+                        conformance vectors in spec/vectors/. Defaults to the
+                        published Let's Seal root below.
+  --attime <unix>       check certificate validity at that moment rather than now
+  --check-revocation    consult CRL/OCSP online, hard-fail
 """
 import sys
 import os
@@ -59,6 +67,20 @@ wwkVfGqYbg43R+TscPWhSW80
 -----END CERTIFICATE-----"""
 
 
+_PINNED_ROOT = _ROOT_OVERRIDE = None
+
+
+def set_pinned_root(pem_path=None):
+    """Pin a root from a PEM file, or restore the published Let's Seal root."""
+    global _PINNED_ROOT, _ROOT_OVERRIDE
+    _ROOT_OVERRIDE = open(pem_path, "rb").read() if pem_path else None
+    _PINNED_ROOT = None
+
+
+def root_pem():
+    return _ROOT_OVERRIDE if _ROOT_OVERRIDE is not None else ROOT_CA_PEM
+
+
 def _load(pem_bytes):
     _, _, der = pem.unarmor(pem_bytes)
     return x509.Certificate.load(der)
@@ -69,9 +91,11 @@ def verify_seal(pdf_bytes, at_time=None, check_revocation=False):
     sigs = reader.embedded_signatures
     if not sigs:
         return {"sealed": False}
+    pinned = root_pem()
+    roots = [_load(b"-----BEGIN CERTIFICATE-----" + p) for p in pinned.split(b"-----BEGIN CERTIFICATE-----")[1:]]
     vc = ValidationContext(
-        trust_roots=[_load(ROOT_CA_PEM)],
-        other_certs=[_load(INTERMEDIATE_CA_PEM)],
+        trust_roots=roots,
+        other_certs=[] if _ROOT_OVERRIDE is not None else [_load(INTERMEDIATE_CA_PEM)],
         allow_fetching=check_revocation,
         revocation_mode="hard-fail" if check_revocation else "soft-fail",
         moment=at_time,
@@ -80,6 +104,7 @@ def verify_seal(pdf_bytes, at_time=None, check_revocation=False):
     coverage = getattr(status.coverage, "name", str(status.coverage))
     return {
         "sealed": True,
+        "intact": bool(status.intact),
         "valid": bool(status.valid),
         "trusted": bool(status.trusted),
         "entire_file": coverage == "ENTIRE_FILE",
@@ -115,7 +140,7 @@ def verify_detached(file_path, sig_path, at_time=None, timeout=30):
     block time when supplied), else at the current time. This replaces the old
     blanket time bypass, which let an expired or leaked leaf validate forever."""
     with tempfile.NamedTemporaryFile("wb", suffix=".pem", delete=False) as rf:
-        rf.write(ROOT_CA_PEM)
+        rf.write(root_pem())
         root = rf.name
 
     time_args = ["-attime", str(int(at_time))] if at_time else []
@@ -138,9 +163,10 @@ def verify_detached(file_path, sig_path, at_time=None, timeout=30):
         os.unlink(root)
 
     if valid is None or trusted is None:
-        return {"sealed": True, "detached": True, "valid": False, "trusted": False,
+        return {"sealed": True, "detached": True, "intact": False, "valid": False, "trusted": False,
                 "entire_file": False, "signer": "(openssl unavailable)"}
-    return {"sealed": True, "detached": True, "valid": bool(valid), "trusted": bool(trusted),
+    return {"sealed": True, "detached": True, "intact": bool(valid), "valid": bool(valid),
+            "trusted": bool(trusted),
             "entire_file": bool(valid), "signer": _detached_signer(sig_path)}
 
 
@@ -167,11 +193,16 @@ def main():
         print(__doc__)
         sys.exit(2)
     args = sys.argv[1:]
-    file_path = args[0]
-    sig_path = next((a for a in args[1:] if a.endswith(".sig")), None)
-    ots_path = next((a for a in args[1:] if a.endswith(".ots")), None)
+    flags = {"--attime", "--root"}
+    positional = [a for i, a in enumerate(args)
+                  if not a.startswith("--") and not (i and args[i - 1] in flags)]
+    file_path = positional[0]
+    sig_path = next((a for a in positional[1:] if a.endswith(".sig")), None)
+    ots_path = next((a for a in positional[1:] if a.endswith(".ots")), None)
     at_unix = int(args[args.index("--attime") + 1]) if "--attime" in args else None
     check_rev = "--check-revocation" in args
+    if "--root" in args:
+        set_pinned_root(args[args.index("--root") + 1])
     at_moment = datetime.fromtimestamp(at_unix, tz=timezone.utc) if at_unix else None
     file_bytes = open(file_path, "rb").read()
     is_pdf = file_bytes[:5] == b"%PDF-"
@@ -196,9 +227,10 @@ def main():
         print("\nRESULT   NOT A SEAL — no PAdES signature and no .sig sidecar.")
         sys.exit(1)
 
-    authentic = s["valid"] and s["trusted"] and s["entire_file"]
+    authentic = s["intact"] and s["valid"] and s["trusted"] and s["entire_file"]
     print(f"issuer   {s['signer']}")
-    print(f"seal     valid={s['valid']}  trusted={s['trusted']}  entire_file={s['entire_file']}  ({kind})")
+    print(f"seal     intact={s['intact']}  valid={s['valid']}  trusted={s['trusted']}  "
+          f"entire_file={s['entire_file']}  ({kind})")
     print(f"checked  cert validity {'at anchor time ' + str(at_unix) if at_unix else 'at current time'}"
           + ("  with revocation" if check_rev else ""))
 
@@ -211,13 +243,19 @@ def main():
 
     print()
     if authentic:
-        tail = " Anchored to Bitcoin." if anchor == "confirmed" else ""
-        print(f"RESULT   AUTHENTIC — sealed by Let's Seal and unaltered.{tail}")
+        tail = " Anchored to the public ledger." if anchor == "confirmed" else ""
+        print(f"RESULT   AUTHENTIC. Sealed, unaltered, and chaining to the pinned root.{tail}")
         sys.exit(0)
-    if s["valid"] and not s["trusted"]:
-        print("RESULT   UNRECOGNISED — valid signature, but it does not chain to the Let's Seal root. Not authentic.")
-        sys.exit(1)
-    print("RESULT   ALTERED — the seal does not verify over the whole file.")
+    if not s["intact"]:
+        print("RESULT   ALTERED. The bytes differ from the bytes that were sealed.")
+    elif not s["valid"]:
+        print("RESULT   ALTERED. The signature does not verify.")
+    elif not s["entire_file"]:
+        print(f"RESULT   ALTERED. The seal covers {kind} rather than the entire file, "
+              "so content was added after sealing.")
+    else:
+        print("RESULT   UNRECOGNISED. The signature is valid over these bytes, and its certificate "
+              "chains elsewhere than the pinned root, so authenticity is not established.")
     sys.exit(1)
 
 

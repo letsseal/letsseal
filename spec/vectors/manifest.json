@@ -1,0 +1,155 @@
+{
+  "standard": "SEAL",
+  "specification": "https://letsseal.org/SPEC.md",
+  "conformance": "https://github.com/letsseal/letsseal/blob/main/CONFORMANCE.md",
+  "pinnedRoot": "root.crt",
+  "note": "Every vector is issued by a throwaway CA generated with the suite, never by the published Let's Seal root, so pinning root.crt commits a verifier to nothing beyond these fixtures.",
+  "howToRead": "`require` is what a conforming verifier must report. `observed` is what the reference verifier reports today and is informational: a difference there is worth reading rather than a failure.",
+  "verdictFields": {
+    "sealed": "a signature is present",
+    "valid": "the signature verifies over the bytes in hand",
+    "trusted": "the signing certificate chains to the pinned root",
+    "entire_file": "the signature covers the whole file",
+    "intact": "the bytes are the bytes that were signed",
+    "coverage": "the coverage as the verifier names it, where it reports one",
+    "authentic": "intact AND valid AND trusted AND entire_file, per SPEC.md section 8",
+    "reason": "for a negative verdict, what a verifier should tell a person"
+  },
+  "freeFields": "A field absent from `require` is deliberately unconstrained. Implementations differ reasonably on what to report once an earlier check has failed, and the standard constrains the verdict rather than the bookkeeping behind it.",
+  "vectors": [
+    {
+      "id": "001-pades-valid",
+      "files": [
+        "document.pdf"
+      ],
+      "subject": "document.pdf",
+      "sha256": "27697fc861c127e52f0c94fb42755f4ccc9694c68796a96a02b856b071eee291",
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "authentic": true
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": null
+      },
+      "teaches": "The happy path: a PAdES seal that validates, chains to the pinned root and covers the whole file.",
+      "catches": "A verifier that cannot reach a positive verdict at all."
+    },
+    {
+      "id": "002-pades-altered",
+      "files": [
+        "document.pdf"
+      ],
+      "subject": "document.pdf",
+      "sha256": "6f28eaffca6a7418f52a9f093fc3bf21cd127ee6a6bfd1ac18501d1da3ea0547",
+      "require": {
+        "sealed": true,
+        "intact": false,
+        "authentic": false
+      },
+      "observed": {
+        "valid": true,
+        "trusted": false,
+        "entire_file": true,
+        "coverage": "ENTIRE_FILE",
+        "reason": "altered"
+      },
+      "teaches": "One byte of page content differs from what was signed.",
+      "catches": "A verifier that reports the presence of a signature as authenticity without checking the digest."
+    },
+    {
+      "id": "003-pades-untrusted-root",
+      "files": [
+        "document.pdf"
+      ],
+      "subject": "document.pdf",
+      "sha256": "96d49e682fedd346ca150a7cef72d042dbd29354c69fd348d3ea3d17801b1cda",
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": false,
+        "entire_file": true,
+        "authentic": false
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": "unrecognised issuer"
+      },
+      "teaches": "A cryptographically valid signature from a certificate outside the pinned root.",
+      "catches": "The forgery vector. An implementation reporting this as authentic accepts a seal from anybody, which is the single most dangerous defect a SEAL verifier can have."
+    },
+    {
+      "id": "004-pades-incremental-update",
+      "files": [
+        "document.pdf"
+      ],
+      "subject": "document.pdf",
+      "sha256": "ef54729d1cede40001651f0422d7b9e26585f9a51dd3714c5fde6fd0e141f89b",
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "entire_file": false,
+        "authentic": false
+      },
+      "observed": {
+        "trusted": true,
+        "coverage": "ENTIRE_REVISION",
+        "reason": "coverage is not the entire file"
+      },
+      "teaches": "Content appended after signing, so the signature covers an earlier revision only.",
+      "catches": "A verifier that checks the signature but never checks coverage, and so calls a document authentic when text was added after it was signed."
+    },
+    {
+      "id": "005-detached-valid",
+      "files": [
+        "artifact.bin",
+        "artifact.bin.sig"
+      ],
+      "subject": "artifact.bin",
+      "sha256": "c2099eae081a558e6c97234d99f7d05033728ffaab76b9201aff81e80fa8f17a",
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "authentic": true
+      },
+      "observed": {
+        "entire_file": true,
+        "coverage": "detached CMS",
+        "reason": null
+      },
+      "teaches": "A detached CAdES/CMS seal over a non-PDF artifact, checkable with stock openssl.",
+      "catches": "A verifier that handles PDFs only, and so cannot check the form every other file type uses."
+    },
+    {
+      "id": "006-detached-altered",
+      "files": [
+        "artifact.bin",
+        "artifact.bin.sig"
+      ],
+      "subject": "artifact.bin",
+      "sha256": "5ffd2d5b7ad751609b49698ff4d23820217c0bd170f7aa0d187a164697e8500b",
+      "require": {
+        "sealed": true,
+        "intact": false,
+        "authentic": false
+      },
+      "observed": {
+        "valid": false,
+        "trusted": false,
+        "entire_file": false,
+        "coverage": "detached CMS",
+        "reason": "altered"
+      },
+      "teaches": "The same detached signature paired with an artifact that has changed by one byte.",
+      "catches": "A verifier that checks a signature is well formed without binding it to the bytes in hand."
+    }
+  ]
+}
