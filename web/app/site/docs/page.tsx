@@ -1,5 +1,5 @@
 import { PageHead, Container, H2, Card, LinkArrow } from "../_components/ui";
-import { Rocket, Terminal, Boxes, ShieldCheck, Server, BookOpen } from "lucide-react";
+import { Rocket, Terminal, Boxes, ShieldCheck, Server, BookOpen, FileDown } from "lucide-react";
 
 export const metadata = {
   title: "Docs, Let's Seal",
@@ -41,6 +41,13 @@ const SECTIONS = [
     p: "Run the full stack and hold your own keys.",
     href: "/site/open",
     links: ["Deploy", "Your own CA", "Telemetry opt-out"],
+  },
+  {
+    icon: FileDown,
+    h: "Recipes",
+    p: "Worked patterns for common jobs.",
+    href: "/site/recipes/sealed-downloads",
+    links: ["Sealing on download", "Per-copy identity"],
   },
   {
     icon: BookOpen,
