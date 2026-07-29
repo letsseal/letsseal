@@ -5,6 +5,13 @@ import Link from "next/link";
 import { Upload, Loader2, ShieldCheck, ArrowUpRight, AlertCircle, Download } from "lucide-react";
 
 type Result = { sha: string; name: string; url: string; sealedName: string } | null;
+type StampMode = "badge" | "line" | "none";
+
+const STAMP_CHOICES: { id: StampMode; label: string; hint: string }[] = [
+  { id: "badge", label: "QR badge", hint: "Scannable QR and a typable code, corner of page one." },
+  { id: "line",  label: "One line", hint: "A single grey line along the foot of the last page." },
+  { id: "none",  label: "Nothing",  hint: "Page untouched. Verification works exactly the same." },
+];
 
 export function QuickSeal({ slug }: { slug: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -12,7 +19,7 @@ export function QuickSeal({ slug }: { slug: string }) {
   const [drag, setDrag] = useState(false);
   const [result, setResult] = useState<Result>(null);
   const [error, setError] = useState("");
-  const [stamp, setStamp] = useState(true);
+  const [stamp, setStamp] = useState<StampMode>("badge");
   const stampRef = useRef(stamp);
   stampRef.current = stamp;
 
@@ -24,7 +31,7 @@ export function QuickSeal({ slug }: { slug: string }) {
     try {
       const body = new FormData();
       body.append("file", file);
-      body.append("stamp", String(stampRef.current));
+      body.append("stamp", stampRef.current);
       const res = await fetch(`/api/orgs/${slug}/seal`, { method: "POST", body });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -90,16 +97,27 @@ export function QuickSeal({ slug }: { slug: string }) {
               <><Upload className="h-6 w-6 text-primary" /><span className="text-sm text-muted-foreground">Drop a PDF, or click to choose</span></>
             )}
           </button>
-          <label className="mt-3 flex cursor-pointer items-start gap-2 text-[12px] leading-snug text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={stamp}
-              onChange={(e) => setStamp(e.target.checked)}
-              disabled={state === "busy"}
-              className="mt-0.5 h-3.5 w-3.5 accent-primary"
-            />
-            <span>Stamp a small <b className="font-medium text-foreground">verify QR badge</b> on the first page. Turn off when re-sealing someone else&apos;s document.</span>
-          </label>
+          <div className="mt-3">
+            <div className="flex items-center gap-1 rounded-lg border bg-secondary p-0.5">
+              {STAMP_CHOICES.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setStamp(c.id)}
+                  disabled={state === "busy"}
+                  aria-pressed={stamp === c.id}
+                  className={`flex-1 rounded-md px-2 py-1 text-[12px] transition ${
+                    stamp === c.id ? "bg-white font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+              {STAMP_CHOICES.find((c) => c.id === stamp)?.hint}
+            </p>
+          </div>
         </>
       )}
 
