@@ -2,6 +2,7 @@
   "standard": "SEAL",
   "specification": "https://letsseal.org/SPEC.md",
   "conformance": "https://github.com/letsseal/letsseal/blob/main/CONFORMANCE.md",
+  "covers": "SPEC.md sections 2 and 8, including section 8.3 step 5 and section 8.4; CONFORMANCE C-1 to C-24, C-38 to C-43, C-61 to C-63 and C-68",
   "pinnedRoot": "root.crt",
   "note": "Every vector is issued by a throwaway CA generated with the suite, never by the published Let's Seal root, so pinning root.crt commits a verifier to nothing beyond these fixtures.",
   "howToRead": "`require` is what a conforming verifier must report. `observed` is what the reference verifier reports today and is informational: a difference there is worth reading rather than a failure.",
@@ -12,9 +13,17 @@
     "entire_file": "the signature covers the whole file",
     "intact": "the bytes are the bytes that were signed",
     "coverage": "the coverage as the verifier names it, where it reports one",
-    "authentic": "intact AND valid AND trusted AND entire_file, per SPEC.md section 8",
+    "revocation": "the revocation state, one of checked-clear, revoked or unchecked, per SPEC.md section 8.3 step 5",
+    "verdict": "the single verdict of SPEC.md section 8.4, one of unsealed, altered, unrecognised or authentic, applied in that precedence",
+    "authentic": "the verdict is `authentic`: the four facts hold and no revocation reaches the seal",
     "reason": "for a negative verdict, what a verifier should tell a person"
   },
+  "vectorInputs": {
+    "revocations": "the revocation list to consult for this vector. A filename is a list shipped in the vector's own directory; a URL under the reserved `.invalid` domain never resolves, and stands for a list out of reach. A vector with no `revocations` gives the verifier no list at all.",
+    "provenTime": "the moment a confirmed anchor establishes for this artifact, and the moment certificate validity is judged at (SPEC.md section 8.3 step 3). A vector with no `provenTime` models a verifier holding no proven moment, which is a different case from holding an early one.",
+    "provenTimeUnix": "the same moment in unix seconds, for a harness that wants it that way"
+  },
+  "onProvenTime": "The suite ships no anchor proof. A confirmed ledger attestation cannot be manufactured offline, and a fabricated one would undermine the only thing a conformance suite is for, so `provenTime` is handed to the verifier as an input instead. That is the one value here a verifier MUST NOT accept on trust in production: CONFORMANCE C-42 requires the moment be established by a confirmed anchor, precisely because the alternative is letting the party who holds a revoked key choose the date the check runs against. Vector 011 is that rule with the evidence removed, and it is refused.",
   "freeFields": "A field absent from `require` is deliberately unconstrained. Implementations differ reasonably on what to report once an earlier check has failed, and the standard constrains the verdict rather than the bookkeeping behind it.",
   "vectors": [
     {
@@ -23,14 +32,15 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "e6d8f3e127e58b272c63b1f6992054c0763da5a07a25185cd658af1a941e5b18",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
       "require": {
         "sealed": true,
         "intact": true,
         "valid": true,
         "trusted": true,
         "entire_file": true,
-        "authentic": true
+        "authentic": true,
+        "verdict": "authentic"
       },
       "observed": {
         "coverage": "ENTIRE_FILE",
@@ -45,11 +55,12 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "823d01a6b2ed71f86d94d9262baaae74ccebfe2f2a2a7b40e930ce4938f525c5",
+      "sha256": "633698f1c0144a1bb7abe950a6d07982aa7632bcc7499bfbabe95159e9430e0b",
       "require": {
         "sealed": true,
         "intact": false,
-        "authentic": false
+        "authentic": false,
+        "verdict": "altered"
       },
       "observed": {
         "valid": true,
@@ -67,14 +78,15 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "c1ddb9621fd3722ee6691ea42c63718488ac1632e8347d4b25515a445624933e",
+      "sha256": "6703d8ab6a83a8e81d5e814c68814191e76c5f970040f856838a848b9e4459dd",
       "require": {
         "sealed": true,
         "intact": true,
         "valid": true,
         "trusted": false,
         "entire_file": true,
-        "authentic": false
+        "authentic": false,
+        "verdict": "unrecognised"
       },
       "observed": {
         "coverage": "ENTIRE_FILE",
@@ -89,13 +101,14 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "0708720e35e50ed63c1f64334593ccd77bf70943b2b25ad9bf11d6c9e343334c",
+      "sha256": "02d5ae8117ef869c61d68901aabf52fac853bd46b981214123c091ba99ee8ad9",
       "require": {
         "sealed": true,
         "intact": true,
         "valid": true,
         "entire_file": false,
-        "authentic": false
+        "authentic": false,
+        "verdict": "altered"
       },
       "observed": {
         "trusted": true,
@@ -118,7 +131,8 @@
         "intact": true,
         "valid": true,
         "trusted": true,
-        "authentic": true
+        "authentic": true,
+        "verdict": "authentic"
       },
       "observed": {
         "entire_file": true,
@@ -139,7 +153,8 @@
       "require": {
         "sealed": true,
         "intact": false,
-        "authentic": false
+        "authentic": false,
+        "verdict": "altered"
       },
       "observed": {
         "valid": false,
@@ -157,16 +172,238 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "dfab7e2e853e122d3905c7779a1fa0e81682de02bb457e6656d1974228ce2672",
+      "sha256": "f725e88e305db8d10d433da109d05079d2a4f249ba5f0f6f0f0a1ec76e98751f",
       "require": {
         "sealed": false,
-        "authentic": false
+        "authentic": false,
+        "verdict": "unsealed"
       },
       "observed": {
         "reason": "no signature present"
       },
       "teaches": "A perfectly ordinary PDF that was never sealed.",
       "catches": "A verifier that reports an unsigned file as altered, or worse reaches for a verdict about a seal that does not exist."
+    },
+    {
+      "id": "008-revoked-key-compromise",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "revoked",
+        "verdict": "unrecognised",
+        "authentic": false
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": "key_compromise"
+      },
+      "teaches": "A flawless seal whose signing certificate was later revoked for compromise. The seal is intact, valid, chains to the pinned root and covers the whole file, and the proven moment precedes the revocation, and it is still not authentic.",
+      "catches": "A verifier that stops at the four seal facts and never consults the list, and so keeps honouring a certificate whose key is in somebody else's hands."
+    },
+    {
+      "id": "009-revoked-orderly-seal-earlier",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "checked-clear",
+        "verdict": "authentic",
+        "authentic": true
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": null
+      },
+      "teaches": "The same certificate retired in good order, with the anchor proving the seal was made before the retirement. The seal stands.",
+      "catches": "A verifier that treats every revocation as retroactive, which would destroy years of honest evidence each time an issuer rotated a key on schedule."
+    },
+    {
+      "id": "010-revoked-orderly-seal-later",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "revocations.json",
+      "provenTime": "2026-09-01T00:00:00Z",
+      "provenTimeUnix": 1788220800,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "revoked",
+        "verdict": "unrecognised",
+        "authentic": false
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": "superseded"
+      },
+      "teaches": "The same orderly retirement, and a proven moment AFTER the revocation date. The date rule leaves earlier seals standing and this one is not earlier.",
+      "catches": "A verifier that reads the reason, sees an orderly retirement and clears the seal without comparing the dates, which would accept a seal made with a retired key."
+    },
+    {
+      "id": "011-revoked-orderly-no-proven-time",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "revocations.json",
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "revoked",
+        "verdict": "unrecognised",
+        "authentic": false
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": "superseded"
+      },
+      "teaches": "The same orderly retirement with no proven moment at all. The claim that this seal predates the revocation is the whole defence, and here nothing supports it.",
+      "catches": "A verifier that credits a seal with being early on the strength of an unproven date, which is exactly what an attacker with a retired key would ask it to do."
+    },
+    {
+      "id": "012-revoked-unknown-reason",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "revoked",
+        "verdict": "unrecognised",
+        "authentic": false
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": "gone_fishing"
+      },
+      "teaches": "A reason code outside the vocabulary, which is handled as a compromise: for a trust decision the safe direction is the strict one.",
+      "catches": "A verifier that ignores what it does not recognise, which turns any future reason code into a way to keep a revoked certificate working."
+    },
+    {
+      "id": "013-revoked-intermediate",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "d803ec775d34c5d2617ae91b5d00e80ed071e71deff0445b073f2ac0096d7e0b",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "revoked",
+        "verdict": "unrecognised",
+        "authentic": false
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": "ca_compromise"
+      },
+      "teaches": "The signing certificate is not on the list. The intermediate that issued it is, so the match has to run over every certificate in the chain rather than the signer alone.",
+      "catches": "A verifier that matches the leaf serial only, and so keeps trusting every certificate a compromised issuing CA ever signed."
+    },
+    {
+      "id": "014-revocation-unreachable",
+      "files": [
+        "document.pdf"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "https://revocations.invalid/revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "unchecked",
+        "verdict": "authentic",
+        "authentic": true
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": null
+      },
+      "teaches": "The list could not be fetched. Offline verification stays conformant, and the verifier says which of the two it did: `authentic, revocation unchecked`.",
+      "catches": "A verifier that reports a clear check it never performed, or one that fails the seal because a network call failed, which would make every proof depend on the issuer still being reachable."
+    },
+    {
+      "id": "015-revocation-clear",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "checked-clear",
+        "verdict": "authentic",
+        "authentic": true
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": null
+      },
+      "teaches": "The list was read and reaches nothing in this chain. `checked-clear` is a different statement from `unchecked`, and a verifier that can only say one of them is missing the distinction the report exists to draw.",
+      "catches": "A verifier that collapses `checked-clear` and `unchecked` into one word, leaving a reader unable to tell a completed check from a skipped one."
     }
   ]
 }

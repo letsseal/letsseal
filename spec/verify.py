@@ -114,7 +114,22 @@ def verify_seal(pdf_bytes, at_time=None, check_revocation=False):
         "coverage": coverage,
         "signer": status.signing_cert.subject.human_friendly,
         "serial": format(status.signing_cert.serial_number, "x"),
+        "serials": _chain_serials(sigs[0].signed_data),
     }
+
+
+def _chain_serials(signed_data):
+    """Every certificate serial the signature carries, as lowercase hex.
+
+    Revocation is matched against all of them rather than the signer alone, because
+    revoking an intermediate withdraws trust from every certificate issued under it
+    (CONFORMANCE C-39). Returns an empty list where the certificates cannot be read,
+    which check_revocation reports as `unchecked` rather than clear.
+    """
+    try:
+        return [format(c.chosen.serial_number, "x") for c in signed_data["certificates"]]
+    except Exception:
+        return []
 
 
 def _detached_signer(sig_path):
@@ -132,6 +147,17 @@ def _detached_signer(sig_path):
         return leaf.subject.human_friendly
     except Exception:
         return ""
+
+
+def _detached_chain_serials(sig_path):
+    """Every certificate serial embedded in a detached CMS, as lowercase hex (C-39)."""
+    try:
+        from asn1crypto import cms
+        with open(sig_path, "rb") as fh:
+            sd = cms.ContentInfo.load(fh.read())["content"]
+        return _chain_serials(sd)
+    except Exception:
+        return []
 
 
 def _detached_serial(sig_path):
@@ -184,7 +210,8 @@ def verify_detached(file_path, sig_path, at_time=None, timeout=30):
         return {"sealed": True, "detached": True, "intact": False, "valid": False, "trusted": False,
                 "entire_file": False, "signer": "(openssl unavailable)"}
     return {"sealed": True, "detached": True, "intact": bool(valid), "valid": bool(valid),
-            "serial": _detached_serial(sig_path), "trusted": bool(trusted),
+            "serial": _detached_serial(sig_path), "serials": _detached_chain_serials(sig_path),
+            "trusted": bool(trusted),
             "entire_file": bool(valid), "signer": _detached_signer(sig_path)}
 
 
@@ -239,9 +266,22 @@ def _attested_time(text):
 _UNCONDITIONAL = {"key_compromise", "ca_compromise", "unspecified"}
 
 
-def check_revocation(serial_hex, source, sealed_at=None):
-    """Returns (state, entry). state is checked-clear, revoked, or unchecked."""
-    if not source or not serial_hex:
+_ORDERLY = {"superseded", "cessation_of_operation", "affiliation_changed", "privilege_withdrawn"}
+
+
+def check_revocation(serials, source, sealed_at=None):
+    """Returns (state, entry). state is checked-clear, revoked, or unchecked.
+
+    `serials` is every certificate serial in the chain the seal presents, since
+    revoking an intermediate withdraws trust from everything issued under it (C-39).
+    A single serial is accepted too. With no list to read, or no serial to match
+    against, the state is `unchecked`: reporting clear would assert a check that did
+    not happen (C-68).
+    """
+    if isinstance(serials, str) or serials is None:
+        serials = [serials] if serials else []
+    want = {str(s).lower().lstrip("0") for s in serials if s}
+    if not source or not want:
         return "unchecked", None
     try:
         if source.startswith("http://") or source.startswith("https://"):
@@ -253,23 +293,36 @@ def check_revocation(serial_hex, source, sealed_at=None):
     except Exception:
         return "unchecked", None
 
-    want = (serial_hex or "").lower().lstrip("0")
+    cleared = None
     for e in doc.get("revoked", []):
-        if str(e.get("serial", "")).lower().lstrip("0") != want:
+        if str(e.get("serial", "")).lower().lstrip("0") not in want:
             continue
-        reason = str(e.get("reason", "")).lower()
-        if reason not in _UNCONDITIONAL and reason in {
-                "superseded", "cessation_of_operation", "affiliation_changed", "privilege_withdrawn"}:
-            revoked_at = e.get("revoked_at")
-            if sealed_at and revoked_at:
-                try:
-                    when = datetime.strptime(revoked_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                    if sealed_at < int(when.timestamp()):
-                        return "checked-clear", e
-                except ValueError:
-                    pass
-        return "revoked", e
-    return "checked-clear", None
+        if _reaches_this_seal(e, sealed_at):
+            return "revoked", e
+        cleared = e
+    return "checked-clear", cleared
+
+
+def _reaches_this_seal(entry, sealed_at):
+    """Does this revocation entry withdraw trust from a seal made at `sealed_at`?
+
+    A compromise reaches every seal under the certificate whatever its date (C-40).
+    An orderly retirement leaves seals demonstrably made before the revocation date
+    standing (C-41), and the evidence for `sealed_at` is a confirmed anchor (C-42):
+    with no proven moment the date claim rests on nothing, so the entry reaches this
+    seal. A reason not on either list is handled as a compromise (C-43).
+    """
+    reason = str(entry.get("reason", "")).lower()
+    if reason in _UNCONDITIONAL or reason not in _ORDERLY:
+        return True
+    revoked_at = entry.get("revoked_at")
+    if not sealed_at or not revoked_at:
+        return True
+    try:
+        when = datetime.strptime(revoked_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return True
+    return not sealed_at < int(when.timestamp())
 
 
 def main():
@@ -327,7 +380,8 @@ def main():
         sys.exit(1)
 
     authentic = s["intact"] and s["valid"] and s["trusted"] and s["entire_file"]
-    rev_state, rev_entry = check_revocation(s.get("serial"), revocations, sealed_at=attested)
+    rev_state, rev_entry = check_revocation(s.get("serials") or s.get("serial"),
+                                            revocations, sealed_at=attested)
 
     print(f"issuer   {s['signer']}")
     print(f"seal     intact={s['intact']}  valid={s['valid']}  trusted={s['trusted']}  "
@@ -338,7 +392,11 @@ def main():
 
     print()
     if rev_state == "revoked":
-        print(f"RESULT   UNRECOGNISED. The signing certificate is revoked "
+        signer_serial = str(s.get("serial") or "").lower().lstrip("0")
+        matched = str(rev_entry.get("serial", "")).lower().lstrip("0")
+        which = ("The signing certificate" if matched == signer_serial
+                 else f"A certificate in the chain, {rev_entry.get('subject', matched)},")
+        print(f"RESULT   UNRECOGNISED. {which} is revoked "
               f"({rev_entry.get('reason')}), so authenticity is not established.")
         sys.exit(1)
 

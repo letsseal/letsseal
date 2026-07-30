@@ -17,8 +17,19 @@ gem install kramdown-rfc2629     # provides kramdown-rfc2629 and kdrfc
 pip install xml2rfc              # provides xml2rfc
 ```
 
-Recent kramdown-rfc needs Ruby 3.2 or later. On a machine still carrying the Ruby that
-ships with macOS (2.6), install a current Ruby first, or pin the older gem chain:
+Recent kramdown-rfc needs Ruby 3.2 or later. macOS still ships 2.6, so install a current
+Ruby first and put it ahead of the system one on `PATH`:
+
+```bash
+brew install ruby
+export PATH="/opt/homebrew/opt/ruby/bin:/opt/homebrew/lib/ruby/gems/4.0.0/bin:$PATH"
+```
+
+The gem's own executables land in that second directory, so both entries are needed. The
+combination last known to build this draft cleanly is Ruby 4.0.6, kramdown-rfc2629 1.7.39
+and xml2rfc 3.34.0.
+
+Failing that, the older gem chain installs against system Ruby:
 
 ```bash
 gem install 'connection_pool:2.5.5' 'json_pure:2.6.3'
@@ -85,10 +96,15 @@ generated `.xml`, `.txt` and `.html`, out of the repository. If you would rather
 
 This is an individual submission: no working group adoption is required to post it, and
 posting it makes it a citable, archived document that anyone can review. The front matter
-sets `submissiontype: independent`, which puts it on the stream for a document produced
-outside an IETF working group and prints "Independent Submission" on the cover. There is
-deliberately no `workgroup:` line: RFC 7991 defines that element for an actual working
-group.
+sets `submissiontype: independent`, which reaches the XML as
+`submissionType="independent"` and puts the document on the stream for work produced
+outside an IETF working group. There is deliberately no `workgroup:` line: RFC 7991
+defines that element for an actual working group.
+
+The rendered draft still carries "Network Working Group" at the top left, which is
+xml2rfc's default for an Internet-Draft with no working group, and it is not a sign the
+submission type was dropped. "Independent Submission" is what the stream prints on a
+published RFC rather than on a draft; check the XML attribute if you want to confirm it.
 
 Publication as an RFC on that stream is a separate, later step: it goes to the Independent
 Submissions Editor (<rfc-ise@rfc-editor.org>), who arranges review. See

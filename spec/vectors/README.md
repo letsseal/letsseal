@@ -22,7 +22,13 @@ anchor. Compare your verdict against `require`.
 ```
 python ../verify.py 001-pades-valid/document.pdf --root root.crt
 python ../verify.py 005-detached-valid/artifact.bin 005-detached-valid/artifact.bin.sig --root root.crt
+python ../verify.py 008-revoked-key-compromise/document.pdf --root root.crt \
+  --revocations 008-revoked-key-compromise/revocations.json
 ```
+
+A vector may also carry inputs beyond the artifact, and a harness reads them from
+the manifest entry: `revocations` names the list to consult, and `provenTime` the
+moment a confirmed anchor establishes. Both matter from vector 008 onward.
 
 ## `require` versus `observed`
 
@@ -45,6 +51,14 @@ records what the reference verifier says today, for information.
 | 005-detached-valid | a detached CAdES/CMS seal over a non-PDF artifact | authentic |
 | 006-detached-altered | that signature paired with a changed artifact | intact false, authentic false |
 | 007-unsealed | an ordinary PDF that was never sealed | sealed false, authentic false |
+| 008-revoked-key-compromise | 001's seal, its certificate revoked for compromise | revoked, unrecognised |
+| 009-revoked-orderly-seal-earlier | retired in good order, the seal proven earlier | checked-clear, authentic |
+| 010-revoked-orderly-seal-later | the same retirement, the seal proven later | revoked, unrecognised |
+| 011-revoked-orderly-no-proven-time | the same retirement, no proven moment at all | revoked, unrecognised |
+| 012-revoked-unknown-reason | a reason code outside the vocabulary | revoked, unrecognised |
+| 013-revoked-intermediate | the issuing CA revoked, the signer itself unlisted | revoked, unrecognised |
+| 014-revocation-unreachable | the list could not be fetched | unchecked, authentic |
+| 015-revocation-clear | the list was read and reaches nothing here | checked-clear, authentic |
 
 **003 is the one to get right.** A cryptographically valid signature whose
 certificate chains somewhere else is the forgery vector SPEC.md section 8 calls
@@ -56,21 +70,56 @@ easy to write by accident because every cryptographic check in it passes.
 content was added afterwards. A verifier that stops at "the signature verifies"
 calls a modified document authentic.
 
-Writing these caught a real defect in the reference verifier: it read only
-pyHanko's `valid` and never `intact`, so it reported the altered document as
-having an unrecognised issuer. The verdict was right and the reason was wrong,
-which would send a reader after the wrong problem. That is the class of bug these
-exist to find.
+**008 to 015 are about a list held somewhere else.** Seven of the eight carry the
+same sealed document as 001, byte for byte. The seal is intact, the signature
+verifies, the chain reaches the pinned root and the coverage is the whole file, in
+every one of them, and the required verdict still moves between `authentic` and
+`unrecognised` depending only on what the issuer published elsewhere. A verifier
+that reads the artifact and nothing else cannot reach any of these answers, and this
+is the part of SPEC.md section 8 an implementation is most likely to skip, because
+everything in the file looks right.
+
+**013 is the one to get right among them.** The certificate that signed the document
+is not on the list; the intermediate that issued it is. Matching the signer's serial
+alone passes 008 and fails this, and a compromised issuing CA is exactly the case
+where the largest number of seals have to stop being trusted at once.
+
+**009 against 010 and 011** is the rule that lets honest evidence survive a routine
+key rotation. All three carry the same certificate and the same revocation entry.
+009 clears because a proven moment places the seal before the retirement; 010 is
+refused because the proven moment falls after it; 011 is refused because there is no
+proven moment, so the claim that the seal came first rests on nothing.
+
+### Proven time, and the one input you must not take on trust
+
+The revocation vectors carry a `provenTime`, the moment a confirmed anchor
+establishes for the artifact. The suite ships no anchor proof, so it hands the
+verifier that moment directly.
+
+That is a testing convenience and nothing more. In production a verifier MUST take
+the moment from a confirmed anchor, as CONFORMANCE C-42 requires, because the
+alternative is letting whoever holds a revoked key nominate the date the check runs
+against. Vector 011 is what that rule looks like when the evidence is missing.
+
+Two invariants these vectors hold an implementation to, both easy to miss and
+neither visible from a passing signature. A verdict has to be reached from `intact`
+as well as `valid`, so that moved bytes are reported as moved bytes rather than as an
+issuer problem and a reader is sent after the right thing. And revocation has to be
+matched against every certificate in the chain rather than the signer's alone, so
+that withdrawing trust from an issuing CA withdraws it from everything issued under
+that CA. 002 and 013 are the vectors that will tell you.
 
 ## The certificates
 
 `root.crt` is the trust anchor the vectors ask you to pin. `other-root.crt`
-issued vector 003 and is included so the failure is reproducible.
+issued vector 003 and is included so the failure is reproducible. Vector 013 is
+signed under an intermediate that chains to `root.crt`, carried in the signature
+itself, so no extra file is needed to build the path.
 
-Both are throwaway CAs generated with the suite, never the published Let's Seal
-root. Publishing fixtures under the real root would ask the world to trust a test
-artifact, and an implementer needs an anchor they can point their own verifier at.
-Private keys stay out of the repository; the publication gate rejects any file
+Both roots are throwaway CAs generated with the suite, never the published Let's
+Seal root. Publishing fixtures under the real root would ask the world to trust a
+test artifact, and an implementer needs an anchor they can point their own verifier
+at. Private keys stay out of the repository; the publication gate rejects any file
 matching a key pattern.
 
 ## Regenerating
@@ -79,20 +128,28 @@ matching a key pattern.
 ../../signing-service/.venv/bin/python generate.py
 ```
 
-This mints a fresh CA and re-seals every vector, so digests and certificates
-change. Run `run.py` afterwards, and if a required verdict moved, work out why
-before committing: either the expectation was wrong or something regressed.
+The suite's CA is reused when its key is still in `.keys/`, so the trust anchor you
+pinned survives a regeneration. Vector bytes do move: PAdES output varies on every
+run from the certificate serial and the ECDSA nonce, so the anchor is the part that
+holds and the digests are not reproducible by construction. Run `run.py` afterwards,
+and if a required verdict moved, work out why before committing: either the
+expectation was wrong or something regressed.
 
 ## Coverage
 
-The vectors cover the seal, which is sections 2 and 8 of the specification.
+The vectors cover the seal and revocation, which is sections 2, 8.3 step 5 and 8.4
+of the specification, and the reason semantics of section 4.9 of the CPS.
 
-The anchor and revocation cases are specified in `DESIGN.md` and are not shipped
-as fixtures yet, for one honest reason: a confirmed ledger attestation cannot be
-manufactured offline, and shipping a fabricated one in a conformance suite would
-undermine the only thing the suite is for. Anchor vectors need real proofs, which
-means real confirmations, which takes ledger time. Revocation vectors depend on
-the reason semantics in section 4.9 of the CPS and are the next ones to add.
+Anchor vectors are absent, for one honest reason: a confirmed ledger attestation
+cannot be manufactured offline, and shipping a fabricated one in a conformance suite
+would undermine the only thing the suite is for. They need real proofs, which means
+real confirmations, which takes ledger time. The revocation vectors reach around that
+by carrying the proven moment as an input rather than as a proof, which is why the
+section above is blunt about what that input is worth.
+
+The transparency log of section 6 has no fixtures either. Its arithmetic is RFC 6962
+unchanged and the entry encoding is what SEAL adds, so a vector there would be a leaf
+preimage and an audit path rather than a sealed artifact.
 
 If you are implementing and want a case that is missing, open an issue. A vector
 someone actually needs is worth more than one we guessed at.

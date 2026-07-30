@@ -152,7 +152,7 @@ the reason reported is the one that applies first:
 |---|---|---|
 | 1 | `unsealed` | The artifact carries no signature. |
 | 2 | `altered` | `intact` is false, or `valid` is false, or `entire_file` is false. |
-| 3 | `unrecognised` | The signature is valid over these bytes and its certificate chains elsewhere than the pinned root. |
+| 3 | `unrecognised` | The signature is valid over these bytes and the verifier does not accept the certificate that made it: it chains elsewhere than the pinned root (C-7), or a revocation reaching this seal has withdrawn trust from it (C-40 to C-43). |
 | 4 | `authentic` | `intact` and `valid` and `trusted` and `entire_file` all hold. |
 
 The anchor state (C-64) and the revocation state (C-68) MUST be reported alongside the
@@ -381,9 +381,11 @@ audit-path arithmetic is performed with them and cannot be performed without the
 SPEC §8.3 step 5 makes revocation a step of the verification algorithm: a verifier MUST
 consult the issuer's published revocation list where it can reach it, MUST apply the reason
 semantics that list carries, and MUST report revocation as unchecked where the list is out
-of reach (C-68). The items below carry that requirement and reproduce the concrete reason
-codes the Let's Seal CA operates under (CPS.md §4.9, version 1.0), which an implementation
-verifying Let's Seal seals applies and which a self-hosted CA states in its own policy.
+of reach (C-68). A seal a revocation reaches is not authentic, because `trusted` is false,
+and the verdict it earns is `unrecognised` (C-62). The items below carry that requirement
+and reproduce the concrete reason codes the Let's Seal CA operates under (CPS.md §4.9,
+version 1.0), which an implementation verifying Let's Seal seals applies and which a
+self-hosted CA states in its own policy.
 
 **C-38.** The verifier MUST obtain the revocation list from the published location
 (<https://letsseal.org/revocations.json> for the Let's Seal CA). Where the issuing CA
@@ -525,27 +527,34 @@ it at their own root and how the vectors are run:
 ```
 python spec/verify.py sealed.pdf sealed.pdf.ots
 python spec/verify.py spec/vectors/001-pades-valid/document.pdf --root spec/vectors/root.crt
+python spec/verify.py spec/vectors/008-revoked-key-compromise/document.pdf \
+  --root spec/vectors/root.crt \
+  --revocations spec/vectors/008-revoked-key-compromise/revocations.json
 ```
 
-Every vector is issued by a throwaway CA generated with the suite, so all six require
-`--root spec/vectors/root.crt`. The suite covers the seal, which is
-[§1](#1-verifier-the-core-algorithm) and [§2](#2-verifier-per-format-requirements) of this
-document and §2 and §8 of the specification.
-[Open point 15](#open-points) records the fixtures the anchor, log and revocation sections
-await.
+Every vector is issued by a throwaway CA generated with the suite, so all fifteen require
+`--root spec/vectors/root.crt`. Vectors 008 onward carry two further inputs in their
+manifest entry: `revocations`, the list to consult, and `provenTime`, the moment a
+confirmed anchor establishes. The suite covers the seal and revocation, which is
+[§1](#1-verifier-the-core-algorithm), [§2](#2-verifier-per-format-requirements) and
+[§5](#5-verifier-revocation) of this document, and §2, §8.3 step 5 and §8.4 of the
+specification. [Open point 15](#open-points) records the fixtures the anchor and log
+sections await, and what the revocation fixtures had to assume in place of an anchor.
 
 **C-58.** An implementation claiming conformance MUST reproduce the `require` block
 recorded in `spec/vectors/manifest.json` for every vector covering a format it claims,
 pinning the suite's `root.crt`, and MUST report which vectors it ran. A field absent from a
 vector's `require` block is unconstrained, and an implementation reports it as it sees fit.
-[CONFORMANCE §7]
+An implementation claiming C-38 to C-43 or C-68 MUST run vectors 008 to 015 and MUST read
+the `revocations` and `provenTime` inputs their entries carry. [CONFORMANCE §7]
 
 **C-59.** The verdict vocabulary a verifier reports MUST distinguish the four cases of
 C-62, in their precedence: **unsealed**, an artifact carrying no signature at all;
 **altered**, which covers the bytes differing from those sealed (C-3a), the signature
 failing to verify over the bytes in hand (C-3), and coverage falling short of the artifact
-(C-5, C-16); **unrecognised** (C-7, a signature valid over the bytes in hand whose
-certificate chains outside the pinned root); and **authentic** (C-6, all four facts).
+(C-5, C-16); **unrecognised**, a signature valid over the bytes in hand whose certificate
+the verifier declines, either because it chains outside the pinned root (C-7) or because a
+revocation reaches this seal (C-40 to C-43); and **authentic** (C-6, all four facts).
 Vectors 002 and 006 exercise a document whose bytes moved after sealing, and 004 exercises
 coverage short of the entire file. Anchor state MUST be reported separately, drawn from the
 four states of C-64, and revocation state separately with it (C-68), so that `authentic,
@@ -553,11 +562,14 @@ anchor pending` and `authentic, revocation unchecked` are both sayable. [SPEC §
 
 **C-60.** The negative vectors are the load-bearing ones: an implementation MUST fail a
 seal whose certificate chains outside the pinned root (vector 003), MUST fail an artifact
-whose bytes differ from those sealed (vectors 002 and 006), and MUST fail a PDF whose
-signature covers less than the entire file (vector 004). An implementation MUST also
-decline to report a pending or unverified anchor as proof of time; that clause is stated
-ahead of its fixture, for the reason in [Open point 15](#open-points). An implementation
-that passes only the positive vectors has demonstrated nothing about C-7 or C-8. [SPEC §8]
+whose bytes differ from those sealed (vectors 002 and 006), MUST fail a PDF whose
+signature covers less than the entire file (vector 004), and MUST fail a seal a revocation
+reaches (vectors 008, 010, 011, 012 and 013), every one of which carries a signature that
+is intact, valid, chained to the pinned root and covering the whole file. An implementation
+MUST also decline to report a pending or unverified anchor as proof of time; that clause is
+stated ahead of its fixture, for the reason in [Open point 15](#open-points). An
+implementation that passes only the positive vectors has demonstrated nothing about C-7,
+C-8 or C-40. [SPEC §8]
 
 ---
 
@@ -634,16 +646,28 @@ the section that settled it named. Closed entries keep their number, so a review
     §1.3.1 describes an Intermediate CA and an Identity CA, and the reference verifier ships
     the intermediate as an untrusted helper certificate. Whether a verifier must supply the
     intermediate itself, or expects it in the signature, is unstated.
-15. **The vectors cover the seal.** `spec/vectors/` ships seven fixtures over SPEC §2 and §8,
-    which is [§1](#1-verifier-the-core-algorithm) and
-    [§2](#2-verifier-per-format-requirements) of this document. Anchor vectors are absent
-    because a confirmed ledger attestation cannot be manufactured offline, and a fabricated
-    one would undermine the only thing a conformance suite is for; revocation vectors rest
-    on SPEC §8.3 step 5 with the CPS §4.9 reason codes and are the next to be written.
-    C-25 to C-31 and C-64, C-32 to C-37 and C-65 to C-67, and C-38 to C-43 and C-68
-    therefore have fixtures still to come, and C-60's pending-anchor clause with them.
-    The four verdicts of §8.4 are each exercised: `authentic` by 001 and 005, `altered`
-    by 002, 004 and 006, `unrecognised` by 003, and `unsealed` by 007.
+15. **The vectors cover the seal and revocation.** `spec/vectors/` ships fifteen fixtures
+    over SPEC §2, §8.3 step 5 and §8.4, which is [§1](#1-verifier-the-core-algorithm),
+    [§2](#2-verifier-per-format-requirements) and [§5](#5-verifier-revocation) of this
+    document. Vectors 008 to 015 carry C-38 to C-43 and C-68: C-40 by 008, C-41 and C-42 by
+    009 against 010 and 011, C-43 by 012, C-39's match over the whole chain by 013, and
+    C-68's two states by 014 and 015. The four verdicts of §8.4 are each exercised:
+    `authentic` by 001, 005, 009, 014 and 015, `altered` by 002, 004 and 006,
+    `unrecognised` by 003 and by every vector a revocation reaches, and `unsealed` by 007.
+
+    Anchor vectors are absent because a confirmed ledger attestation cannot be manufactured
+    offline, and a fabricated one would undermine the only thing a conformance suite is for,
+    so C-25 to C-31 and C-64 have fixtures still to come, and C-60's pending-anchor clause
+    with them. C-32 to C-37 and C-65 to C-67, the transparency log, are unfixtured for a
+    different reason: the arithmetic there is RFC 6962 unchanged, so a vector is a leaf
+    preimage and an audit path rather than a sealed artifact.
+
+    The revocation vectors reach around the missing anchor by supplying the proven moment
+    as a manifest input rather than as a proof. C-42 requires that moment come from a
+    confirmed anchor, and a fixture that hands it over instead is testing the rule while
+    standing outside the evidence the rule rests on. `spec/vectors/README.md` and the
+    manifest both say so at the point of use, and vector 011 fixes the case the concession
+    could otherwise hide: with no proven moment at all, the seal is refused.
 16. ~~SPEC §8 counts the conjuncts two ways.~~ **Closed.** SPEC.md §8.1 lists the four
     facts and §8.4 states the rule once: an artifact is SEAL-authentic if and only if
     `intact` and `valid` and `trusted` and `entire_file` all hold. Four conjuncts, and only
@@ -669,10 +693,9 @@ the section that settled it named. Closed entries keep their number, so a review
     reference sealer accepts those and heif, dng, mp4, quicktime, mp3, flac and m4a. C-18
     states the requirement on the manifest and records the formats, leaving the covered set
     for §2 to settle.
-20. **The verdict a revoked certificate earns.** §8.3 step 5 withdraws trust from a seal a
-    revocation reaches, and §8.4's four verdicts turn on the four facts: `unrecognised` is
-    defined for a certificate that chains elsewhere than the pinned root, and a revoked
-    certificate chains to it. Such a seal is therefore outside `authentic`, which requires
-    `trusted`, and outside the literal wording of the other three. `spec/verify.py` reports
-    it as `UNRECOGNISED` with the reason named, which reads the withdrawal of trust as
-    `trusted` turning false; naming that mapping in §8.4 would close this.
+20. ~~The verdict a revoked certificate earns.~~ **Closed.** SPEC.md §8.4 names the
+    mapping: row 3 reports `unrecognised` both for a certificate chaining elsewhere than the
+    pinned root and for one a revocation reaches, so the withdrawal of trust in §8.3 step 5
+    has a verdict to land in. C-62, C-59, §5's opening, the Internet-Draft's verdict table
+    and IMPLEMENTATIONS.md carry the same row, and `spec/verify.py` reports `UNRECOGNISED`
+    with the revocation reason named.

@@ -57,11 +57,16 @@ Three documents, in this order:
    run them, the way `python spec/verify.py --root spec/vectors/root.crt ...` does.
    Pinning the published root is for real seals.
 
-The six shipped vectors cover the seal, which is SPEC.md §2 and §8, across PDF and
-detached CMS. Anchor and revocation vectors are specified in
-[`spec/vectors/DESIGN.md`](spec/vectors/DESIGN.md) and ship once real proofs exist to
-build them from: a confirmed ledger attestation takes ledger time to earn, and a
-fabricated one would hollow out the suite.
+The fifteen shipped vectors cover the seal, which is SPEC.md §2 and §8, across PDF and
+detached CMS, and the revocation step of §8.3 step 5 with the reason semantics of CPS
+§4.9. Vectors 008 onward carry two inputs beyond the artifact, read from the manifest
+entry: `revocations`, the list to consult, and `provenTime`, the moment a confirmed anchor
+establishes. In production that moment MUST come from the anchor rather than from a
+caller, which is what vector 011 exists to hold you to.
+
+Anchor vectors are specified in [`spec/vectors/DESIGN.md`](spec/vectors/DESIGN.md) and
+ship once real proofs exist to build them from: a confirmed ledger attestation takes
+ledger time to earn, and a fabricated one would hollow out the suite.
 
 Conformance is claimed per role and per format. A verifier that handles PDFs alone is a
 conformant SEAL verifier for PDF and says so, naming the formats it covers and the
@@ -159,7 +164,7 @@ one reported is the one that applies first:
 |---|---|---|
 | 1 | `unsealed` | The artifact carries no signature. |
 | 2 | `altered` | `intact` is false, or `valid` is false, or `entire_file` is false. |
-| 3 | `unrecognised` | The signature is valid over these bytes and its certificate chains elsewhere than the pinned root. |
+| 3 | `unrecognised` | The signature is valid over these bytes and the verifier does not accept the certificate that made it: it chains elsewhere than the pinned root, or a revocation reaching this seal has withdrawn trust from it (SPEC §8.3 step 5). |
 | 4 | `authentic` | `intact` and `valid` and `trusted` and `entire_file` all hold. |
 
 So a cryptographically valid signature from a certificate outside the pinned root is

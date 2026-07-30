@@ -601,10 +601,11 @@ in {{leaf-entries}}.
 ## Leaf entries {#leaf-entries}
 
 The entry that a leaf hash covers is the exact byte string described here, in the key
-order given, with no insignificant whitespace, encoded as UTF-8 JSON {{RFC8259}}:
+order given, with no insignificant whitespace, encoded as UTF-8 JSON {{RFC8259}}. The
+uppercase tokens are placeholders for the values described below:
 
 ~~~
-{"v":1,"sha256":"<hex>","sealType":"<type>","certCN":"<cn>","ts":<ms>}
+{"v":1,"sha256":"HEX","sealType":"TYPE","certCN":"CN","ts":MS}
 ~~~
 
 where `sha256` is the lowercase hexadecimal SHA-256 digest of the sealed artifact,
@@ -939,7 +940,7 @@ applies first:
 |---|---|---|
 | 1 | `unsealed` | The artifact carries no signature. |
 | 2 | `altered` | `intact` is false, or `valid` is false, or `entire_file` is false. |
-| 3 | `unrecognised` | The signature is valid over these bytes and its certificate chains elsewhere than the pinned root. |
+| 3 | `unrecognised` | The signature is valid over these bytes and the verifier does not accept the certificate that made it: it chains elsewhere than the pinned root, or a revocation reaching this seal has withdrawn trust from it ({{verify-revocation}}). |
 | 4 | `authentic` | `intact`, `valid`, `trusted` and `entire_file` all hold. |
 
 An artifact is SEAL-authentic if and only if all four facts hold. A valid signature made
@@ -1267,23 +1268,46 @@ pinned in its place.
 This appendix is informative. A set of test vectors is published with the implementation
 {{SEAL-IMPL}}: sealed artifacts paired with the four facts of {{facts}} and the verdict of
 {{verdicts}} that a conforming verifier reports for each, together with the trust anchor
-to pin and a manifest naming the expected verdicts in the vocabulary of {{verdicts}}. They
-cover a valid PAdES seal, a byte-modified PAdES file, a seal chaining to another root, a
-PAdES file carrying a post-signature incremental update, a valid detached CAdES seal, and
-a byte-modified detached seal, which is the set that exercises the seal forms of
-{{the-seal}} and the verdict precedence of {{verdicts}}.
+to pin and a manifest naming the expected verdicts in the vocabulary of {{verdicts}}.
+
+The seal cases cover a valid PAdES seal, a byte-modified PAdES file, a seal chaining to
+another root, a PAdES file carrying a post-signature incremental update, a valid detached
+CAdES seal, a byte-modified detached seal, and an artifact carrying no signature at all,
+which is the set that exercises the seal forms of {{the-seal}} and the verdict precedence
+of {{verdicts}}.
+
+The revocation cases cover the step of {{verify-revocation}}: a certificate revoked for
+compromise, an orderly retirement with the seal proven to precede it, the same retirement
+with the seal proven to follow it, the same retirement with no proven moment at all, a
+reason code outside the vocabulary, a revoked issuing CA whose subordinate certificate is
+itself unlisted, a list that could not be fetched, and a list read that reaches nothing.
+All but one of them carry the same sealed artifact as the first vector, whose signature is
+intact, valid, chained to the pinned anchor and covering the artifact entirely in each of
+them, so the verdict turns on the revocation state alone. A verifier confined to the
+artifact in hand reaches none of those answers, which is the property the cases exist to
+establish.
 
 A vector fixes the four facts as well as the verdict, so a verifier that reaches a verdict
 from a subset of them is caught by the suite rather than by a reader. A manifest carrying
 verdicts alone would pass a verifier that established three of the four facts and named
 the verdict correctly for the artifacts it happened to be given.
 
-The vectors stop there deliberately. A confirmed ledger attestation is produced by the
-ledger over hours, so a vector for a confirmed anchor is something a suite can carry only
-by fetching one, and a fabricated attestation in a conformance suite would teach an
-implementer to accept fabricated attestations. Anchor behaviour and revocation behaviour
-are therefore specified in {{the-anchor}} and {{revocation}} and exercised against live
-material rather than shipped as offline vectors.
+Two behaviours are not shipped as offline vectors. A confirmed ledger attestation is
+produced by the ledger over hours, so a vector for a confirmed anchor is something a suite
+can carry only by fetching one, and a fabricated attestation in a conformance suite would
+teach an implementer to accept fabricated attestations; anchor behaviour is therefore
+specified in {{the-anchor}} and exercised against live material. The transparency log of
+{{the-transparency-log}} is not shipped either, its arithmetic being that of {{RFC6962}}
+unchanged.
+
+The revocation cases bear on the first of those limits directly, and the way they do is
+worth stating. {{verify-revocation}} rests the orderly-retirement rule on a moment
+established by a confirmed anchor. Carrying no anchor proof, the suite supplies that moment
+to the verifier as an input instead, which is a property of the fixtures and not a licence:
+a verifier that accepted a claimed moment in place of a proven one would let the holder of
+a revoked key choose the date its seals are judged against. The case that supplies no
+moment at all is included for that reason, and a conforming verifier refuses the seal it
+carries.
 
 # Acknowledgements
 {:numbered="false"}

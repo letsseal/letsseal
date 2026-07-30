@@ -245,11 +245,22 @@ implementation that decides trust from subject strings fails it loudly.
 
 ### 2.3 Immutability
 
-A published vector is frozen. Its bytes, its id, and its expectation stay as issued.
-Corrections are appended as a new id at the end of the numbering, and the suite version in
-`manifest.json` moves. Test suites that mutate under implementers are worse than no suite,
-and PAdES output varies on every run anyway (random certificate serial, ECDSA nonce), so
-regeneration would silently change every digest.
+A published vector's **id and expectation** are frozen: an implementation calibrated against
+`003-pades-untrusted-root` must find the same case under the same name reporting the same
+verdict, and corrections are appended as a new id at the end of the numbering rather than
+folded into an existing one. Test suites that mutate under implementers are worse than no
+suite.
+
+Its **bytes** are a weaker promise, and the honest version is worth stating rather than
+implying. PAdES output varies on every run from the certificate serial and the ECDSA nonce,
+so the digests are not reproducible by construction and a regeneration moves them. What
+survives a regeneration is the trust anchor: `generate.py` reuses the suite CA whenever its
+key is present in `.keys/`, so `root.crt` and the fingerprint an implementer pinned stay put.
+Treat that key as part of the suite. A regeneration without it produces a new anchor, and
+every verifier pinning the old one has to re-pin.
+
+That is why the fingerprint is what documentation quotes and the digests are not. A vector's
+digest is recorded in `manifest.json` for the run that produced it, and nowhere else.
 
 `spec/vectors/README.md` documents regenerating the whole suite with a fresh CA, and
 `generate.py` removes every `0*-*` directory before it writes. That is the build-time path:
@@ -260,10 +271,10 @@ instruction gains that qualification. Adding `signer.pem` and `notes.md` beside 
 published artifact is compatible with the freeze: the artifact bytes, the id and the
 expectation are untouched.
 
-### 2.4 The six vectors already published
+### 2.4 The vectors already published
 
-Six vectors are published, run by `spec/vectors/run.py`, and asserted in CI by
-`.github/workflows/ci.yml`. They are retained under their published ids, bytes and required
+Fifteen vectors are published, run by `spec/vectors/run.py`, and asserted in CI by
+`.github/workflows/ci.yml`. They are retained under their published ids and required
 verdicts, and §3 describes them under those ids:
 
 | id | subject | this design's stanza |
@@ -274,23 +285,40 @@ verdicts, and §3 describes them under those ids:
 | `004-pades-incremental-update` | `document.pdf` | 004 |
 | `005-detached-valid` | `artifact.bin`, `artifact.bin.sig` | 005 |
 | `006-detached-altered` | `artifact.bin`, `artifact.bin.sig` | 006 |
+| `007-unsealed` | `document.pdf` | 012 |
+| `008-revoked-key-compromise` | `document.pdf`, `revocations.json` | 009 |
+| `009-revoked-orderly-seal-earlier` | `document.pdf`, `revocations.json` | 010 |
+| `010-revoked-orderly-seal-later` | `document.pdf`, `revocations.json` | new |
+| `011-revoked-orderly-no-proven-time` | `document.pdf`, `revocations.json` | 011 |
+| `012-revoked-unknown-reason` | `document.pdf`, `revocations.json` | new |
+| `013-revoked-intermediate` | `document.pdf`, `revocations.json` | new |
+| `014-revocation-unreachable` | `document.pdf` | new |
+| `015-revocation-clear` | `document.pdf`, `revocations.json` | new |
 
-Everything else in this document is appended from 007 upward. Where an earlier draft of this
-design gave one of the six a different slug or a different subject file, the published form
-wins, because renaming a published vector is exactly what §2.3 forbids. Two cases the design
-wanted and the published fixtures do not carry, a leaf with a `dNSName` SAN and a foreign
-leaf sharing the trusted leaf's subject DN, are appended as vectors 023 and 024 rather than
-folded into 001 and 003.
+Where an earlier draft of this design gave a published vector a different slug or a
+different subject file, the published form wins, because renaming a published vector is
+exactly what §2.3 forbids. Two cases the design wanted and the published fixtures do not
+carry, a leaf with a `dNSName` SAN and a foreign leaf sharing the trusted leaf's subject DN,
+are appended as vectors 023 and 024 rather than folded into 001 and 003.
 
-The anchor vectors (007, 008, 015) and the revocation vectors (009 to 011) are specified in
-§3 and stay unshipped for now, which `spec/vectors/README.md` states in the same terms. A
-confirmed attestation names a real block, so it takes ledger time to produce and cannot be
+**The published numbering has overtaken this design's**, which planned 007 and 008 for
+anchor vectors and 009 to 011 for revocation. The stanza column above is the map. Ids yet to
+be published are appended above 015 rather than taking the numbers this document still uses
+for them, and the stanzas below keep their own numbering because §2.3 freezes published ids,
+not draft ones, and renumbering them would break every review that cites one.
+
+The revocation vectors ship. They reach around the missing anchor by carrying the proven
+moment as a manifest input, `provenTime`, rather than as a proof, and both the manifest and
+`README.md` say plainly that this is the one value a verifier must not accept on trust in
+production, because C-42 requires it come from a confirmed anchor. That is the honest form
+of the trade: the rule gets a fixture, and the fixture says out loud where its input came
+from. Vector 011 is the case the concession could otherwise hide, and it is refused.
+
+The anchor vectors stay unshipped, which `spec/vectors/README.md` states in the same terms.
+A confirmed attestation names a real block, so it takes ledger time to produce and cannot be
 synthesised offline, and a fabricated proof in a conformance suite would undermine the one
-thing the suite exists to do. The revocation vectors wait on the same confirmed anchors,
-since 009 and 010 are built around one: `spec/verify.py` reads a revocation list through
-`--revocations`, with the reason semantics of SPEC.md §8.3 step 5, so the verifier side of
-them is in place. They land when they can be made honestly, and until then the suite says
-which sections of SPEC.md it covers: §2 and §8.
+thing the suite exists to do. They land when they can be made honestly, and until then the
+suite says which sections of SPEC.md it covers: §2, §8.3 step 5 and §8.4.
 
 Three things change in the tree when this design lands, and each lands with the edits that
 keep the suite running:

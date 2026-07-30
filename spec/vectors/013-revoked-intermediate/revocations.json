@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-01T00:00:00Z",
+  "revoked": [
+    {
+      "serial": "5f5ddd18f0142eb169cf30efa2939c",
+      "subject": "CN=Vector Issuing CA, O=SEAL Conformance Vectors, C=GB",
+      "reason": "ca_compromise",
+      "revoked_at": "2026-06-01T00:00:00Z",
+      "note": "issuing CA key compromised"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-01T00:00:00Z",
+  "revoked": [
+    {
+      "serial": "93024458e1f035d1fb24b7e792f861",
+      "subject": "CN=Vector Issuer Ltd, O=SEAL Conformance Vectors, C=GB",
+      "reason": "superseded",
+      "revoked_at": "2026-06-01T00:00:00Z",
+      "note": "rolled to a new key in good order"
+    }
+  ]
+}
