@@ -273,7 +273,7 @@ expectation are untouched.
 
 ### 2.4 The vectors already published
 
-Fifteen vectors are published, run by `spec/vectors/run.py`, and asserted in CI by
+Seventeen vectors are published, run by `spec/vectors/run.py`, and asserted in CI by
 `.github/workflows/ci.yml`. They are retained under their published ids and required
 verdicts, and §3 describes them under those ids:
 
@@ -294,6 +294,8 @@ verdicts, and §3 describes them under those ids:
 | `013-revoked-intermediate` | `document.pdf`, `revocations.json` | new |
 | `014-revocation-unreachable` | `document.pdf` | new |
 | `015-revocation-clear` | `document.pdf`, `revocations.json` | new |
+| `016-revocation-signed` | `document.pdf`, `revocations.json` | new |
+| `017-revocation-signature-invalid` | `document.pdf`, `revocations.json` | new |
 
 Where an earlier draft of this design gave a published vector a different slug or a
 different subject file, the published form wins, because renaming a published vector is

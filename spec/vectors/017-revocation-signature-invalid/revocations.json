@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-01T00:00:00Z",
+  "revoked": [
+    {
+      "serial": "034dd9e5b38777b979174922d40514eabf20b7c8",
+      "subject": "CN=Unrelated Revoked CA, O=SEAL Conformance Vectors, C=GB",
+      "reason": "key_compromise",
+      "revoked_at": "2026-06-01T00:00:00Z",
+      "note": "an unrelated certificate, present so the list is not empty"
+    },
+    {
+      "serial": "e13622d74f852ba130961e420ebb37",
+      "subject": "CN=Vector Issuer Ltd, O=SEAL Conformance Vectors, C=GB",
+      "reason": "key_compromise",
+      "revoked_at": "2026-06-01T00:00:00Z",
+      "note": "forged entry, added after the list was signed"
+    }
+  ],
+  "signature": "MEUCIFRAWn4q6soKTZa4Dzs7KSwExRyNI1wplTrqiZAVXwzoAiEAxT96nxYiaBP6CtJVq7JGRsV+p/4UBqky9aBzKmtO/10=",
+  "logCert": "-----BEGIN CERTIFICATE-----\nMIICFDCCAbmgAwIBAgIPd8jxsUR2/06FdyQNzuGmMAoGCCqGSM49BAMCME8xHTAb\nBgNVBAMMFFNFQUwgVmVjdG9ycyBSb290IENBMSEwHwYDVQQKDBhTRUFMIENvbmZv\ncm1hbmNlIFZlY3RvcnMxCzAJBgNVBAYTAkdCMB4XDTI2MDEwMTAwMDAwMFoXDTM2\nMDEwMTAwMDAwMFowUjEgMB4GA1UEAwwXVmVjdG9yIFRyYW5zcGFyZW5jeSBMb2cx\nITAfBgNVBAoMGFNFQUwgQ29uZm9ybWFuY2UgVmVjdG9yczELMAkGA1UEBhMCR0Iw\nWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASRmlsI/BflS5Vaiu2ydaVRF58po1xq\nV2c58dqJYuLbK8uv4fzTNvr/yQfCHjPrNILpKVPInEeKeTkzJbW60Bkjo3UwczAM\nBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQEAwIGwDATBgNVHSUEDDAKBggrBgEFBQcD\nBDAdBgNVHQ4EFgQUKH6rcArSJiKg5kOE341ZOEBR+pYwHwYDVR0jBBgwFoAUWRKq\nbI5cboAtlX+p348geihFIF4wCgYIKoZIzj0EAwIDSQAwRgIhALxMAs/ep3Dts/RO\nAsu4K6F35OKPuJr8Ypoh3XYdWcv3AiEA14W6wzDCJcRx7lh1Uz0zXIX8Um+Mt33X\n+ZKJKUoHBUM=\n-----END CERTIFICATE-----\n",
+  "logChain": "-----BEGIN CERTIFICATE-----\nMIICAjCCAamgAwIBAgIUNxwtORXobBUAS1s9O4oj4gwOvB0wCgYIKoZIzj0EAwIw\nTzEdMBsGA1UEAwwUU0VBTCBWZWN0b3JzIFJvb3QgQ0ExITAfBgNVBAoMGFNFQUwg\nQ29uZm9ybWFuY2UgVmVjdG9yczELMAkGA1UEBhMCR0IwHhcNMjYwMTAxMDAwMDAw\nWhcNMzYwMTAxMDAwMDAwWjBPMR0wGwYDVQQDDBRTRUFMIFZlY3RvcnMgUm9vdCBD\nQTEhMB8GA1UECgwYU0VBTCBDb25mb3JtYW5jZSBWZWN0b3JzMQswCQYDVQQGEwJH\nQjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABBfF1us3TV2qfpbD77Hpw/lQqs+r\nTPvX/A7HMn7pbUVqrfmUNMRlaC7Wzxw7+clcMPyJaZSFW+5+q8z3fcnNAWWjYzBh\nMB0GA1UdDgQWBBRZEqpsjlxugC2Vf6nfjyB6KEUgXjAfBgNVHSMEGDAWgBRZEqps\njlxugC2Vf6nfjyB6KEUgXjAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIB\nBjAKBggqhkjOPQQDAgNHADBEAiA59DwtBF9Eza309qEnDmkosU6Esgb7/MF2vSGB\nJkZ17QIgH4HajHmX2Sn1Wo96CduH0ahOnnyY079NzzZiPFge6AA=\n-----END CERTIFICATE-----\n"
+}

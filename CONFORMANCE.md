@@ -18,9 +18,10 @@ end rather than resolved here.
 - The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT** and **MAY** are to be
   interpreted as described in BCP 14 (RFC 2119, RFC 8174) when, and only when, they appear
   in all capitals, as here.
-- Each item cites the section it derives from. Where the specification states a behaviour
-  descriptively and this document reads it as normative, the item is listed in
-  [Open point 13](#open-points).
+- Each item cites the section it derives from. Every item now traces to a normative
+  sentence in the specification or, where the requirement is about demonstrating
+  conformance rather than about a seal, to [§7](#7-self-test) of this document with SPEC
+  §10 behind it.
 - Every requirement carries a stable identifier of the form **C-1**, **C-2**, and so on,
   so a review can cite "C-12" and both parties know which line is meant. One item is
   lettered, **C-3a**, so that adding it left the identifiers around it in place.
@@ -89,6 +90,25 @@ than from an operating system, Adobe, or mail-client trust store. The Let's Seal
 A self-hosted deployment pins its own root, and the vectors of [§7](#7-self-test) ask a
 verifier to pin `spec/vectors/root.crt`. [SPEC §2, §8.1, §8.3 step 2, CPS §9.16]
 
+**C-4a.** **Only a self-signed certificate is a trust anchor.** Where the verifier is
+given a bundle to pin, it MUST take the self-signed certificates in it as anchors and MUST
+treat the rest as path-building material. Pinning an intermediate as an anchor stops path
+building there, so the root's signature over that intermediate is never checked, and a
+certificate that the root never issued would validate as long as the intermediate issued
+it. The Let's Seal CA places an Intermediate CA and a separately constrained Identity CA
+directly under the offline root, so a bundle containing them is the ordinary case rather
+than an exotic one. [SPEC §2, CPS §1.3.1, §7.1]
+
+**C-4b.** **The verifier MUST be able to build the path from what it is given.** For the
+delivery forms of [§2](#2-verifier-per-format-requirements) the intermediates travel
+inside the signature, and a conforming verifier reads them from there. For the
+supply-chain forms of SPEC §5, which carry no certificates in the signature at all, the
+verifier MUST accept the chain supplied beside the artifact, conventionally
+`<artifact>.chain.pem`. An implementation that can only verify a seal after an
+intermediate has been configured out of band does not conform: the artifact and the
+pinned root are the inputs. A verifier MAY additionally hold known intermediates as
+path-building material, which changes nothing about trust. [SPEC §2, §5, §8.1]
+
 **C-5.** The verifier MUST establish **`entire_file`**: that the signature covers the
 artifact completely, as SPEC §8.2 defines completeness for that artifact's format. C-61
 carries the per-format rule. [SPEC §8.1, §8.2]
@@ -128,7 +148,9 @@ verification. The seal asserts integrity and the sealing certificate. [SPEC §2]
 
 **C-14.** The verifier MUST reach the verdict of C-6 from the artifact, the pinned root
 and public standards, reporting revocation as `unchecked` where the published list is out
-of reach (C-68), so the proof stands on its own for as long as those three exist.
+of reach (C-68), so the proof stands on its own for as long as those three exist. The
+verifier MUST NOT require a network call to the issuer, or to any party named in the
+proof, to reach that verdict.
 [SPEC §2, §8.3 step 5, §9, §10]
 
 **C-61.** **Coverage, per format.** Completeness is defined by the format, so a verifier
@@ -196,12 +218,15 @@ step 5 makes a step of the algorithm. [SPEC §2, "PDF", §8.3 step 5]
 ### 2.2 Image (C2PA)
 
 **C-18.** The seal MUST be a C2PA (Content Credentials) signed manifest embedded in the
-media file, readable by any C2PA-aware tool. SPEC §2 names jpeg, png, webp, tiff, gif,
-avif and heic; the reference sealer accepts those and heif, dng, mp4, quicktime, mp3, flac
-and m4a. The covered media set is recorded in [Open point 19](#open-points) rather than
-closed here. Coverage for this form is the manifest's hard binding over the asset as C2PA
-defines it, with the manifest store excluded, which is what `entire_file` means for an
-image under C-61. [SPEC §2, "Image", §8.2]
+media file, readable by any C2PA-aware tool. The covered set is jpeg, png, webp, tiff,
+gif, avif, heic, heif and dng for images; mp4 and quicktime for video; and mp3, flac and
+mp4 audio for audio. An implementation MAY cover further formats, and MUST first establish
+that the manifest's hard binding detects a change to the payload in that container rather
+than merely embedding into it: a format that accepts a manifest while leaving edits
+undetected yields a seal that asserts nothing, which is why avi and wav are outside the
+set. Coverage for this form is the manifest's hard binding over the asset as C2PA defines
+it, with the manifest store excluded, which is what `entire_file` means for media under
+C-61. [SPEC §2, "Media", §8.2]
 
 **C-19.** The verifier MUST configure the published SEAL root as a C2PA trust anchor. A
 manifest that validates and chains to it is trusted; a manifest that validates while
@@ -388,10 +413,21 @@ version 1.0), which an implementation verifying Let's Seal seals applies and whi
 self-hosted CA states in its own policy.
 
 **C-38.** The verifier MUST obtain the revocation list from the published location
-(<https://letsseal.org/revocations.json> for the Let's Seal CA). Where the issuing CA
-publishes a signature over that list, the verifier SHOULD check it against the signing key
-rather than resting on the transport that delivered it, so the list can be fetched once,
-cached, and used offline. [SPEC §8.3 step 5, CPS §4.9, §2.1; Open point 17]
+(<https://letsseal.org/revocations.json> for the Let's Seal CA). Where the list carries a
+`signature`, the verifier MUST check it rather than resting on the transport that
+delivered it, so the list can be fetched once, cached, and used offline. The verifier MUST
+rebuild the signed bytes from the values it parsed, as SPEC §8.5 defines them, rather than
+hashing the bytes it received, since the list is re-encoded in transit. A list carrying no
+`signature` is consulted as it stands. [SPEC §8.3 step 5, §8.5, CPS §4.9, §2.1]
+
+**C-38a.** The verifier MUST establish that the list's `logCert` chains to the same pinned
+root as a seal (C-4), and MUST report **unchecked** where the signature does not verify or
+the certificate does not chain, rather than deriving any revocation state from that list.
+A valid signature from a certificate outside the pinned root establishes only that
+somebody signed a list, and treating an unverifiable list as authoritative in either
+direction is a conformance failure: reporting checked-clear asserts a check made against
+bytes nobody vouched for, and reporting revoked hands anyone who can tamper with the
+transport the power to withdraw trust from every seal. [SPEC §8.3 step 5, §8.5]
 
 **C-39.** Each entry carries the certificate serial in lowercase hexadecimal, the subject,
 the reason code, the revocation timestamp in UTC, and an optional note, with entries
@@ -545,8 +581,8 @@ sections await, and what the revocation fixtures had to assume in place of an an
 recorded in `spec/vectors/manifest.json` for every vector covering a format it claims,
 pinning the suite's `root.crt`, and MUST report which vectors it ran. A field absent from a
 vector's `require` block is unconstrained, and an implementation reports it as it sees fit.
-An implementation claiming C-38 to C-43 or C-68 MUST run vectors 008 to 015 and MUST read
-the `revocations` and `provenTime` inputs their entries carry. [CONFORMANCE §7]
+An implementation claiming C-38 to C-43 or C-68 MUST run vectors 008 to 017 and MUST read
+the `revocations` and `provenTime` inputs their entries carry. [SPEC §10, CONFORMANCE §7]
 
 **C-59.** The verdict vocabulary a verifier reports MUST distinguish the four cases of
 C-62, in their precedence: **unsealed**, an artifact carrying no signature at all;
@@ -566,10 +602,13 @@ whose bytes differ from those sealed (vectors 002 and 006), MUST fail a PDF whos
 signature covers less than the entire file (vector 004), and MUST fail a seal a revocation
 reaches (vectors 008, 010, 011, 012 and 013), every one of which carries a signature that
 is intact, valid, chained to the pinned root and covering the whole file. An implementation
-MUST also decline to report a pending or unverified anchor as proof of time; that clause is
-stated ahead of its fixture, for the reason in [Open point 15](#open-points). An
-implementation that passes only the positive vectors has demonstrated nothing about C-7,
-C-8 or C-40. [SPEC §8]
+MUST NOT fail vector 017, where a forged revocation naming that seal's own certificate was
+added to a signed list after signing: an implementation that condemns it has shown that
+anyone able to interfere with the list can withdraw trust from any seal at will. An
+implementation MUST also decline to report a pending or unverified anchor as proof of time;
+that clause is stated ahead of its fixture, for the reason in
+[Open point 15](#open-points). An implementation that passes only the positive vectors has
+demonstrated nothing about C-7, C-8, C-40 or C-38a. [SPEC §8]
 
 ---
 
@@ -627,33 +666,61 @@ the section that settled it named. Closed entries keep their number, so a review
 11. ~~No verdict term for "no seal present."~~ **Closed.** SPEC.md §8.4 now fixes the
     vocabulary at `unsealed`, `altered`, `unrecognised` and `authentic`, with a precedence
     order, and the reference verifier reports `UNSEALED`.
-12. **§8.2's coverage table against the §5 supply-chain forms.** §8.2 settles the detached
-    case, where completeness follows from `intact` because the signature is over the digest,
-    and the same reasoning reads over a cosign blob signature, which §5 calls digest-only.
-    The table names the five delivery forms of §2 rather than the supply-chain forms, so
-    that reconciliation is left implicit.
-13. **Behaviours SPEC.md states descriptively, which this document reads as normative.**
-    §4's lowercase-hex permalink (C-1); §2's "verifies with stock tooling and no Let's Seal
-    server" (C-14, C-21, C-22, C-24); §2's "a conforming verifier configures / pins the
-    published SEAL root" (C-19, C-21); §2's note on what a desktop mail client shows
-    (C-23); §3's sentence that a proof includes an `.ots` (C-25); §6's sentence that the
-    STH is OpenTimestamps-anchored (C-35); and CPS §7.2 on the entry shape of the
-    revocation list (C-39), the requirement to consult that list now resting on SPEC §8.3
-    step 5. C-58 rests on no SPEC.md sentence at all and takes its authority from
-    [§7](#7-self-test) of this document. Promoting these sentences to MUSTs in SPEC.md
-    would settle each one; until then each is a reading, recorded here.
-14. **The intermediate CAs are absent from SPEC.md.** §2 pins the root only, while CPS
-    §1.3.1 describes an Intermediate CA and an Identity CA, and the reference verifier ships
-    the intermediate as an untrusted helper certificate. Whether a verifier must supply the
-    intermediate itself, or expects it in the signature, is unstated.
-15. **The vectors cover the seal and revocation.** `spec/vectors/` ships fifteen fixtures
-    over SPEC §2, §8.3 step 5 and §8.4, which is [§1](#1-verifier-the-core-algorithm),
+12. ~~§8.2's coverage table against the §5 supply-chain forms.~~ **Closed.** The table now
+    carries a row for the supply-chain blob signature and one for the DSSE attestation,
+    and says why they are listed: not because they follow a different rule, but because a
+    verifier meets them and should not have to derive the answer. Every §5 form signs over
+    a digest, so `entire_file` follows from `intact`, and a signature committing to a
+    digest of the whole artifact cannot cover part of it.
+13. ~~Behaviours SPEC.md states descriptively, which this document reads as normative.~~
+    **Closed.** Each of the sentences this entry listed is now a requirement in SPEC.md,
+    so no item here rests on an inference:
+
+    - §4 states the permalink as a MUST and requires the lowercase hexadecimal form of the
+      digest wherever it identifies or is displayed (C-1).
+    - §2 carries a requirement that a verdict be reachable from the artifact, the pinned
+      root and public standards alone, with no network call to the issuer or to any party
+      named in the proof. That is what the per-format examples meant by verifying with
+      stock tooling and no Let's Seal server (C-14, C-21, C-22, C-24).
+    - §2's C2PA and XML rows say a conforming verifier MUST configure, and MUST pin, the
+      published root as the trust anchor (C-19, C-21).
+    - §2's email row states the mail-client presentation as a MUST (C-23).
+    - §6 states that a log MUST anchor its STH, and MUST report the head's own anchor
+      state where it serves one before the anchor lands (C-35).
+    - §10 requires an implementation claiming conformance to reproduce the vectors'
+      required results and to say which it ran (C-58).
+
+    Two of the entry's items were already settled before this pass and the entry had not
+    caught up: §3 has stated the `.ots` as a MUST throughout (C-25), and the revocation
+    list's entry shape moved from CPS §7.2 into SPEC §8.5 when open point 17 closed
+    (C-39).
+14. ~~The intermediate CAs are absent from SPEC.md.~~ **Closed.** SPEC.md §2 now states
+    both halves. Only the root is a trust anchor: a deployment MAY place intermediates
+    beneath it, the Let's Seal CA places two, and an intermediate MUST NOT be pinned as an
+    anchor in its own right (C-4a). And the path MUST be constructible from what the
+    artifact carries: the delivery forms of §2 embed the intermediates in the signature,
+    the supply-chain forms of §5 carry none and publish the chain beside the artifact as a
+    `.chain.pem` sidecar, and a verifier MUST NOT be required to obtain an intermediate out
+    of band (C-4b). Holding known intermediates as path-building material stays a
+    convenience that confers no trust, which is what `spec/verify.py` does with the
+    published one.
+
+    Writing it down caught the reference verifier contradicting the rule. Pinning a full
+    `chain.pem` promoted every certificate in it to a trust anchor, so the intermediate
+    became one, path building stopped there, and the root's signature over it was never
+    checked. `_split_anchors` now takes only the self-signed certificates as anchors.
+    `signing-service/blobsign.py` also documented `--certificate-chain letsseal-root.crt`,
+    which cannot work now that subscriber certificates are issued by the Intermediate CA
+    rather than the root; it names the sidecar the seal response already returns.
+15. **The vectors cover the seal and revocation.** `spec/vectors/` ships seventeen fixtures
+    over SPEC §2, §8.3 step 5, §8.4 and §8.5, which is [§1](#1-verifier-the-core-algorithm),
     [§2](#2-verifier-per-format-requirements) and [§5](#5-verifier-revocation) of this
-    document. Vectors 008 to 015 carry C-38 to C-43 and C-68: C-40 by 008, C-41 and C-42 by
-    009 against 010 and 011, C-43 by 012, C-39's match over the whole chain by 013, and
-    C-68's two states by 014 and 015. The four verdicts of §8.4 are each exercised:
-    `authentic` by 001, 005, 009, 014 and 015, `altered` by 002, 004 and 006,
-    `unrecognised` by 003 and by every vector a revocation reaches, and `unsealed` by 007.
+    document. Vectors 008 to 017 carry C-38 to C-43 and C-68: C-40 by 008, C-41 and C-42 by
+    009 against 010 and 011, C-43 by 012, C-39's match over the whole chain by 013, C-68's
+    two states by 014 and 015, and C-38 with C-38a by 016 against 017. The four verdicts of
+    §8.4 are each exercised: `authentic` by 001, 005, 009, 014, 015, 016 and 017, `altered`
+    by 002, 004 and 006, `unrecognised` by 003 and by every vector a revocation reaches,
+    and `unsealed` by 007.
 
     Anchor vectors are absent because a confirmed ledger attestation cannot be manufactured
     offline, and a fabricated one would undermine the only thing a conformance suite is for,
@@ -676,23 +743,38 @@ the section that settled it named. Closed entries keep their number, so a review
     the other fields freely, since an implementation may reasonably report the certificate
     chain as sound while the bytes have moved. `spec/verify.py` and
     `spec/vectors/manifest.json` compute authenticity the same way.
-17. **The Let's Seal revocation list is served as plain JSON today.** CPS §4.9 describes a
-    list carrying its own integrity through a signature by the log key. `ca/setup-ca.sh`
-    writes `out/revoked.json` with `version`, `revoked` and `updated_at`;
-    `signing-service/revocation.py` `published()` adds `fetched_at`; the endpoint serves
-    that over HTTPS. C-38 therefore states the fetch as a MUST and the signature check as a
-    SHOULD, and publishing a detached signature over the canonicalised list alongside it
-    would let the check become a MUST.
-18. **The supply-chain lane appends a second leaf shape.** `web/lib/translog.ts`
-    `appendRekorLeaf` takes an exact byte string, a Rekor `hashedrekord` or `dsse` entry
-    body, as the leaf preimage, so stock cosign recomputes the same leaf hash. A verifier
-    reading the whole log meets both that shape and the §6 metadata payload of C-32, and §6
-    describes the second alone.
-19. **The media set for C2PA is unsettled.** SPEC §1's table says C2PA is embedded in
-    images, video and audio, while §2 lists jpeg, png, webp, tiff, gif, avif and heic. The
-    reference sealer accepts those and heif, dng, mp4, quicktime, mp3, flac and m4a. C-18
-    states the requirement on the manifest and records the formats, leaving the covered set
-    for §2 to settle.
+17. ~~The Let's Seal revocation list is served as plain JSON today.~~ **Closed.** SPEC.md
+    §8.5 defines the list's shape and the bytes a signature covers: the tag
+    `letsseal.revocations.v1`, then canonical JSON of `version`, `updated_at` and `revoked`
+    in that order. `signing-service/translog.py` `sign_revocations` signs those bytes with
+    the same log key that signs an STH, and `revocation.py` `published()` carries
+    `signature`, `logCert` and `logChain` in the document, so a verifier needs one fetch
+    and nothing else. C-38 states the check as a MUST where a signature is present, and
+    C-38a requires the signing certificate chain to the pinned root and an unverifiable
+    list be reported `unchecked`. `spec/verify.py` implements it.
+
+    The signature covers a reconstruction rather than the bytes received, which is what
+    makes it survivable: the list is re-encoded three times between the CA's file and a
+    reader, and `fetched_at` is stamped per request, so a signature over the wire bytes
+    would have been broken before it arrived.
+18. ~~The supply-chain lane appends a second leaf shape.~~ **Closed.** SPEC.md §6 now says
+    a log MAY carry a second leaf shape and a verifier MUST expect one: where a deployment
+    offers the supply-chain profile, the leaf payload for those artifacts is the exact
+    canonicalised Rekor entry body, a `hashedrekord` or a `dsse`, taken verbatim so stock
+    cosign recomputes the same leaf hash from the entry it holds. §6 states that a verifier
+    reading the whole log MUST NOT assume every payload parses as the metadata object of
+    C-32, and that the tree arithmetic is unaffected either way, a leaf hash being
+    `SHA-256(0x00 ‖ payload)` whatever the payload is.
+19. ~~The media set for C2PA is unsettled.~~ **Closed.** SPEC.md §2 fixes the set at jpeg,
+    png, webp, tiff, gif, avif, heic, heif and dng for images; mp4 and quicktime for video;
+    and mp3, flac and mp4 audio for audio, which is what the reference sealer accepts. It
+    also states the test a format has to pass before it joins: the manifest's hard binding
+    must detect a change to the payload rather than merely embed, because a container that
+    takes a manifest while leaving edits undetected carries a seal asserting nothing. That
+    is why avi and wav are excluded despite embedding, and it is a rule a second
+    implementation can apply rather than a list it has to copy. C-18 carries the same set,
+    and the §2 heading now reads Media rather than Image, the set having covered video and
+    audio for some time.
 20. ~~The verdict a revoked certificate earns.~~ **Closed.** SPEC.md §8.4 names the
     mapping: row 3 reports `unrecognised` both for a certificate chaining elsewhere than the
     pinned root and for one a revocation reaches, so the withdrawal of trust in §8.3 step 5

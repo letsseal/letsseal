@@ -3,7 +3,7 @@
   "updated_at": "2026-06-01T00:00:00Z",
   "revoked": [
     {
-      "serial": "5f5ddd18f0142eb169cf30efa2939c",
+      "serial": "6a74c90f9c51d1895742d7ad8868ab",
       "subject": "CN=Vector Issuing CA, O=SEAL Conformance Vectors, C=GB",
       "reason": "ca_compromise",
       "revoked_at": "2026-06-01T00:00:00Z",

@@ -32,7 +32,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "require": {
         "sealed": true,
         "intact": true,
@@ -55,7 +55,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "633698f1c0144a1bb7abe950a6d07982aa7632bcc7499bfbabe95159e9430e0b",
+      "sha256": "24c24bc1eba35676219ceb46624ee1678af4e30cdf962a83272aeefb9e348df8",
       "require": {
         "sealed": true,
         "intact": false,
@@ -78,7 +78,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "6703d8ab6a83a8e81d5e814c68814191e76c5f970040f856838a848b9e4459dd",
+      "sha256": "3e712da15cea5f21c163837d9ca826d0c09eba03a2567d4ed03e0a4ef1172ad2",
       "require": {
         "sealed": true,
         "intact": true,
@@ -101,7 +101,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "02d5ae8117ef869c61d68901aabf52fac853bd46b981214123c091ba99ee8ad9",
+      "sha256": "1eef645495d4380586310aee8fc4cd8477f320dcc63442baaec11666af06a017",
       "require": {
         "sealed": true,
         "intact": true,
@@ -172,7 +172,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "f725e88e305db8d10d433da109d05079d2a4f249ba5f0f6f0f0a1ec76e98751f",
+      "sha256": "86878c1419ec40755da7b56d973150f9ae73afe4ee732ddb64f89ac12c5e257a",
       "require": {
         "sealed": false,
         "authentic": false,
@@ -191,7 +191,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "revocations.json",
       "provenTime": "2026-03-01T00:00:00Z",
       "provenTimeUnix": 1772323200,
@@ -219,7 +219,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "revocations.json",
       "provenTime": "2026-03-01T00:00:00Z",
       "provenTimeUnix": 1772323200,
@@ -247,7 +247,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "revocations.json",
       "provenTime": "2026-09-01T00:00:00Z",
       "provenTimeUnix": 1788220800,
@@ -275,7 +275,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "revocations.json",
       "require": {
         "sealed": true,
@@ -301,7 +301,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "revocations.json",
       "provenTime": "2026-03-01T00:00:00Z",
       "provenTimeUnix": 1772323200,
@@ -329,7 +329,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "d803ec775d34c5d2617ae91b5d00e80ed071e71deff0445b073f2ac0096d7e0b",
+      "sha256": "3d6470cd8628763ede805d85019a39976c7edea3a4a58ab292cbd1ef3dfd9364",
       "revocations": "revocations.json",
       "provenTime": "2026-03-01T00:00:00Z",
       "provenTimeUnix": 1772323200,
@@ -356,7 +356,7 @@
         "document.pdf"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "https://revocations.invalid/revocations.json",
       "provenTime": "2026-03-01T00:00:00Z",
       "provenTimeUnix": 1772323200,
@@ -384,7 +384,7 @@
         "revocations.json"
       ],
       "subject": "document.pdf",
-      "sha256": "b4bc34171e1479cd826751ce12461f4214f22109d51624f5cf482b68470e11c7",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
       "revocations": "revocations.json",
       "provenTime": "2026-03-01T00:00:00Z",
       "provenTimeUnix": 1772323200,
@@ -404,6 +404,62 @@
       },
       "teaches": "The list was read and reaches nothing in this chain. `checked-clear` is a different statement from `unchecked`, and a verifier that can only say one of them is missing the distinction the report exists to draw.",
       "catches": "A verifier that collapses `checked-clear` and `unchecked` into one word, leaving a reader unable to tell a completed check from a skipped one."
+    },
+    {
+      "id": "016-revocation-signed",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "checked-clear",
+        "verdict": "authentic",
+        "authentic": true
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": null
+      },
+      "teaches": "A list carrying its own signature, which a verifier must check rather than trusting the transport that delivered it. The signature covers a canonical reconstruction of the list, so re-encoding it in transit is harmless.",
+      "catches": "A verifier that ignores the signature, which leaves the whole revocation mechanism resting on whoever served the bytes."
+    },
+    {
+      "id": "017-revocation-signature-invalid",
+      "files": [
+        "document.pdf",
+        "revocations.json"
+      ],
+      "subject": "document.pdf",
+      "sha256": "0d459103667853c5b65169dc8a33a4e4cc9c40340750e7b71e49e26518d12d3b",
+      "revocations": "revocations.json",
+      "provenTime": "2026-03-01T00:00:00Z",
+      "provenTimeUnix": 1772323200,
+      "require": {
+        "sealed": true,
+        "intact": true,
+        "valid": true,
+        "trusted": true,
+        "entire_file": true,
+        "revocation": "unchecked",
+        "verdict": "authentic",
+        "authentic": true
+      },
+      "observed": {
+        "coverage": "ENTIRE_FILE",
+        "reason": null
+      },
+      "teaches": "A forged revocation added to a signed list after signing. The entry names this seal's certificate, so a verifier that reads the list without checking the signature condemns a good document on an attacker's say-so. The signature does not cover the forged entry, so the list is reported `unchecked` and the seal stands.",
+      "catches": "A verifier that treats an unverifiable list as authoritative. Reporting `revoked` here hands anyone who can tamper with the transport the power to withdraw trust from every seal at once; reporting `checked-clear` asserts a check made against bytes nobody vouched for."
     }
   ]
 }

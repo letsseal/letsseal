@@ -14,7 +14,7 @@ teams already run:
 
     cosign verify-blob \\
       --certificate artifact.pem \\
-      --certificate-chain letsseal-root.crt \\
+      --certificate-chain artifact.chain.pem \\
       --signature artifact.sig \\
       --certificate-identity-regexp '.*' \\
       --certificate-oidc-issuer-regexp '.*' \\

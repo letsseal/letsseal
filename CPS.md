@@ -254,6 +254,22 @@ signature by the log key, so it can be fetched once, cached, and relied upon ind
 of the transport that delivered it. Verification therefore stays available to a relying
 party working offline, and a proof continues to stand on its own.
 
+The signature is ECDSA on P-256 over SHA-256, base64 in the `signature` member, and the
+signing certificate and its chain travel in the same document as `logCert` and `logChain`,
+so a relying party needs one fetch and no separate key distribution. SPEC.md §8.5 fixes
+the bytes it covers: the tag `letsseal.revocations.v1`, then canonical JSON of `version`,
+`updated_at` and `revoked`. The signing key is the transparency log's, which already
+chains to the published root, so this adds no key material a relying party must learn
+about separately. Reference: `signing-service/translog.py` (`sign_revocations`),
+`signing-service/revocation.py` (`published`).
+
+Should the signature be unavailable when the list is served, the list is published without
+it rather than withheld. A CA that cannot reach its key can still say which certificates
+are withdrawn, and a relying party consulting an unsigned list is in the position everyone
+was in before the signature existed. What a relying party must not do is treat a list whose
+signature fails to verify as a list at all; SPEC.md §8.3 step 5 requires that be reported
+as an unchecked revocation state.
+
 **Reason codes decide how far back a revocation reaches.** This is the part of revocation
 that decides whether honest evidence survives, and it is stated here so subscribers and
 relying parties can both rely on it:

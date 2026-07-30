@@ -300,6 +300,17 @@ jobs:
           LETSSEAL_CA_DIR: ../ca/out
         run: ./.venv/bin/python test_revocation.py
 
+      # CPS §4.9 undertakes that the published revocation list carries its own
+      # integrity. This asserts the wire format SPEC.md §8.5 fixes: that the signing
+      # service and the reference verifier build identical signed bytes, that the
+      # signature survives the re-encoding between them, and that it refuses a
+      # tampered, reordered or foreign-signed list. It mints its own throwaway CA,
+      # so unlike the step above it needs no provisioned key material and runs
+      # everywhere, which a format test has to.
+      - name: The revocation list signs itself, and the verifier agrees
+        working-directory: signing-service
+        run: ./.venv/bin/python test_revocation_signature.py
+
   cli-rs:
     name: rust CLI (build, test, lint)
     runs-on: ubuntu-latest

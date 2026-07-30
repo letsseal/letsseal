@@ -1,6 +1,6 @@
 # @letsseal/sdk
 
-TypeScript client for the [Let's Seal](https://letsseal.org) signing service —
+TypeScript client for the [Let's Seal](https://letsseal.org) signing service:
 seal anything (PDFs, images, XML, email, any file, software artifacts), verify,
 and anchor on Bitcoin for free.
 
@@ -20,10 +20,10 @@ const ls = new LetsSeal({ baseUrl: "http://127.0.0.1:8081" });
 // Seal a PDF with a business certificate
 const { pdf, sha256, certCn } = await ls.seal(pdfBytes, { org: "acme" });
 
-// Verify — chains to the Let's Seal root
+// Verify: chains to the Let's Seal root
 const v = await ls.verify(pdf);      // { sealed, intact, valid, trusted, signer, sha256 }
 
-// Seal any other file, digest-only — the bytes never leave the machine
+// Seal any other file, digest-only, so the bytes never leave the machine
 await ls.sealDetachedLocal(anyBytes, "acme");     // detached CMS over its SHA-256
 
 // Seal an image with embedded C2PA Content Credentials

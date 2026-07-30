@@ -1,6 +1,6 @@
 # sealbot (Node)
 
-**Seal and timestamp anything on Bitcoin.** Prove any file existed, unaltered — one
+**Seal and timestamp anything on Bitcoin.** Prove any file existed, unaltered, in one
 command, public proof. For humans, backends, CI, and AI agents.
 
 Three core verbs (hash-only, keyless, scriptable):
@@ -13,12 +13,12 @@ sealbot verify contract.sealed.pdf          # check a sealed PDF (exit 2 if tamp
 sealbot watch  /srv/invoices --once         # anchor every new/changed file in a folder
 ```
 
-`anchor` hashes locally and sends only the 32-byte digest — the file never leaves the
+`anchor` hashes locally and sends only the 32-byte digest, so the file never leaves the
 machine. Without `--publish` nothing is registered anywhere; the local `.ots` is your proof.
 
-### Advanced — keyed signing
+### Advanced, keyed signing
 
-Sealing a PDF as a business identity (X.509 / PAdES) is a separate, keyed concern — it needs
+Sealing a PDF as a business identity (X.509 / PAdES) is a separate, keyed concern: it needs
 the signing service and a bearer token (`--token` / `SEALBOT_TOKEN`):
 
 ```bash
@@ -29,10 +29,10 @@ sealbot issue --id ci --cn "My CI" --profile code        # get a signing cert (k
 > **Migrating:** `notarize` is now `anchor --publish`; `upgrade <f>.ots` is now `verify <f>.ots`.
 > The old verbs still run (with a one-line notice) so existing scripts keep working.
 
-## `watch` — turn a folder into an always-on notary
+## `watch`, turning a folder into an always-on notary
 
 Point `sealbot` at a directory and it anchors (or seals) every new or changed file,
-skipping anything it has already recorded — the daemon form of the one-shot commands.
+skipping anything it has already recorded: the daemon form of the one-shot commands.
 
 ```bash
 sealbot watch /srv/invoices                       # poll forever, anchor new/changed files
@@ -42,7 +42,7 @@ sealbot watch ./release --mode publish --interval 30  # public proof page per ar
 ```
 
 - **Non-destructive by default.** `anchor` mode hashes each file locally (only the 32-byte
-  digest leaves the machine) and writes a sibling `<file>.ots` — the original bytes are never
+  digest leaves the machine) and writes a sibling `<file>.ots`, and the original bytes are never
   touched. This is register-in-place: the proof lives beside the file, not baked into it.
 - **Idempotent.** A `.sealbot-state.json` dotfile tracks size+mtime, so restarts and repeated
   `--once` runs never re-anchor unchanged files. Derived artifacts (`.ots`, `.sealed.pdf`) and
@@ -53,7 +53,7 @@ sealbot watch ./release --mode publish --interval 30  # public proof page per ar
   public proof page) · `seal` (PDFs only, needs `--org` and the keyed service).
 
 Run it under systemd/pm2 for a directory that's continuously notarised, or on a `--once` cron
-tick. Each `.ots` still verifies against Bitcoin with stock `ots verify <file>` — the proof
+tick. Each `.ots` still verifies against Bitcoin with stock `ots verify <file>`, and the proof
 stands on the public chain.
 
 ## Install
@@ -69,18 +69,18 @@ Requires Node ≥ 18. Point it at a service with `--api <url>` or `SEALBOT_API`
 
 - **`anchor` works on any file.** Anchoring is just `timestamp(sha256(bytes))`, so the same
   command proves the existence-and-date of software releases, datasets, audit logs, evidence,
-  model weights, backups — not only PDFs.
+  model weights, backups, not only PDFs.
 - **The open standard for sealing anything.** Bitcoin timestamping via [OpenTimestamps](https://opentimestamps.org)
   and an X.509 / PAdES seal, delivered as one thing anyone can verify: `sealbot` issues under a
   CA, exposes a friendly API, and publishes proof pages. Your `.ots` proof verifies against
-  Bitcoin with stock `ots verify` — the proof stands on the public chain.
+  Bitcoin with stock `ots verify`, and the proof stands on the public chain.
 - **Trust is self-anchored.** Authenticity comes from the published root + the public
-  transparency log + the blockchain — everything a verifier needs travels with the proof, so it
+  transparency log plus the blockchain, so everything a verifier needs travels with the proof, so it
   checks anywhere, forever.
 
 ## Exit codes
 
-`verify` returns `0` when authentic and intact, `2` when unsealed or tampered — so it slots
+`verify` returns `0` when authentic and intact, `2` when unsealed or tampered, so it slots
 straight into a CI gate:
 
 ```bash
@@ -89,7 +89,7 @@ sealbot verify build/report.sealed.pdf || exit 1
 
 ## Commands
 
-**Core** — hash-only, keyless, agent-friendly:
+**Core**: hash-only, keyless, agent-friendly:
 
 | Command | Notes |
 |---|---|
@@ -97,7 +97,7 @@ sealbot verify build/report.sealed.pdf || exit 1
 | `verify <file>` | a sealed PDF → checks seal + integrity; an `.ots` → refreshes its Bitcoin confirmation |
 | `watch <dir>` | continuously anchor / publish / seal new & changed files |
 
-**Advanced** — keyed signing (needs the signing service + `--token` / `SEALBOT_TOKEN`):
+**Advanced**: keyed signing (needs the signing service + `--token` / `SEALBOT_TOKEN`):
 
 | Command | Notes |
 |---|---|

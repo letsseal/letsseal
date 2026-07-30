@@ -166,6 +166,19 @@ def revocation_list(entries: list[tuple[Path, str, str, str]]) -> bytes:
     return (json.dumps(doc, indent=2) + "\n").encode()
 
 
+def sign_list(doc: dict, log_p12: Path) -> bytes:
+    """Attach a log-key signature to a revocation list, as SPEC.md §8.5 defines it.
+
+    Reuses the signing service's own implementation rather than restating it here, so
+    a vector cannot certify a format the product does not actually produce.
+    """
+    sys.path.insert(0, str(SIGNING))
+    from translog import sign_revocations
+    doc = dict(doc)
+    doc.update(sign_revocations(doc, str(log_p12), P12_PASS))
+    return (json.dumps(doc, indent=2) + "\n").encode()
+
+
 def unix(ts: str) -> int:
     return int(datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
 
@@ -454,6 +467,45 @@ def revocation_vectors(root_key: Path, root_crt: Path, signer: Path,
          "the distinction the report exists to draw.",
          "A verifier that collapses `checked-clear` and `unchecked` into one word, leaving a "
          "reader unable to tell a completed check from a skipped one.",
+         revocations="revocations.json", proven_time=SEALED_AT)
+
+    log_p12 = leaf("log", "Vector Transparency Log", root_key, root_crt)
+    signed_clear = sign_list(json.loads(clear.decode()), log_p12)
+    emit("016-revocation-signed",
+         {"document.pdf": valid, "revocations.json": signed_clear},
+         {**sealed_facts, "revocation": "checked-clear", "verdict": "authentic",
+          "authentic": True},
+         {"coverage": "ENTIRE_FILE", "reason": None},
+         "A list carrying its own signature, which a verifier must check rather than "
+         "trusting the transport that delivered it. The signature covers a canonical "
+         "reconstruction of the list, so re-encoding it in transit is harmless.",
+         "A verifier that ignores the signature, which leaves the whole revocation "
+         "mechanism resting on whoever served the bytes.",
+         revocations="revocations.json", proven_time=SEALED_AT)
+
+    tampered = json.loads(signed_clear.decode())
+    tampered["revoked"].append({
+        "serial": serial_of(KEYS / "signer.crt"),
+        "subject": subject_of(KEYS / "signer.crt"),
+        "reason": "key_compromise",
+        "revoked_at": REVOKED_AT,
+        "note": "forged entry, added after the list was signed",
+    })
+    emit("017-revocation-signature-invalid",
+         {"document.pdf": valid,
+          "revocations.json": (json.dumps(tampered, indent=2) + "\n").encode()},
+         {**sealed_facts, "revocation": "unchecked", "verdict": "authentic",
+          "authentic": True},
+         {"coverage": "ENTIRE_FILE", "reason": None},
+         "A forged revocation added to a signed list after signing. The entry names this "
+         "seal's certificate, so a verifier that reads the list without checking the "
+         "signature condemns a good document on an attacker's say-so. The signature does "
+         "not cover the forged entry, so the list is reported `unchecked` and the seal "
+         "stands.",
+         "A verifier that treats an unverifiable list as authoritative. Reporting `revoked` "
+         "here hands anyone who can tamper with the transport the power to withdraw trust "
+         "from every seal at once; reporting `checked-clear` asserts a check made against "
+         "bytes nobody vouched for.",
          revocations="revocations.json", proven_time=SEALED_AT)
 
 

@@ -43,10 +43,13 @@ only safe direction for a trust product.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
 from typing import Optional
+
+log = logging.getLogger(__name__)
 
 _UNCONDITIONAL = {"key_compromise", "ca_compromise", "unspecified"}
 
@@ -179,9 +182,17 @@ def status(serial: int | str) -> Optional[dict]:
     return load().get(_normalise_serial(serial))
 
 
-def published() -> dict:
+def published(sign=None) -> dict:
     """The full list as published, for the /revocations endpoint. Includes the
-    generation time so a consumer can tell a stale mirror from a current one."""
+    generation time so a consumer can tell a stale mirror from a current one.
+
+    `sign` is an optional callable taking the document and returning the members
+    that authenticate it: `signature`, `logCert` and `logChain`. Passing it in keeps
+    key material out of this module, which otherwise touches none. Signing failure
+    is not fatal: the list still publishes, unsigned, because a CA that cannot reach
+    its key should still be able to tell the world which certificates are withdrawn.
+    A verifier consulting an unsigned list is exactly the pre-signature behaviour.
+    """
     path = _revocations_path()
     try:
         with open(path) as f:
@@ -190,5 +201,10 @@ def published() -> dict:
         doc = {"version": 1, "revoked": []}
     doc.setdefault("version", 1)
     doc.setdefault("revoked", [])
+    if sign is not None:
+        try:
+            doc.update(sign(doc))
+        except Exception:
+            log.warning("revocation list published unsigned: signing failed", exc_info=True)
     doc["fetched_at"] = int(time.time())
     return doc

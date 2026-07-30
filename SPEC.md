@@ -96,9 +96,9 @@ A SEAL proof has two independent parts and one convention:
 
 | Letter | Part | Standard used | Proves |
 |--------|------|---------------|--------|
-| **S**ealed · **E**vidence | A signature by a certificate chaining to a published root CA, in the artifact's format-native form — **PAdES** embedded in PDFs, **C2PA** embedded in images/video/audio, **XML-DSig** enveloped in XML, **S/MIME** for email messages, and **detached CAdES/CMS** (a `file.sig` sidecar) for any other artifact. | PAdES / C2PA / XML-DSig / S/MIME / CAdES (ETSI EN 319 142 / 319 122; C2PA 2.x; W3C XML Signature; RFC 8551), X.509, SHA-256 | **Integrity + issuer** — the file is byte-for-byte what was sealed, and which certificate sealed it. |
-| **A**nchored · **L**edger | An OpenTimestamps proof (`.ots`) over the SHA-256 of the sealed file. | OpenTimestamps, Bitcoin | **Time** — the file existed by a given public-ledger block, on a public ledger no one controls. |
-| — | The canonical proof permalink `/d/<sha256>` and its machine-readable twin. | HTTP + JSON | **Convention** — one stable way to reference and fetch a proof. |
+| **S**ealed · **E**vidence | A signature by a certificate chaining to a published root CA, in the artifact's format-native form: **PAdES** embedded in PDFs, **C2PA** embedded in images/video/audio, **XML-DSig** enveloped in XML, **S/MIME** for email messages, and **detached CAdES/CMS** (a `file.sig` sidecar) for any other artifact. | PAdES / C2PA / XML-DSig / S/MIME / CAdES (ETSI EN 319 142 / 319 122; C2PA 2.x; W3C XML Signature; RFC 8551), X.509, SHA-256 | **Integrity + issuer**: the file is byte-for-byte what was sealed, and which certificate sealed it. |
+| **A**nchored · **L**edger | An OpenTimestamps proof (`.ots`) over the SHA-256 of the sealed file. | OpenTimestamps, Bitcoin | **Time**: the file existed by a given public-ledger block, on a public ledger no one controls. |
+| Proof convention | The canonical proof permalink `/d/<sha256>` and its machine-readable twin. | HTTP + JSON | **Convention**: one stable way to reference and fetch a proof. |
 
 The proof is **self-contained**: the seal travels inside the artifact (embedded in a
 PDF or an image) or beside it as a `.sig`, and the anchor is a small `.ots` sidecar.
@@ -116,7 +116,7 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
 
 - A conforming artifact MUST carry a signature over its bytes, in its format-native
   delivery form:
-  - **PDF — PAdES**, embedded in the file, covering the **entire file**. A signature
+  - **PDF (PAdES)**, embedded in the file, covering the **entire file**. A signature
     that covers only part of the file (content appended after signing via an
     incremental update) is **not** conformant and MUST be reported as altered.
     The signature SHOULD carry an RFC-3161 signature timestamp (**PAdES B-T**);
@@ -127,21 +127,30 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
     still existing. The levels above B-T (B-LT, B-LTA) embed chain revocation
     data, and are out of scope for an issuer that publishes no CRL or OCSP
     endpoint.
-  - **Image — C2PA (Content Credentials)**, a signed manifest embedded in the image
-    (jpeg/png/webp/tiff/gif/avif/heic), read by any C2PA-aware tool. The end-entity
-    cert MUST meet the C2PA cert profile (C2PA 2.x §14.5.1) — the SEAL `document`
+  - **Media (C2PA Content Credentials)**: a signed manifest embedded in the asset and
+    read by any C2PA-aware tool. The covered set is jpeg, png, webp, tiff, gif, avif,
+    heic, heif and dng for images; mp4 and quicktime for video; and mp3, flac and mp4
+    audio for audio. A format belongs in that set only where the manifest's hard binding
+    has been shown to detect a change to the payload, rather than merely to embed: a
+    container that accepts a manifest while leaving edits undetected would carry a seal
+    that means nothing, which is worse than declining the format. That is why avi and wav
+    are excluded although a manifest embeds in both, why webm is absent while tooling
+    lacks support for it, and why PDF stays with PAdES rather than moving here. An
+    implementation MAY cover further formats, and MUST apply the same test before it does.
+    The end-entity
+    cert MUST meet the C2PA cert profile (C2PA 2.x §14.5.1); the SEAL `document`
     profile (EC P-256, KU digitalSignature, EKU emailProtection) satisfies it. A
-    conforming verifier configures the published SEAL root as a C2PA trust anchor;
+    conforming verifier MUST configure the published SEAL root as a C2PA trust anchor;
     a manifest that validates and chains to it is trusted, one that only validates
-    is `Valid` but untrusted. No RFC-3161 timestamp is embedded — time is the anchor.
-  - **XML — XML-DSig**, an enveloped W3C XML Signature embedded in the document, with
+    is `Valid` but untrusted. No RFC-3161 timestamp is embedded; time is the anchor.
+  - **XML (XML-DSig)**, an enveloped W3C XML Signature embedded in the document, with
     the signer's certificate chain in `KeyInfo`, read by any XML Signature tool. The
     signature is over the document with the signature element itself excluded (enveloped
-    transform + C14N). A conforming verifier pins the published SEAL root as the trust
+    transform + C14N). A conforming verifier MUST pin the published SEAL root as the trust
     anchor; a signature that validates and chains to it is trusted, one that only
     validates is valid but untrusted. It verifies with stock tooling and no Let's Seal
     server, e.g. `xmlsec1 --verify --trusted-pem letsseal-root.crt signed.xml`.
-  - **Email message — S/MIME**, a `multipart/signed` envelope (RFC 8551) carrying a
+  - **Email message (S/MIME)**, a `multipart/signed` envelope (RFC 8551) carrying a
     detached CMS signature over the message, with the signer's chain embedded. Same CMS
     family as the detached seal, in the form mail clients speak. It verifies with stock
     tooling and no Let's Seal server:
@@ -151,10 +160,11 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
     ```
 
     A signature that validates and chains to the pinned root is trusted; one that only
-    validates is valid but untrusted. Note: a desktop mail client will show the
-    signature present but untrusted until the published root is imported into its trust
-    store — the same pinned-root model as every other SEAL form (see §2 trailing note).
-  - **Any other file — detached CAdES/CMS**, a `file.sig` sidecar signing the file's
+    validates is valid but untrusted. A verifier presenting a result inside a desktop
+    mail client MUST describe the signature as present but untrusted until the published
+    root has been imported into that client's trust store, which is the same pinned-root
+    model as every other SEAL form (see the trailing note to this section).
+  - **Any other file (detached CAdES/CMS)**, a `file.sig` sidecar signing the file's
     SHA-256. The signer's certificate chain is embedded in the signature, so it is
     self-contained. It verifies with stock tooling and no Let's Seal server:
 
@@ -166,7 +176,7 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
     canonicalisation (LF → CRLF) to the content before hashing. The seal is over
     the file's raw SHA-256, so the raw bytes must be hashed exactly as signed.
 - The signing certificate MUST chain to a **published SEAL root**. The root is not in
-  any OS, Adobe, or mail-client trust store *by design* — trust is pinned to the
+  any OS, Adobe, or mail-client trust store *by design*: trust is pinned to the
   published root, not granted by a vendor trust list.
 - Verifiers pin the root by its SHA-256 fingerprint. The Let's Seal root:
 
@@ -176,11 +186,42 @@ email (§7). The core seal + anchor stand alone; the profiles are additive.
   ```
   Download: <https://letsseal.org/api/root-ca> · published at <https://letsseal.org/trust>
 
-- The seal asserts **integrity and the sealing certificate — not real-world identity.**
+- **A verdict MUST be reachable from the artifact, the pinned root and public standards
+  alone.** A verifier MUST NOT require a network call to the issuer, or to any party named
+  in the proof, in order to decide whether an artifact is SEAL-authentic. Consulting the
+  revocation list (§8.3 step 5) and the anchor (§3) are the two lookups a verifier makes,
+  and §8.3 step 5 requires that a list out of reach be reported as `unchecked` rather than
+  block the verdict. This is what the per-format examples above mean by verifying with
+  stock tooling and no Let's Seal server, and it is the property that lets a proof outlive
+  the service that issued it.
+
+- **Only the root is a trust anchor.** A deployment MAY place one or more intermediate
+  CAs between the root and the signing certificate, and the Let's Seal CA does: an
+  Intermediate CA signs subscriber certificates and a separately constrained Identity CA
+  signs the certificates of §7, both directly under the offline root (CPS §1.3.1). An
+  intermediate is a link in the path and MUST NOT be pinned as a trust anchor in its own
+  right. A verifier handed a bundle of certificates to pin MUST take only the self-signed
+  ones as anchors and treat the rest as path-building material: pinning an intermediate
+  stops the path there, and the root's signature over that intermediate is never checked.
+
+- **The path MUST be constructible from what the artifact carries.** An issuer MUST make
+  every certificate between the signing certificate and the root available to the
+  verifier: embedded in the signature for the delivery forms of §2, all of which carry
+  certificates, and published beside the artifact for the forms of §5 that carry none,
+  where the chain travels as a `.chain.pem` sidecar. A verifier MUST NOT be required to
+  obtain an intermediate out of band, and MUST accept a chain supplied beside the
+  artifact for the forms that need one.
+
+  A verifier MAY additionally hold known intermediates as path-building material, and the
+  reference implementation does. That is a convenience for a seal whose chain arrives
+  incomplete, and it changes nothing about trust: the anchor is still the pinned root, and
+  a path that reaches an intermediate and stops is not trusted.
+
+- The seal asserts **integrity and the sealing certificate, not real-world identity.**
   Conforming presentations MUST NOT imply notarisation or identity verification.
 - **Issuer identity lives in the certificate's `subjectAltName`, not its subject name.**
   The subject `CN`/`O` is a human-readable label chosen by the sealing account and is
-  **not** verified — a verifier MUST NOT treat it as an authenticated identity. An
+  **not** verified, and a verifier MUST NOT treat it as an authenticated identity. An
   organisation's authenticated identity is a domain it has proven control of
   (RFC 8555-style DNS or controller-email validation), carried as a `dNSName` SAN on
   the signing certificate. Because a domain is globally unique, it disambiguates
@@ -233,9 +274,14 @@ manufacture a claim out of a tooling problem.
 
 ## 4. The proof convention
 
-- Every proof has a canonical permalink: **`/d/<sha256>`** (the lowercase hex SHA-256 of
-  the sealed file), and a machine-readable twin at **`/api/v1/documents/<sha256>`**
-  returning at least: `sha256`, `sealed`, `issuer`, `anchor` (state + block), `proof`.
+- Every proof MUST have a canonical permalink: **`/d/<sha256>`**, and a machine-readable
+  twin at **`/api/v1/documents/<sha256>`** returning at least: `sha256`, `sealed`,
+  `issuer`, `anchor` (state + block), `proof`.
+- `<sha256>` is the SHA-256 of the sealed file in **lowercase hexadecimal**, and an
+  implementation MUST use that form wherever a digest appears as an identifier or is
+  displayed. A digest is compared as a string more often than as bytes, so one
+  implementation emitting uppercase would make two records of the same artifact fail to
+  match on a lookup that never checks the bytes at all.
 - A conforming host MAY expose these under its own domain; the *shape* is what conforms.
 
 ---
@@ -246,7 +292,7 @@ SEAL seals build artifacts, container images, and machine-readable claims about 
 they verify with **stock cosign**, issued under the published SEAL root, a `codeSigning`
 certificate, and the SEAL transparency log.
 
-- **Blob signature** — a raw ECDSA-P256 signature over an artifact's SHA-256 plus the
+- **Blob signature**: a raw ECDSA-P256 signature over an artifact's SHA-256 plus the
   signer's `codeSigning` leaf, in cosign's flat signature+certificate form.
   Digest-only. Verifies with stock cosign:
 
@@ -255,10 +301,10 @@ certificate, and the SEAL transparency log.
     --signature a.sig --certificate-identity-regexp '.*' \
     --certificate-oidc-issuer-regexp '.*' --insecure-ignore-tlog <artifact>
   ```
-- **Container image** — a cosign "simple signing" payload signed and pushed as an OCI
+- **Container image**: a cosign "simple signing" payload signed and pushed as an OCI
   image tagged `sha256-<digest>.sig` next to the image, so `cosign verify <image>`
   accepts it.
-- **Attestation (SBOM / provenance)** — an in-toto v1 statement (subject = artifact
+- **Attestation (SBOM / provenance)**: an in-toto v1 statement (subject = artifact
   SHA-256) in a DSSE envelope, over SPDX, CycloneDX, or SLSA provenance predicates:
 
   ```
@@ -288,6 +334,24 @@ log, so mis-issuance is detectable by anyone.
   ```
 
   `v` is the payload version and is `1`. Every member is REQUIRED.
+- **A log MAY carry a second leaf shape, and a verifier MUST expect one.** Where a
+  deployment offers the supply-chain profile of §5, the entries it appends for those
+  artifacts are the exact canonicalised Rekor entry bodies that cosign computes, a
+  `hashedrekord` for a blob signature or a `dsse` for an attestation, taken as the leaf
+  payload verbatim. That is not an alternative encoding of the object above: it is a
+  different payload, and it is used so that stock cosign recomputes the same leaf hash
+  from the entry it holds and its inclusion proof checks without a SEAL-specific tool.
+
+  A verifier reading the whole log therefore meets payloads of both shapes and MUST NOT
+  assume every leaf parses as the object above. The tree arithmetic is unaffected, because
+  a leaf hash is `SHA-256(0x00 ‖ payload)` whatever the payload is, and an inclusion proof
+  is checked against the leaf hash rather than against the payload's meaning. A verifier
+  that needs to read a payload SHOULD select on its shape rather than assume, and a
+  verifier that only checks inclusion needs neither.
+
+  Both shapes commit to one artifact digest, and the two are distinct entries: a blob
+  signature and an attestation over the same artifact produce different bodies and so
+  occupy different leaves.
 - **Canonicalisation is by fixed member order, not by sorting.** A conforming
   implementation emits the members in the order given above, with no whitespace between
   tokens, encoded as UTF-8. Because the order is fixed by this document rather than
@@ -297,8 +361,11 @@ log, so mis-issuance is detectable by anyone.
   serialised as a bare integer number of milliseconds since the Unix epoch.
 - The head is a **Signed Tree Head (STH)** `{treeSize, rootHash, timestamp}`, signed by
   a dedicated log key whose certificate chains to the SEAL root, over the canonical
-  bytes `letsseal.sth.v1\n<treeSize>\n<rootHex>\n<tsMs>\n`. The STH is itself
-  anchored by the mechanism of §3, pinning the log's history to a public clock outside the log operator's control.
+  bytes `letsseal.sth.v1\n<treeSize>\n<rootHex>\n<tsMs>\n`. A log MUST anchor its STH by
+  the mechanism of §3, which pins the log's history to a public clock outside the log
+  operator's control. A head MAY be served before its anchor has landed, and where one is,
+  the head's own anchor state MUST be reported from the vocabulary of §3.1, so a reader can
+  tell a head the ledger has witnessed from one that is so far only asserted.
 - The STH signature is **ECDSA on P-256 over SHA-256** of those bytes, DER-encoded and
   carried as base64. It is served with the log certificate and its chain as PEM, so an
   STH is self-contained: a verifier checks the signature against the certificate, and the
@@ -312,7 +379,7 @@ log, so mis-issuance is detectable by anyone.
   without them.
 - Anyone verifies **inclusion** with an audit proof at `/api/log/proof?sha256=<hex>`
   against an STH of the same `treeSize`, and **consistency** (append-only, never
-  rewritten) with `/api/log/consistency?first=&second=` — standard RFC-6962 math, no
+  rewritten) with `/api/log/consistency?first=&second=`, which is standard RFC-6962 math, no
   server trust.
 
 The SEAL log is an independent, third-party-checkable record of every seal, its history
@@ -321,7 +388,7 @@ pinned to Bitcoin.
 ## 7. Identity profile (provider-verified email attribution)
 
 Optionally, a seal MAY bind an email address that a **third-party identity provider
-verified at seal time** — attributing a signature to a controllable channel
+verified at seal time**: attributing a signature to a controllable channel
 **without SEAL asserting real-world identity itself.**
 
 - The signer proves control of an email via a standard **OIDC** provider (e.g. Google)
@@ -339,7 +406,7 @@ verified at seal time** — attributing a signature to a controllable channel
     --certificate-oidc-issuer-regexp '.*' --insecure-ignore-tlog <artifact>
   ```
 - **Boundary (normative):** this records that *a provider* verified control of that
-  email at that moment — attribution by verified channel, **not** notarisation and
+  email at that moment, attribution by verified channel, **not** notarisation and
   **not** a claim that SEAL verified the person. Conforming presentations MUST say
   "provider-verified email," never "verified identity."
 
@@ -377,6 +444,13 @@ sentence that fits only PDFs:
 | XML (XML-DSig) | The signature covers the document with the signature element itself excluded, as the enveloped transform requires. |
 | Image (C2PA) | The manifest's hard binding covers the asset as C2PA defines it, with the manifest store excluded. |
 | Email (S/MIME) | The signature covers the signed part of the message in full. |
+| Supply-chain blob signature (§5) | The signature is over the artifact's digest, so completeness follows from `intact`, as for any detached form. |
+| Supply-chain attestation (§5, DSSE) | The signature covers the DSSE pre-authentication encoding in full, and the statement inside it names the artifact by digest, so completeness follows from `intact` for the artifact the statement is about. |
+
+The supply-chain forms of §5 are listed because a verifier meets them and needs the rule,
+not because they are a different rule: every one of them signs over a digest, so
+`entire_file` follows from `intact` and there is no separate coverage question to answer.
+A form whose signature commits to a digest of the whole artifact cannot cover part of it.
 
 ### 8.3 Steps
 
@@ -415,6 +489,15 @@ sentence that fits only PDFs:
    revocation unchecked` has told the truth. Reporting `authentic` while never looking
    has not.
 
+   **The list authenticates itself (§8.5).** Where the list carries a `signature`, a
+   verifier MUST check it, and MUST treat a list whose signature does not verify, or
+   whose signing certificate does not chain to the pinned root, as **unchecked** rather
+   than as a list. That is the honest state: the verifier has no answer it can stand
+   behind, and neither reporting checked-clear from bytes nobody vouched for nor
+   reporting revoked from them is defensible. A list carrying no signature is consulted
+   as it stands, so an issuer that publishes none is still consulted and a verifier
+   still reports what it found.
+
 6. **Verdict.** Report exactly one verdict from §8.4.
 
 ### 8.4 Verdicts
@@ -439,12 +522,56 @@ The anchor state and the revocation state are reported alongside the verdict rat
 folded into it, so that `authentic, anchor pending` and `authentic, revocation unchecked`
 are both sayable.
 
+### 8.5 The published revocation list
+
+The list an issuer publishes for §8.3 step 5 is a JSON object carrying `version` (the
+integer `1`), `updated_at` (a UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ`), and `revoked`, an
+array ordered by revocation time. Each entry carries exactly `serial` (lowercase
+hexadecimal), `subject`, `reason`, `revoked_at` and `note`; a `note` an issuer has nothing
+to put in is the empty string. The reason vocabulary and what each reason reaches are the
+issuing CA's to state in its policy, and the Let's Seal CA states them in CPS §4.9.
+
+An issuer SHOULD sign the list, and a verifier MUST check the signature where one is
+present (§8.3 step 5). The signature is carried in the document itself, so that fetching
+the list is enough to check it:
+
+| Member | Meaning |
+|---|---|
+| `signature` | Base64 of a DER ECDSA-on-P-256 signature over SHA-256 of the bytes below |
+| `logCert` | The signing certificate, PEM |
+| `logChain` | The certificates between it and the pinned root, PEM |
+
+The signed bytes are the ASCII tag `letsseal.revocations.v1`, a newline, then canonical
+JSON of exactly three members in this order:
+
+```
+{"version":1,"updated_at":"<timestamp>","revoked":[{"serial":"<hex>","subject":"<dn>","reason":"<reason>","revoked_at":"<timestamp>","note":"<text>"}]}
+```
+
+Canonical JSON is as the Conventions define it: members in the order given here, no
+insignificant whitespace, UTF-8. The order is fixed by this document rather than derived
+from the member names, so an implementation that sorts computes different bytes and every
+signature fails.
+
+**The signature covers a reconstruction, not the bytes received.** A verifier parses the
+document, rebuilds the bytes above from the values it read, and checks the signature over
+the result. That is what lets the list survive being re-encoded by a proxy, a cache or an
+archiving tool, and it is why members outside the three signed ones may be added freely: a
+publisher MAY include `fetched_at`, and a tool that copies the list into an evidence
+bundle MAY wrap it, without invalidating anything. The three signed members, their order,
+and the order of the entries within `revoked` are what a signature commits to; reordering
+the entries breaks it.
+
+A verifier MUST establish that `logCert` chains to the same pinned root as a seal (§2). A
+valid signature from a certificate outside it establishes only that somebody signed a
+list.
+
 ---
 
 ## 9. Trust model
 
 - **Self-anchored.** Verification depends on the published root + public standards + the
-  public ledger — not on automatic vendor trust, and not on Let's Seal existing.
+  public ledger, not on automatic vendor trust, and not on Let's Seal existing.
 - **No identity claim.** SEAL proves *integrity + time*. Attribution of a signing party
   by control-of-channel (e.g. an emailed signing link) is a separate, clearly-labelled
   layer and is **not** identity verification.
@@ -453,7 +580,7 @@ are both sayable.
 
 ## 10. Reference implementation
 
-- **Verifier:** [`spec/verify.py`](spec/verify.py) — a standalone reference verifier. It
+- **Verifier:** [`spec/verify.py`](spec/verify.py), a standalone reference verifier. It
   pins a published root, establishes the four facts of §8.1 over an embedded PAdES seal or
   a detached CAdES sidecar, runs `ots verify` for the anchor and reports its state from
   §3.1, judges certificate validity at the anchored time where one is confirmed, and
@@ -468,18 +595,27 @@ are both sayable.
   deployment and the conformance vectors in `spec/vectors/` both need. The C2PA, XML-DSig
   and S/MIME forms verify with the stock third-party tools named in §2.
 
+- **Conformance vectors:** [`spec/vectors/`](spec/vectors/) publishes sealed artifacts
+  paired with the verdict a conforming verifier reports for each, with the trust anchor to
+  pin and a manifest naming the required result. An implementation claiming conformance
+  MUST reproduce that result for every vector covering a format it claims, and MUST state
+  which vectors it ran. A conformance claim nobody can reproduce is a statement about
+  intent rather than about behaviour, and the negative vectors are the ones that carry the
+  weight: reaching a passing verdict is easy, and refusing correctly is the part §8 exists
+  for.
+
 - **Sealer + service:** the Let's Seal signing + verification service ([`signing-service/`],
-  Apache-2.0) implements §2–§8 end-to-end.
+  Apache-2.0) implements §2 to §8 end-to-end.
 - **Supply-chain, identity, and log profiles** verify with third-party tools directly:
-  stock `cosign` (§5, §7) and standard RFC-6962 audit-proof checking (§6) — no Let's
+  stock `cosign` (§5, §7) and standard RFC-6962 audit-proof checking (§6), with no Let's
   Seal verifier required.
 
-The core verification method in §8 is intentionally small — a standard PAdES/X.509
+The core verification method in §8 is intentionally small: a standard PAdES/X.509
 validator plus the stock OpenTimestamps client is enough to verify a core SEAL proof.
 
 ## 11. Versioning
 
-This is **Version 1.1** — Version 1 (PDF/PAdES + OpenTimestamps + the verification
+This is **Version 1.1**. Version 1 (PDF/PAdES + OpenTimestamps + the verification
 convention) plus additive profiles for the supply chain (§5), a transparency log (§6),
 and provider-verified identity (§7); no change to Version 1 conformance. Changes that
 alter conformance will bump the version; the profile is expected to stabilise through
@@ -491,7 +627,7 @@ real use before any formal standardisation.
 open standard: you may build tools that seal or verify to it, for any purpose,
 commercial or not, with no fee, membership, or permission.
 
-- **The specification** (this document) is licensed CC-BY-4.0 — reuse it, quote it,
+- **The specification** (this document) is licensed CC-BY-4.0: reuse it, quote it,
   translate it, with attribution.
 - **The reference implementation** (the Let's Seal signing service, CLI, and SDKs) is
   licensed Apache-2.0, which includes an express patent grant to every implementer.

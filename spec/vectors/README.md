@@ -59,6 +59,8 @@ records what the reference verifier says today, for information.
 | 013-revoked-intermediate | the issuing CA revoked, the signer itself unlisted | revoked, unrecognised |
 | 014-revocation-unreachable | the list could not be fetched | unchecked, authentic |
 | 015-revocation-clear | the list was read and reaches nothing here | checked-clear, authentic |
+| 016-revocation-signed | a list carrying its own log-key signature | checked-clear, authentic |
+| 017-revocation-signature-invalid | a forged revocation added to a signed list | unchecked, authentic |
 
 **003 is the one to get right.** A cryptographically valid signature whose
 certificate chains somewhere else is the forgery vector SPEC.md section 8 calls
@@ -89,6 +91,20 @@ key rotation. All three carry the same certificate and the same revocation entry
 009 clears because a proven moment places the seal before the retirement; 010 is
 refused because the proven moment falls after it; 011 is refused because there is no
 proven moment, so the claim that the seal came first rests on nothing.
+
+**017 is the one that decides whether the mechanism is worth anything.** The list is
+signed, and a forged entry naming this seal's certificate has been appended after
+signing. A verifier that reads the list without checking the signature finds a
+matching revocation and condemns a perfectly good document, which means anyone able
+to interfere with the bytes on the way can revoke any seal they like. The signature
+does not cover the forged entry, so a conforming verifier reports `unchecked` and
+the seal stands. 016 is its pair: a signed list that verifies, so checking the
+signature does not cost you the ordinary case.
+
+Note what 017 must not do either. Reporting `checked-clear` would assert a check
+made against bytes nobody vouched for. Reporting `revoked` is the attack succeeding.
+`unchecked` is the only honest answer, and it is the state SPEC.md §8.3 step 5
+requires.
 
 ### Proven time, and the one input you must not take on trust
 

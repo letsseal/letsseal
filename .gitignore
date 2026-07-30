@@ -35,8 +35,12 @@ uploads/
 .env.local
 /tmp/
 
-# operator-only mirror-sync tooling (never ships)
-scripts/mirror/
+# Operator-only mirror-sync tooling. Tracked here, in the private repo, so it has
+# history and survives a lost machine. It never reaches the public mirror, and that
+# is enforced where it can actually be checked: `scripts` is in the sync script's
+# WITHHOLD list, and its own `held` gate counts any withheld path appearing in a
+# public commit and refuses to push while the count is above zero. Ignoring the
+# directory here only ever kept it out of the backup.
 
 # Local test scratch: adversarial cert fixtures + audit notes (never commit).
 /s.p7

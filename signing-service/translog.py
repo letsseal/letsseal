@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 
 from cryptography.hazmat.primitives import hashes
@@ -134,3 +135,72 @@ def sign_set(body_b64: str, integrated_time: int, log_index: int, p12_path: str,
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     sig = key.sign(canonical, ec.ECDSA(hashes.SHA256()))
     return {"set_b64": base64.b64encode(sig).decode(), "log_id_hex": log_id_hex}
+
+
+
+_REVOCATIONS_TAG = b"letsseal.revocations.v1\n"
+
+_REV_DOC_MEMBERS = ("version", "updated_at", "revoked")
+_REV_ENTRY_MEMBERS = ("serial", "subject", "reason", "revoked_at", "note")
+
+_rev_sig_cache: dict[str, dict] = {}
+
+
+def revocations_bytes(doc: dict) -> bytes:
+    """The exact byte string a revocation-list signature covers.
+
+    `letsseal.revocations.v1\\n` followed by canonical JSON of `version`,
+    `updated_at` and `revoked`, in that order, with each entry carrying `serial`,
+    `subject`, `reason`, `revoked_at` and `note` in that order and nothing else.
+
+    Excluded on purpose: `fetched_at`, which is stamped per request and would make
+    every response a different document, and the signature fields themselves. The
+    entry order is part of what is signed, so reordering the list breaks the
+    signature; CONFORMANCE C-39 requires that order be by revocation time.
+    """
+    entries = []
+    for e in doc.get("revoked") or []:
+        entries.append({k: str(e.get(k, "")) for k in _REV_ENTRY_MEMBERS})
+    body = {
+        "version": int(doc.get("version", 1)),
+        "updated_at": str(doc.get("updated_at", "")),
+        "revoked": entries,
+    }
+    assert tuple(body) == _REV_DOC_MEMBERS
+    canonical = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+    return _REVOCATIONS_TAG + canonical.encode("utf-8")
+
+
+def sign_revocations(doc: dict, p12_path: str, p12_password: str) -> dict:
+    """Sign a revocation list with the log key. Returns the members to publish
+    alongside it: `signature` (base64 DER ECDSA P-256 over SHA-256), `logCert` and
+    `logChain` (PEM), so the list is self-contained and checkable offline.
+
+    Cached on the preimage digest. ECDSA is randomised, so re-signing unchanged
+    content would hand every caller a different signature for the same list and
+    make the document look like it kept changing when it had not.
+    """
+    preimage = revocations_bytes(doc)
+    try:
+        st = os.stat(p12_path)
+        key_id = f"{p12_path}:{st.st_mtime_ns}:{st.st_size}"
+    except OSError:
+        key_id = p12_path
+    digest = f"{key_id}:{hashlib.sha256(preimage).hexdigest()}"
+    hit = _rev_sig_cache.get(digest)
+    if hit is not None:
+        return dict(hit)
+
+    key, cert = _load_log_key(p12_path, p12_password)
+    with open(p12_path, "rb") as f:
+        _k, _c, extras = pkcs12.load_key_and_certificates(f.read(), p12_password.encode("utf-8"))
+    sig = key.sign(preimage, ec.ECDSA(hashes.SHA256()))
+    out = {
+        "signature": base64.b64encode(sig).decode(),
+        "logCert": cert.public_bytes(Encoding.PEM).decode(),
+        "logChain": "".join(c.public_bytes(Encoding.PEM).decode() for c in (extras or [])),
+    }
+    for k in [k for k in _rev_sig_cache if k.startswith(f"{key_id}:")]:
+        del _rev_sig_cache[k]
+    _rev_sig_cache[digest] = dict(out)
+    return out

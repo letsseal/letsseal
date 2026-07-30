@@ -335,6 +335,26 @@ extended key usage, which issues the short-lived certificates of the identity pr
 ({{identity-profile}}). Holding the online issuing key in a separate, constrained
 intermediate bounds the consequences of its compromise to the certificates it can mint.
 
+An intermediate is a link in a certification path and MUST NOT be pinned as a trust
+anchor in its own right. Where a verifier is given a bundle of certificates to pin, it
+MUST take the self-signed certificates in that bundle as anchors and treat the remainder
+as path-building material. Pinning an intermediate stops path building at that
+intermediate, so the root's signature over it is never checked and a certificate the root
+never authorised validates on the intermediate's authority alone. A bundle carrying both
+a root and the intermediates beneath it is the ordinary way to distribute a trust
+configuration, which is why the rule is stated rather than left to be inferred.
+
+A verifier MUST be able to build the path from the artifact and the pinned root alone. An
+implementation MUST therefore make every certificate between the signing certificate and
+the root available with the artifact: carried inside the signature for the delivery forms
+of {{the-seal}}, each of which carries certificates, and published beside the artifact for
+the supply-chain forms of {{supply-chain}}, whose signatures carry none and whose chain
+travels as a separate file. An implementation that can verify a seal only after an
+intermediate has been configured out of band does not meet this requirement, because the
+relying party would then depend on a distribution channel the proof does not describe. A
+verifier MAY hold known intermediates as additional path-building material, which is a
+convenience for a chain that arrives incomplete and confers no trust of its own.
+
 Certificate profiles are as follows.
 
 | Profile | Basic constraints | Key usage | Extended key usage |
@@ -429,12 +449,17 @@ OCSP responders. This profile publishes revocation as a list at a stable locatio
 ## Images and time-based media: C2PA
 
 A sealed image, video or audio file MUST carry a C2PA manifest {{C2PA}} embedded in the
-file, signed by a certificate meeting the C2PA end-entity certificate profile. The
+file, signed by a certificate meeting the C2PA end-entity certificate profile. A format
+belongs in the covered set only where the manifest's hard binding has been shown to detect
+a change to the payload, rather than merely to embed into the container: a container that
+accepts a manifest while leaving edits undetected would carry a seal asserting nothing,
+which is worse for a relying party than declining the format outright. An implementation
+states the set it covers and applies that test before extending it. The
 `document` profile in {{trust-anchor}} satisfies that profile, since it is an EC P-256
 key with key usage `digitalSignature` and extended key usage `emailProtection`, which is
 in the C2PA default set.
 
-A conforming verifier configures the pinned root as a C2PA trust anchor. A manifest that
+A conforming verifier MUST configure the pinned root as a C2PA trust anchor. A manifest that
 validates and chains to that anchor is trusted. A manifest that validates under some
 other certificate is valid and untrusted, and {{verdicts}} decides the outcome.
 
@@ -487,7 +512,7 @@ verifier is built on a general S/MIME implementation, it MUST disable text
 canonicalisation of the content, since converting line endings before hashing would
 produce a digest other than the one signed.
 
-## Software artifacts: supply-chain profile
+## Software artifacts: supply-chain profile {#supply-chain}
 
 An implementation MAY offer a supply-chain profile, whose artifacts are verifiable with
 stock sigstore tooling {{COSIGN}} under the pinned root and a certificate of the `code`
@@ -676,6 +701,14 @@ An implementation offering the log MUST serve the Signed Tree Head as a JSON obj
 : the anchor state of the head itself, from the vocabulary of {{anchor-states}}, since a
   head carrying a ledger commitment is what {{log-misbehaviour}} turns on.
 
+A log MUST anchor its Signed Tree Heads by the mechanism of {{the-anchor}}, which pins the
+log's history to a clock outside the log operator's control. A log MAY serve a head before
+its anchor has landed, and where it does, it MUST report that head's own anchor state from
+the vocabulary of {{anchor-states}}, so that a relying party can distinguish a head the
+ledger has witnessed from one that is so far only asserted. Without the distinction a log
+operator could rewrite history and choose the time the rewrite appears to have happened,
+which is the failure {{log-misbehaviour}} exists to bound.
+
 The three signed values appear in the object in the same form the signature covers, so a
 verifier reconstructs the signed byte string from `treeSize`, `rootHash` and `timestamp`
 and checks the signature against it. Serving the certificate and the chain in the same
@@ -741,12 +774,17 @@ commitment rather than the state reported for it.
 
 # The Proof Convention {#the-proof-convention}
 
-Every proof has a canonical permalink of the form `/d/<sha256>`, where `<sha256>` is the
-lowercase hexadecimal SHA-256 digest of the sealed artifact, and a machine-readable twin
-at `/api/v1/documents/<sha256>` returning a JSON object {{RFC8259}} carrying at least the
+Every proof MUST have a canonical permalink of the form `/d/<sha256>`, where `<sha256>` is
+the SHA-256 digest of the sealed artifact in lowercase hexadecimal, and a machine-readable
+twin at `/api/v1/documents/<sha256>` returning a JSON object {{RFC8259}} carrying at least the
 members `sha256`, `sealed`, `issuer`, `anchor`, and `proof`, where `anchor` is an object
 carrying at least the anchor's state and, where the anchor is confirmed, its ledger
 position.
+
+An implementation MUST use the lowercase hexadecimal form of a digest wherever a digest
+identifies an artifact or is displayed. A digest is compared as a string far more often
+than as octets, so an implementation emitting uppercase would make two records of the same
+artifact fail to match on a lookup that never examines the octets at all.
 
 A conforming host MAY expose these paths under its own domain. The shape of the
 convention is what conforms, and addressing a proof by digest is what allows the
@@ -766,12 +804,43 @@ last written, as a UTC timestamp) and `revoked` (an array of entries). Each entr
 distinguished name; `reason`, one of the codes below; `revoked_at`, the time of revocation
 as a UTC timestamp; and `note`, an optional free-text string.
 
-Where the list is signed, the signature covers the exact bytes served, byte for byte and
-with no canonicalisation applied, and is made with the log key of {{sth}} using ECDSA with
-SHA-256 in DER encoding, base64 encoded {{RFC4648}}. The signature and the signing
-certificate's chain are published beside the list, so that a cached copy is
-self-contained, and a verifier checks the signing key against the pinned Log ID of
-{{log-id}} in the same way it checks a Signed Tree Head.
+## The signature over the list {#revocation-list}
+
+Where the list is signed, the signature is made with the log key of {{sth}} using ECDSA
+with SHA-256 in DER encoding, base64 encoded {{RFC4648}}. It is carried in the document
+itself, as `signature`, with the signing certificate as `logCert` and the certificates
+between it and the trust anchor as `logChain`, so that one fetch yields everything the
+check needs and a cached copy stays self-contained.
+
+The signature covers a reconstruction of the list rather than the bytes received. A
+verifier parses the document, rebuilds the byte string below from the values it read, and
+checks the signature over that. The bytes are the ASCII tag `letsseal.revocations.v1`, a
+newline, then canonical JSON of exactly three members in the order shown:
+
+~~~
+{"version":1,"updated_at":"TS","revoked":[{"serial":"HEX",
+"subject":"DN","reason":"REASON","revoked_at":"TS","note":"TEXT"}]}
+~~~
+
+The line break above is presentational; the canonical form carries no insignificant
+whitespace. Canonical JSON here means the members in the order given, UTF-8 encoded, with
+that order fixed by this document rather than derived from the member names, so an
+implementation that sorts computes different bytes and every signature fails.
+
+Signing a reconstruction rather than the octets on the wire is what makes the signature
+survivable. A published list is re-encoded by whatever serves, proxies, caches or archives
+it, and a publisher may stamp a per-request member such as a fetch time, so a signature
+over the octets received would be broken before it reached anyone. Members outside the
+three signed ones may therefore be added freely without invalidating anything, and a tool
+that copies the list into an evidence bundle may wrap it. What a signature commits to is
+those three members, their order, and the order of the entries within `revoked`;
+reordering the entries breaks it.
+
+A verifier MUST establish that `logCert` chains to the same trust anchor it pins for a
+seal ({{trust-anchor}}). A verifier that already pins the Log ID of {{log-id}} MAY
+additionally confirm the signing key against it, as it would for a Signed Tree Head. A
+valid signature from a certificate outside the pinned anchor establishes only that
+somebody signed a list.
 
 The reason code decides how far back the withdrawal of trust reaches. This is the part of
 revocation that decides whether honest evidence survives, and a verifier MUST apply it as
@@ -874,6 +943,13 @@ delivery form rather than as one sentence that fits the PDF form alone:
 | XML (XML Signature) | The signature covers the document with the signature element itself excluded, as the enveloped transform requires. |
 | Image (C2PA) | The manifest's hard binding covers the asset as {{C2PA}} defines it, with the manifest store excluded. |
 | Email (S/MIME) | The signature covers the signed part of the message in full. |
+| Supply-chain blob signature ({{supply-chain}}) | The signature is made over the artifact's digest, so completeness follows from `intact`. |
+| Supply-chain attestation ({{supply-chain}}, DSSE) | The signature covers the pre-authentication encoding in full, and the statement it carries names the artifact by digest, so completeness follows from `intact` for that artifact. |
+
+The supply-chain forms appear in the table because a verifier meets them and should not
+have to derive the answer, not because they follow a different rule. Each of them signs
+over a digest, and a signature committing to a digest of the whole artifact cannot cover
+part of it.
 
 A verifier MUST evaluate `entire_file` for every form whose underlying format permits a
 signature to cover part of the artifact.
@@ -929,6 +1005,15 @@ A verifier that cannot reach the list MUST report the revocation state as `unche
 Offline verification is a property worth keeping, and a verifier reporting `authentic,
 revocation unchecked` has told the truth about what it did. A verifier reporting
 `authentic` while never looking has not.
+
+Where the list carries a signature ({{revocation-list}}), a verifier MUST check it, and
+MUST establish that the signing certificate chains to the same trust anchor it pins for a
+seal. A list whose signature does not verify, or whose signing certificate does not chain
+to that anchor, MUST be reported as `unchecked` rather than read as a list. That is the
+only defensible state: the verifier holds no answer it can stand behind, and neither
+reading `checked-clear` from bytes nobody vouched for nor reading `revoked` from them is
+sound, the latter handing anyone able to tamper with the transport the power to withdraw
+trust from every seal at once. A list carrying no signature is consulted as it stands.
 
 ## Verdicts {#verdicts}
 
@@ -1280,7 +1365,11 @@ The revocation cases cover the step of {{verify-revocation}}: a certificate revo
 compromise, an orderly retirement with the seal proven to precede it, the same retirement
 with the seal proven to follow it, the same retirement with no proven moment at all, a
 reason code outside the vocabulary, a revoked issuing CA whose subordinate certificate is
-itself unlisted, a list that could not be fetched, and a list read that reaches nothing.
+itself unlisted, a list that could not be fetched, a list read that reaches nothing, a list
+carrying a valid signature over itself, and a list carrying a forged entry added after it
+was signed. That last one names the seal's own certificate, so a verifier that reads a
+signed list without checking the signature condemns a sound artifact on the say-so of
+whoever last handled the bytes; the case exists to establish that it must not.
 All but one of them carry the same sealed artifact as the first vector, whose signature is
 intact, valid, chained to the pinned anchor and covering the artifact entirely in each of
 them, so the verdict turns on the revocation state alone. A verifier confined to the

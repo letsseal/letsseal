@@ -28,6 +28,7 @@ Options:
 import sys
 import re
 import json
+import base64
 import urllib.request
 import os
 import hashlib
@@ -89,16 +90,32 @@ def _load(pem_bytes):
     return x509.Certificate.load(der)
 
 
+def _split_anchors(pem_bytes):
+    """Split a PEM bundle into (trust anchors, path-building material).
+
+    An anchor is a self-signed certificate: issuer equals subject. Everything else
+    is a link in a path and MUST NOT be pinned as an anchor (C-4a), so pinning a
+    full chain.pem trusts the root it contains and uses the intermediate to reach
+    it, rather than trusting both.
+    """
+    anchors, helpers = [], []
+    for part in pem_bytes.split(b"-----BEGIN CERTIFICATE-----")[1:]:
+        cert = _load(b"-----BEGIN CERTIFICATE-----" + part)
+        (anchors if cert.subject == cert.issuer else helpers).append(cert)
+    return anchors, helpers
+
+
 def verify_seal(pdf_bytes, at_time=None, check_revocation=False):
     reader = PdfFileReader(BytesIO(pdf_bytes))
     sigs = reader.embedded_signatures
     if not sigs:
         return {"sealed": False}
-    pinned = root_pem()
-    roots = [_load(b"-----BEGIN CERTIFICATE-----" + p) for p in pinned.split(b"-----BEGIN CERTIFICATE-----")[1:]]
+    roots, helpers = _split_anchors(root_pem())
+    if _ROOT_OVERRIDE is None:
+        helpers.append(_load(INTERMEDIATE_CA_PEM))
     vc = ValidationContext(
         trust_roots=roots,
-        other_certs=[] if _ROOT_OVERRIDE is not None else [_load(INTERMEDIATE_CA_PEM)],
+        other_certs=helpers,
         allow_fetching=check_revocation,
         revocation_mode="hard-fail" if check_revocation else "soft-fail",
         moment=at_time,
@@ -293,6 +310,9 @@ def check_revocation(serials, source, sealed_at=None):
     except Exception:
         return "unchecked", None
 
+    if doc.get("signature") is not None and not _revocation_list_authentic(doc):
+        return "unchecked", None
+
     cleared = None
     for e in doc.get("revoked", []):
         if str(e.get("serial", "")).lower().lstrip("0") not in want:
@@ -301,6 +321,81 @@ def check_revocation(serials, source, sealed_at=None):
             return "revoked", e
         cleared = e
     return "checked-clear", cleared
+
+
+_REVOCATIONS_TAG = b"letsseal.revocations.v1\n"
+
+
+def revocations_bytes(doc):
+    """The byte string a revocation-list signature covers, per SPEC.md.
+
+    `letsseal.revocations.v1\\n` then canonical JSON of `version`, `updated_at` and
+    `revoked` in that order, each entry carrying `serial`, `subject`, `reason`,
+    `revoked_at` and `note` in that order and nothing else. Member order is fixed by
+    the shape rather than sorted, as SPEC.md's Conventions define canonical JSON.
+
+    Rebuilt from the parsed values rather than taken from the bytes received,
+    because the list is re-serialised on the way out and stamped with a per-request
+    `fetched_at`. A signature over the bytes on the wire could not survive that.
+    """
+    entries = [{k: str(e.get(k, "")) for k in
+                ("serial", "subject", "reason", "revoked_at", "note")}
+               for e in (doc.get("revoked") or [])]
+    body = {"version": int(doc.get("version", 1)),
+            "updated_at": str(doc.get("updated_at", "")),
+            "revoked": entries}
+    return _REVOCATIONS_TAG + json.dumps(
+        body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def _revocation_list_authentic(doc):
+    """Is this list signed by a key chaining to the pinned root?
+
+    Two checks, and both matter. The signature has to verify over the canonical
+    bytes, which establishes the list is the one the issuer published, and the
+    signing certificate has to chain to the same pinned root as every other seal,
+    which establishes it was that issuer. A valid signature from an unpinned key
+    proves only that somebody signed a list.
+    """
+    try:
+        from cryptography import x509 as _x509
+        from cryptography.hazmat.primitives import hashes as _hashes
+        from cryptography.hazmat.primitives.asymmetric import ec as _ec
+        from cryptography.exceptions import InvalidSignature
+
+        sig = base64.b64decode(doc["signature"])
+        cert_pem = doc.get("logCert") or ""
+        cert = _x509.load_pem_x509_certificate(cert_pem.encode())
+
+        with tempfile.NamedTemporaryFile("wb", suffix=".pem", delete=False) as rf:
+            rf.write(root_pem())
+            root = rf.name
+        with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as cf:
+            cf.write(doc.get("logChain") or "")
+            chain = cf.name
+        with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as lf:
+            lf.write(cert_pem)
+            leaf = lf.name
+        try:
+            r = subprocess.run(["openssl", "verify", "-CAfile", root,
+                                "-untrusted", chain, leaf],
+                               capture_output=True, text=True, timeout=15)
+            if r.returncode != 0:
+                return False
+        finally:
+            for p in (root, chain, leaf):
+                os.unlink(p)
+
+        pub = cert.public_key()
+        if not isinstance(pub, _ec.EllipticCurvePublicKey):
+            return False
+        try:
+            pub.verify(sig, revocations_bytes(doc), _ec.ECDSA(_hashes.SHA256()))
+        except InvalidSignature:
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def _reaches_this_seal(entry, sealed_at):
