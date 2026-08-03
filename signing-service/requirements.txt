@@ -1,6 +1,6 @@
 pyHanko[pkcs11,image-support]==0.35.2
 fastapi==0.140.0
-uvicorn[standard]==0.51.0
+uvicorn[standard]==0.52.0
 python-multipart==0.0.32
 opentimestamps-client==0.7.2
 # 0.37 enforces a rule 0.36 did not: a `c2pa.created` action must declare a
