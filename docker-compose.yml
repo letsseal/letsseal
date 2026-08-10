@@ -20,8 +20,8 @@ services:
 
   signing-service:
     build:
-      context: ./signing-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: signing-service/Dockerfile
     restart: unless-stopped
     ports:
       - "8081:8081"

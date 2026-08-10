@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir -r requirements.lock \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the rest of the application
-COPY . .
-COPY ../ca ./ca
+COPY signing-service/ .
+COPY ca/ ./ca/
 
 EXPOSE 8081
 
