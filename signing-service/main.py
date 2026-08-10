@@ -985,8 +985,18 @@ async def revocations_ep():
     Let's Seal proof can apply it themselves. The reason is part of the data on
     purpose: `key_compromise` invalidates every seal under that certificate
     whatever its date, while an orderly `superseded` leaves seals that provably
-    predate the revocation standing. See signing-service/revocation.py."""
-    return JSONResponse(revocation.published(), headers={"Cache-Control": "public, max-age=300"})
+    predate the revocation standing. See signing-service/revocation.py.
+
+    The list is signed by the log key, as CPS §4.9 undertakes, so a relying party
+    can fetch it once and rely on it offline without trusting the transport that
+    delivered it. `signature` covers the canonical form of `version`, `updated_at`
+    and `revoked`; `logCert` and `logChain` travel with it so the check needs
+    nothing fetched from anywhere else."""
+    from translog import sign_revocations
+    p12 = _log_p12()
+    doc = await run_in_threadpool(
+        revocation.published, lambda d: sign_revocations(d, p12, P12_PASS))
+    return JSONResponse(doc, headers={"Cache-Control": "public, max-age=300"})
 
 
 @app.post("/verify", operation_id="verify", tags=["sealing"],

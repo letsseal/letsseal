@@ -378,7 +378,10 @@ export async function upgradeAnchor(otsB64: string): Promise<AnchorResult> {
 export type RevocationEntry = {
   serial: string; reason: string; revoked_at: string; subject: string; note?: string;
 };
-export type RevocationList = { version: number; revoked: RevocationEntry[]; updated_at?: string; fetched_at?: number };
+export type RevocationList = {
+  version: number; revoked: RevocationEntry[]; updated_at?: string; fetched_at?: number;
+  signature?: string; logCert?: string; logChain?: string;
+};
 
 export async function getRevocations(): Promise<RevocationList> {
   const res = await fetch(`${SERVICE}/revocations`, { headers: svcHeaders(), cache: "no-store" });

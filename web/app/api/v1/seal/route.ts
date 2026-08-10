@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authApiKey } from "@/lib/api-auth";
 import { hostedSeal } from "@/lib/hosted";
+import { parseStampMode } from "@/lib/stamp";
 import { overContentLength, tooLarge } from "@/lib/limits";
 
 export async function POST(req: NextRequest) {
@@ -20,9 +21,11 @@ export async function POST(req: NextRequest) {
 
   const anchorParam = req.nextUrl.searchParams.get("anchor") ?? (form?.get("anchor") as string | null);
   const doAnchor = anchorParam == null ? true : !/^(false|0|no)$/i.test(anchorParam);
+  const stamp = parseStampMode(
+    req.nextUrl.searchParams.get("stamp") ?? form?.get("stamp"), "none");
 
   try {
-    const r = await hostedSeal(auth.ctx.org, pdf, { title, reason, anchor: doAnchor });
+    const r = await hostedSeal(auth.ctx.org, pdf, { title, reason, anchor: doAnchor, stamp });
     return new Response(new Uint8Array(r.pdf), {
       headers: {
         "Content-Type": "application/pdf",

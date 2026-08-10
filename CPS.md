@@ -254,15 +254,38 @@ signature by the log key, so it can be fetched once, cached, and relied upon ind
 of the transport that delivered it. Verification therefore stays available to a relying
 party working offline, and a proof continues to stand on its own.
 
+The signature is ECDSA on P-256 over SHA-256, base64 in the `signature` member, and the
+signing certificate and its chain travel in the same document as `logCert` and `logChain`,
+so a relying party needs one fetch and no separate key distribution. SPEC.md §8.5 fixes
+the bytes it covers: the tag `letsseal.revocations.v1`, then canonical JSON of `version`,
+`updated_at` and `revoked`. The signing key is the transparency log's, which already
+chains to the published root, so this adds no key material a relying party must learn
+about separately. Reference: `signing-service/translog.py` (`sign_revocations`),
+`signing-service/revocation.py` (`published`).
+
+Should the signature be unavailable when the list is served, the list is published without
+it rather than withheld. A CA that cannot reach its key can still say which certificates
+are withdrawn, and a relying party consulting an unsigned list is in the position everyone
+was in before the signature existed. What a relying party must not do is treat a list whose
+signature fails to verify as a list at all; SPEC.md §8.3 step 5 requires that be reported
+as an unchecked revocation state.
+
 **Reason codes decide how far back a revocation reaches.** This is the part of revocation
 that decides whether honest evidence survives, and it is stated here so subscribers and
 relying parties can both rely on it:
 
 | Reason | Effect on seals made before the revocation |
 |---|---|
-| `key_compromise`, `ca_compromise` | Untrusted, whatever their date. The key was in another party's hands from a moment nobody can establish, so every seal under it is affected. |
+| `key_compromise`, `ca_compromise`, `unspecified` | Untrusted, whatever their date. The key was in another party's hands from a moment nobody can establish, so every seal under it is affected. |
 | `superseded`, `cessation_of_operation`, `affiliation_changed`, `privilege_withdrawn` | Trusted. The key was retired in good order, so seals demonstrably made before the revocation date stand. |
 | A reason a verifier does not recognise | Handled as `key_compromise`. For a trust decision, the safe direction is the strict one. |
+
+`unspecified` sits in the first row for the same reason the last row does. A reason
+that says nothing about how a key was lost cannot support the claim that earlier
+seals are safe, so it is classified with the strict cases rather than the orderly
+ones. The issuing tooling and the verifier derive that classification from the same
+list, so an operator is told at revocation time exactly what a relying party will
+later conclude.
 
 The time-bounded case is meaningful here because the anchor supplies **independent
 evidence of when a document existed**. A confirmed anchor places the seal before a given

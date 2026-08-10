@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiUser } from "@/lib/auth-helpers";
 import { checkOrgRole } from "@/lib/rbac";
 import { hostedSeal } from "@/lib/hosted";
+import { parseStampMode } from "@/lib/stamp";
 import { orgSuspendedResponse } from "@/lib/org-guard";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -20,12 +21,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
   const anchorParam = (form?.get("anchor") as string | null) ?? "true";
   const doAnchor = !/^(false|0|no)$/i.test(anchorParam);
-  const stampParam = (form?.get("stamp") as string | null) ?? "true";
-  const doStamp = !/^(false|0|no)$/i.test(stampParam);
+  const stamp = parseStampMode(form?.get("stamp"), "badge");
   const title = (file.name || "document.pdf").slice(0, 200);
 
   try {
-    const r = await hostedSeal(org, Buffer.from(await file.arrayBuffer()), { title, anchor: doAnchor, stamp: doStamp });
+    const r = await hostedSeal(org, Buffer.from(await file.arrayBuffer()), { title, anchor: doAnchor, stamp });
     return new Response(new Uint8Array(r.pdf), {
       headers: {
         "Content-Type": "application/pdf",

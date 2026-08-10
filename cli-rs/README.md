@@ -1,6 +1,6 @@
 # sealbot (Rust)
 
-The flagship **single static binary** — timestamp any file on Bitcoin and prove it existed,
+The flagship **single static binary**: timestamp any file on Bitcoin and prove it existed,
 unaltered. No Node, no Python, no runtime. ~1.5 MB, drop it into any CI or air-gapped box.
 
 Three core verbs (hash-only, keyless, agent-friendly):
@@ -13,14 +13,14 @@ sealbot verify contract.sealed.pdf          # exit 2 if tampered; or: verify rel
 sealbot watch  /srv/invoices --once         # anchor every new/changed file in a folder
 ```
 
-### Advanced — keyed signing (signing service + `--token` / `SEALBOT_TOKEN`)
+### Advanced, keyed signing (signing service + `--token` / `SEALBOT_TOKEN`)
 
 ```bash
 sealbot seal  contract.pdf --org acme                 # seal a PDF with your CA
 sealbot issue --id ci --cn "My CI" --profile code     # signing cert; key generated locally
 ```
 
-- **Hash-only by default.** `anchor` sends only the 32-byte SHA-256 — your file never leaves
+- **Hash-only by default.** `anchor` sends only the 32-byte SHA-256, so your file never leaves
   the machine. Without `--publish` nothing is registered anywhere; the local `.ots` is your
   proof, and it validates with stock `ots verify <file>`.
 - **`watch`** turns a folder into an always-on notary: anchor / publish / seal every new or
@@ -36,5 +36,5 @@ sealbot issue --id ci --cn "My CI" --profile code     # signing cert; key genera
 > **Migrating:** `notarize` → `anchor --publish`; `upgrade <f>.ots` → `verify <f>.ots`. The old
 > verbs still run (with a one-line notice) so existing scripts keep working.
 
-This supersedes the Node reference client in `../cli`. Same verbs, same API — the API is the
+This supersedes the Node reference client in `../cli`. Same verbs, same API, since the API is the
 product; clients are cheap.

@@ -243,7 +243,19 @@ issue_org_code() { issue_cert "$1" "$2" code orgs signing-code "URI:https://lets
 # whatever its date, while an orderly retirement leaves earlier seals standing.
 # ---------------------------------------------------------------------------
 REVOKED="$OUT/revoked.json"
-_REASONS="key_compromise ca_compromise superseded cessation_of_operation affiliation_changed privilege_withdrawn unspecified"
+# Reasons whose reach is UNCONDITIONAL: every seal under the certificate becomes
+# untrusted whatever its date, because the key may have been in another party's
+# hands from a moment nobody can establish. `unspecified` sits here deliberately.
+# A reason that says nothing about how the key was lost cannot support the claim
+# that earlier seals are safe, and signing-service/revocation.py classifies it the
+# same way, so the two must agree: an operator told here that historical evidence
+# survives, while the verifier withdraws it, has been given the wrong answer at the
+# exact moment it matters.
+_UNCONDITIONAL_REASONS="key_compromise ca_compromise unspecified"
+# Reasons where the key was retired in good order, so a seal provably made before
+# the revocation date still stands.
+_TIME_BOUNDED_REASONS="superseded cessation_of_operation affiliation_changed privilege_withdrawn"
+_REASONS="$_UNCONDITIONAL_REASONS $_TIME_BOUNDED_REASONS"
 
 # revoke <path-to-cert> <reason> [note]
 revoke_cert() {
@@ -292,11 +304,14 @@ PYEOF
   echo "    serial  $serial"
   echo "    reason  $reason"
   echo "    listed in $REVOKED (published at /revocations.json)"
-  if [[ "$reason" == "key_compromise" || "$reason" == "ca_compromise" ]]; then
-    echo "    NOTE: EVERY seal under this certificate is now untrusted, whatever its date."
-  else
-    echo "    NOTE: seals provably made before now (confirmed anchor) stay trusted."
-  fi
+  # Derived from the same classification the verifier applies, so the two cannot
+  # drift into telling an operator different things.
+  case " $_UNCONDITIONAL_REASONS " in
+    *" $reason "*)
+      echo "    NOTE: EVERY seal under this certificate is now untrusted, whatever its date." ;;
+    *)
+      echo "    NOTE: seals provably made before now (confirmed anchor) stay trusted." ;;
+  esac
 }
 
 # unrevoke <path-to-cert>   (mistaken entries only; never to undo a real compromise)

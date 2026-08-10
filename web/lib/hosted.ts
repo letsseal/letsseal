@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
 import { sealPdf, sealDetached, sealC2pa, sealXml, sealSmime, sealBlob, sealIdentity, signAttestation, anchorHash } from "@/lib/signing";
-import { stampVerifyBadge } from "@/lib/stamp";
+import { stampVerifyMark, type StampMode } from "@/lib/stamp";
 import { uniqueProofCode } from "@/lib/proofcode";
 import { appendToLog } from "@/lib/translog";
 import { buildBlobCosignBundle, buildAttestCosignBundle } from "@/lib/cosign-tlog";
@@ -105,17 +105,16 @@ export type HostedSeal = {
 export async function hostedSeal(
   org: { id: string; slug: string; name: string },
   pdf: Buffer,
-  opts: { title?: string | null; reason?: string; anchor?: boolean; stamp?: boolean } = {},
+  opts: { title?: string | null; reason?: string; anchor?: boolean; stamp?: StampMode } = {},
 ): Promise<HostedSeal> {
   const docId = `sd_${randomBytes(16).toString("hex")}`;
   const proofCode = await mintProofCode();
   const verifyUrl = `${appUrl()}/v/${proofCode}`;
 
-  let toSeal = pdf;
-  if (opts.stamp) {
-    try { toSeal = await stampVerifyBadge(pdf, { proofUrl: verifyUrl, orgName: org.name, proofCode }); }
-    catch { toSeal = pdf; }
-  }
+  const toSeal = await stampVerifyMark(pdf, {
+    mode: opts.stamp ?? "none",
+    proofUrl: verifyUrl, orgName: org.name, proofCode,
+  });
 
   const sealed = await sealPdf(org.slug, toSeal, { reason: opts.reason });
 

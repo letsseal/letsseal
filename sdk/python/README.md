@@ -1,6 +1,6 @@
 # letsseal
 
-Python client for the [Let's Seal](https://letsseal.org) signing service — seal
+Python client for the [Let's Seal](https://letsseal.org) signing service: seal
 anything (PDFs, images, XML, email, any file, software artifacts), verify, and
 anchor on Bitcoin for free.
 
@@ -20,10 +20,10 @@ res = ls.seal("contract.pdf", org="acme")     # accepts a path or bytes
 open("contract.sealed.pdf", "wb").write(res.pdf)
 print(res.cert_cn, res.sha256)
 
-# Verify — chains to the Let's Seal root
+# Verify: chains to the Let's Seal root
 print(ls.verify(res.pdf))   # {'sealed': True, 'intact': True, 'valid': True, 'trusted': True, ...}
 
-# Seal any other file, digest-only — the bytes never leave the machine
+# Seal any other file, digest-only, so the bytes never leave the machine
 ls.seal_detached_local("release.tar.gz", org="acme")   # detached CMS over its SHA-256
 
 # Seal an image with embedded C2PA Content Credentials

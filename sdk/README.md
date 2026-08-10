@@ -1,10 +1,10 @@
 # Let's Seal SDKs
 
-Client libraries for the Let's Seal signing service — seal anything (PDFs, images,
+Client libraries for the Let's Seal signing service: seal anything (PDFs, images,
 XML, email, any file, software artifacts), verify, and anchor on Bitcoin for free.
 
 **The API is the product; the clients are cheap.** The whole contract lives in one
-file — [`openapi.json`](./openapi.json) — and everything here is built from it. You
+file, [`openapi.json`](./openapi.json), and everything here is built from it. You
 don't need an SDK at all to integrate: the [`sealbot` CLI](../cli-rs) (a 1.4 MB
 static binary) or a five-line HTTP call will do. The SDKs are a convenience.
 
@@ -12,8 +12,8 @@ static binary) or a five-line HTTP call will do. The SDKs are a convenience.
 
 | Path | What | How it's maintained |
 |------|------|---------------------|
-| [`ts/`](./ts) | **TypeScript** — hero SDK | Hand-crafted, isomorphic, zero-dep |
-| [`python/`](./python) | **Python** — hero SDK | Hand-crafted, stdlib-only |
+| [`ts/`](./ts) | **TypeScript**, hero SDK | Hand-crafted, isomorphic, zero-dep |
+| [`python/`](./python) | **Python**, hero SDK | Hand-crafted, stdlib-only |
 | [`generated/go`](./generated) | **Go** | Generated from `openapi.json` |
 | [`generated/java`](./generated) | **Java / JVM** | Generated from `openapi.json` |
 | [`generated/php`](./generated) | **PHP** | Generated from `openapi.json` |
@@ -23,7 +23,7 @@ static binary) or a five-line HTTP call will do. The SDKs are a convenience.
 | [`API.md`](./API.md) | human-readable endpoint reference | |
 
 The two hero SDKs (TS + Python) are hand-written because that's where the "give me
-a nice `seal(pdf)` call" audience is. Everything else is **generated** — regenerate
+a nice `seal(pdf)` call" audience is. Everything else is **generated**: regenerate
 it, don't hand-edit it. This mirrors how Let's Encrypt shipped certbot + the ACME
 spec and let the ecosystem write the long tail of clients.
 
@@ -38,7 +38,7 @@ const ls = new LetsSeal({ baseUrl: "http://127.0.0.1:8081" });
 const { pdf, certCn } = await ls.seal(fileBytes, { org: "acme" });
 const result = await ls.verify(pdf);          // { sealed, intact, valid, trusted, signer }
 
-// Anchor privately — hashes locally, only the digest leaves the machine:
+// Anchor privately: hashes locally, only the digest leaves the machine:
 const proof = await ls.anchorLocal(fileBytes); // { otsB64, status, sha256 }
 ```
 
@@ -75,9 +75,9 @@ const ls = new LetsSeal({
 ```
 
 Differences from the local contract on the hosted tier:
-- **`seal`** derives the business from the key — no `org_slug` needed — and by default also
+- **`seal`** derives the business from the key, so no `org_slug` is needed, and by default also
   anchors and returns a permanent proof URL (`X-Letsseal-Proof-Url`).
-- **`verify`** is public and needs **no key** — third parties verify for free, forever.
+- **`verify`** is public and needs **no key**: third parties verify for free, forever.
 - `GET /api/v1/documents/<sha256>` returns a document's proof as JSON (keyless).
 
 ## Regenerating
@@ -91,14 +91,14 @@ Differences from the local contract on the hosted tier:
 release that runs on Java 8) and down-converts the 3.1 spec to 3.0 via `to30.py`.
 With a modern JDK (11+) you can bump the pin in `openapitools.json` to 7.x, feed
 `openapi.json` directly (skip `to30.py`), and drop the flag swaps noted in the
-script — you'll get newer client styling (Java `native` HttpClient, .NET 8, etc.).
+script, and you'll get newer client styling (Java `native` HttpClient, .NET 8, etc.).
 
-Kotlin, Rust, and Swift generators are available from the same spec — add a line
+Kotlin, Rust, and Swift generators are available from the same spec: add a line
 to `generate.sh`.
 
 ## Trust model
 
 Let's Seal is the open standard for sealing anything. Trust is **self-anchored**: a
 proof verifies against the published root, the public transparency log, and the
-Bitcoin ledger — everything a verifier needs travels with the proof itself. So
+Bitcoin ledger, so everything a verifier needs travels with the proof itself. So
 `trusted` means the seal chains to *this* root, and the clients report exactly that.
