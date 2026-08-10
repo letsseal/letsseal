@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.lock \
     && apt-get purge -y --auto-remove build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /app/.venv/bin && ln -s /usr/local/bin/ots /app/.venv/bin/ots
+
 # Copy the rest of the application
 COPY signing-service/ .
 COPY ca/ /ca/
