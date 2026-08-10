@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies from the lock file
-COPY requirements.lock requirements.txt ./
+COPY signing-service/requirements.lock signing-service/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.lock \
     && apt-get purge -y --auto-remove build-essential \
     && rm -rf /var/lib/apt/lists/*
