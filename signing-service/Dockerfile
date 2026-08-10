@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.lock \
 
 # Copy the rest of the application
 COPY . .
-COPY ca ./ca
+COPY ../ca ./ca
 
 EXPOSE 8081
 
