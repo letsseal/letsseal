@@ -270,6 +270,15 @@ Digest-only endpoints (`/seal/detached`, `/seal/blob`) never receive the file's 
 | `cli/`, `cli-rs/` | The `sealbot` command line tool (Node and Rust) |
 | `ci/` | A GitHub Action for sealing artifacts in CI |
 
+## Sponsors
+
+<a href="https://www.backblaze.com/cloud-storage">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/backblaze-dark.svg">
+    <img src="docs/sponsors/backblaze.svg" alt="Backblaze" height="42">
+  </picture>
+</a>
+
 ## Mission
 
 Authenticity is infrastructure. It shouldn't be for rent. Proving a file is real is a public good, like a padlock in a browser bar, and it should be free, open, and owned by everyone who relies on it. Let's Seal is run as a public-benefit project of a foundation, not a startup, so the standard can never be pulled back behind a paywall.
