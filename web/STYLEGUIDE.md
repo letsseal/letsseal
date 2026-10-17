@@ -102,6 +102,7 @@ than two weights on one screen (`font-medium` and `font-semibold`). The one exce
 | Record state | `StatusBadge` |
 | Count / tag | `Badge variant="secondary"` or `outline` |
 | Inline message | `Alert` (`default`, `info`, `success`, `warning`, `destructive`) |
+| Explanation some users need | `InfoTip` next to the label it explains (opens on click/tap, not hover) |
 | Transient feedback | `toast` from `sonner` — short past-tense sentence ("Link copied") |
 | Nothing to show | `EmptyState` (title + one-line description + action) |
 | File input | `Dropzone` |
@@ -134,6 +135,10 @@ Write for a busy business owner, a one-time signer and a stranger verifying a fi
   title ("Documents" does not need "Everything this business has sealed, issued, or sent to sign").
 - Don't narrate controls ("Click below to…"), report implementation ("Auto-resized to 256px"), or
   reassure generically ("Here's what's happening").
+- Secondary information goes one layer down: an `InfoTip`, a collapsed `details`, a dialog, or the
+  state where it matters (e.g. "DNS changes can take a few minutes" belongs in the failed-check
+  message, not permanently under the button).
+- No counts or sub-metrics that don't drive a decision ("1 this week").
 - Keep honest caveats (unverified issuer, revocation, attribution limits) short and next to what
   they qualify.
 - Errors say what happened and what to do next.

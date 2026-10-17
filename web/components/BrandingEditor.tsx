@@ -104,7 +104,6 @@ export default function BrandingEditor({ org }: { org: Org }) {
   return (
     <SettingsCard
       title="Business"
-      description="How your business appears to signers and on its proofs."
       footerHint={dirty ? "Unsaved changes" : null}
       footer={
         <Button size="sm" onClick={save} disabled={!dirty || saving}>
@@ -119,7 +118,7 @@ export default function BrandingEditor({ org }: { org: Org }) {
             <Input id="biz-name" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
 
-          <Field label="Logo" hint="A square image works best.">
+          <Field label="Logo">
             <div className="flex items-center gap-3">
               <OrgAvatar name={name || "?"} color={brandColor} logoUrl={logoUrl} size="lg" />
               <Button asChild variant="outline" size="sm" className="cursor-pointer">
@@ -139,7 +138,7 @@ export default function BrandingEditor({ org }: { org: Org }) {
             <ColorSwatches value={brandColor} onChange={setBrandColor} custom />
           </Field>
 
-          <Field label="Reply-to email" htmlFor="from-email" optional hint="Replies to your signing emails go here.">
+          <Field label="Reply-to email" htmlFor="from-email" optional>
             <Input id="from-email" type="email" placeholder="sign@yourbusiness.com"
                    value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} />
           </Field>

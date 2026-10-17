@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { DocTable } from "@/components/app-shell/DocTable";
 import { QuickSeal } from "@/components/app-shell/QuickSeal";
-import { buildDocRows, withinWeek, relativeDate } from "@/lib/org-docs";
+import { buildDocRows } from "@/lib/org-docs";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
@@ -25,24 +25,13 @@ export default async function Dashboard({ params }: { params: Promise<{ org: str
   });
   if (!org) notFound();
 
-  const now = new Date();
-  const envSealed = org.envelopes.filter((e) => e.sealed);
-
-  const sealedTotal = org.sealedDocuments.length + envSealed.length;
-  const sealedWeek =
-    org.sealedDocuments.filter((d) => withinWeek(d.sealedAt, now)).length +
-    envSealed.filter((e) => withinWeek(e.sealed!.sealedAt, now)).length;
-
+  const sealedTotal = org.sealedDocuments.length + org.envelopes.filter((e) => e.sealed).length;
   const awaiting = org.envelopes.filter((e) => e.status === "sent").length;
-  const sentToday = org.envelopes.filter((e) => e.status === "sent" && relativeDate(e.createdAt, now) === "Today").length;
-
-  const credTotal = org.credentials.length;
-  const credWeek = org.credentials.filter((c) => withinWeek(c.issuedOn, now)).length;
 
   const metrics = [
-    { label: "Sealed", value: sealedTotal, sub: sealedWeek > 0 ? `${sealedWeek} this week` : null },
-    { label: "Awaiting signature", value: awaiting, sub: sentToday > 0 ? `${sentToday} sent today` : null },
-    { label: "Credentials", value: credTotal, sub: credWeek > 0 ? `${credWeek} this week` : null },
+    { label: "Sealed", value: sealedTotal },
+    { label: "Awaiting signature", value: awaiting },
+    { label: "Credentials", value: org.credentials.length },
   ];
 
   const rows = buildDocRows(org);
@@ -64,7 +53,6 @@ export default async function Dashboard({ params }: { params: Promise<{ org: str
           <div key={m.label} className="rounded-lg border p-4 sm:p-5">
             <p className="text-xs text-muted-foreground sm:text-sm">{m.label}</p>
             <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{m.value.toLocaleString()}</p>
-            <p className="mt-1 h-4 text-xs text-muted-foreground">{m.sub}</p>
           </div>
         ))}
       </div>
@@ -82,7 +70,7 @@ export default async function Dashboard({ params }: { params: Promise<{ org: str
           <div className="overflow-hidden rounded-lg border">
             <DocTable
               rows={recent}
-              empty={<EmptyState icon={FileText} title="No documents yet" description="Seal a PDF on the right, or send one for signing." className="border-0" />}
+              empty={<EmptyState icon={FileText} title="No documents yet" className="border-0" />}
             />
           </div>
         </section>

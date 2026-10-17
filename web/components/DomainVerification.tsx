@@ -59,7 +59,7 @@ export default function DomainVerification({
       const r = await fetch(`/api/orgs/${slug}/domain/check`, { method: "POST" });
       const d = await r.json();
       if (d.verified) { setVerified({ domain: (pending as PendingDns).domain, via: "dns" }); setPending(null); }
-      else setCheckMsg(d.error || "Not verified yet.");
+      else setCheckMsg(d.error || "Not found yet. DNS changes can take a few minutes.");
     } catch { setCheckMsg("Network error. Try again."); } finally { setBusy(false); }
   }
 
@@ -112,7 +112,6 @@ export default function DomainVerification({
         id="issuer-identity"
         title={title("warning", "Pending")}
         description={<>Add this TXT record to the DNS for <span className="font-medium text-foreground">{pending.domain}</span>, then check.</>}
-        footerHint="DNS changes can take a few minutes."
         footer={
           <>
             <Button variant="ghost" size="sm" onClick={reset}>Start over</Button>
@@ -144,7 +143,7 @@ export default function DomainVerification({
       <SettingsCard
         id="issuer-identity"
         title={title("warning", "Pending")}
-        description={<>We emailed a link to <span className="font-medium text-foreground">{pending.sentTo}</span>. Open it from that mailbox to verify {pending.domain}. It expires in 24 hours.</>}
+        description={<>We sent a link to <span className="font-medium text-foreground">{pending.sentTo}</span>. It expires in 24 hours.</>}
         footer={<Button variant="outline" size="sm" onClick={reset}>Use a different method</Button>}
       />
     );
@@ -154,7 +153,7 @@ export default function DomainVerification({
     <SettingsCard
       id="issuer-identity"
       title={title("neutral", "Not verified")}
-      description="Verify your domain to show a verified badge on every proof. Until then, proofs show your business name as unverified."
+      description="Show a verified badge on every proof you seal."
       footer={
         <Button size="sm" onClick={start} disabled={busy || !domain}>
           {busy && <Loader2 className="animate-spin" />}
@@ -173,7 +172,7 @@ export default function DomainVerification({
           </ToggleGroup>
         </Field>
         {method === "email" && (
-          <Field label="Send to" hint="Only admin addresses prove you control the domain.">
+          <Field label="Send to">
             <div className="flex items-center gap-1.5">
               <Select value={alias} onValueChange={setAlias}>
                 <SelectTrigger aria-label="Admin address" className="rounded-md shadow-xs data-[size=default]:h-9">

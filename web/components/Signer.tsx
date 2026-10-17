@@ -360,7 +360,7 @@ function SignatureDialog({
               accept="image/png,image/jpeg"
               onFiles={(files) => files[0] && ingestImage(files[0])}
               title="Upload an image of your signature"
-              hint="PNG or JPG. A transparent PNG works best."
+              hint="PNG or JPG"
               className="h-44"
             />
           )
@@ -403,7 +403,6 @@ function DoneView({ done, envelopeId, token }: { done: { completed: boolean; sha
 
       <div className="mt-10 rounded-lg border bg-background p-4 text-left">
         <p className="text-sm font-medium">Seal your own documents</p>
-        <p className="mt-1 text-sm text-muted-foreground">Send documents for signing and let anyone verify they're genuine.</p>
         <div className="mt-3 flex items-center gap-2">
           <Button asChild size="sm" variant="outline"><a href="/signup">Create a free account</a></Button>
           <Button asChild size="sm" variant="ghost"><a href="/verify">Verify a document</a></Button>

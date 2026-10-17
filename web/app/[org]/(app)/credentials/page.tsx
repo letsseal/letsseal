@@ -33,11 +33,8 @@ export default async function CredentialsPage({ params }: { params: Promise<{ or
 
   return (
     <>
-      <PageHeader
-        title="Credentials"
-        description="A proof link shows a credential is genuine. It doesn't verify the recipient's identity."
-      />
-      <CredentialsManager slug={org.slug} orgName={org.name} initial={initial} appUrl={appUrl} />
+      <PageHeader title="Credentials" />
+      <CredentialsManager slug={org.slug} initial={initial} appUrl={appUrl} />
     </>
   );
 }

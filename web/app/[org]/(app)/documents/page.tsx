@@ -36,7 +36,7 @@ export default async function DocumentsPage({ params }: { params: Promise<{ org:
     <>
       <PageHeader title="Documents" actions={rows.length > 0 && newDoc} />
       {rows.length === 0 ? (
-        <EmptyState icon={FileText} title="No documents yet" description="Send a PDF for signing, seal one, or issue a credential." action={newDoc} />
+        <EmptyState icon={FileText} title="No documents yet" action={newDoc} />
       ) : (
         <div className="overflow-hidden rounded-lg border">
           <DocTable rows={rows} />

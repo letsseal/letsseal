@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field } from "@/components/common/field";
 import { CopyButton } from "@/components/common/copy-button";
+import { InfoTip } from "@/components/common/info-tip";
 import { EmptyState } from "@/components/common/empty-state";
 import { StatusBadge } from "@/components/common/status-badge";
 
@@ -32,8 +33,8 @@ const TYPES = ["Certificate of Completion", "Certificate of Achievement", "CPD C
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function CredentialsManager({
-  slug, orgName, initial, appUrl,
-}: { slug: string; orgName: string; initial: Cred[]; appUrl: string }) {
+  slug, initial, appUrl,
+}: { slug: string; initial: Cred[]; appUrl: string }) {
   const router = useRouter();
   const [f, setF] = useState({ recipientName: "", recipientEmail: "", credType: TYPES[0], title: "", credentialCode: "", issuedOn: todayISO(), expiresOn: "", description: "" });
   const [issuing, setIssuing] = useState(false);
@@ -111,7 +112,10 @@ export default function CredentialsManager({
         <TabsContent value="one" className="space-y-4">
           <Card>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <Field label="Recipient name" htmlFor="cred-name">
+              <Field
+                label={<>Recipient name <InfoTip label="About recipient names"><p>The proof shows the name you enter here. It doesn&apos;t verify who the recipient is.</p></InfoTip></>}
+                htmlFor="cred-name"
+              >
                 <Input id="cred-name" value={f.recipientName} onChange={set("recipientName")} placeholder="Jane Smith" />
               </Field>
               <Field label="Recipient email" htmlFor="cred-email" optional hint="We'll email them the proof link.">
@@ -139,8 +143,7 @@ export default function CredentialsManager({
                 <Textarea id="cred-details" value={f.description} onChange={set("description")} placeholder="Completed 16 hours of assessed training." />
               </Field>
             </CardContent>
-            <CardFooter className="justify-between">
-              <p className="text-sm text-muted-foreground">Creates a branded PDF sealed as {orgName}.</p>
+            <CardFooter className="justify-end">
               <Button onClick={issue} disabled={issuing}>
                 {issuing && <Loader2 className="animate-spin" />} Issue credential
               </Button>
@@ -170,7 +173,7 @@ export default function CredentialsManager({
               <Field
                 label="CSV"
                 htmlFor="cred-csv"
-                hint={<>Include a header row. <span className="font-mono text-xs">recipientName</span> and <span className="font-mono text-xs">title</span> are required; <span className="font-mono text-xs">recipientEmail</span>, <span className="font-mono text-xs">credType</span>, <span className="font-mono text-xs">credentialCode</span> and <span className="font-mono text-xs">expiresOn</span> are optional.</>}
+                hint={<>Include a header row. <span className="font-mono text-xs">recipientName</span> and <span className="font-mono text-xs">title</span> are required. <InfoTip label="Optional columns"><p>Optional: <span className="font-mono text-xs">recipientEmail</span>, <span className="font-mono text-xs">credType</span>, <span className="font-mono text-xs">credentialCode</span>, <span className="font-mono text-xs">expiresOn</span> (YYYY-MM-DD).</p></InfoTip></>}
               >
                 <Textarea
                   id="cred-csv"

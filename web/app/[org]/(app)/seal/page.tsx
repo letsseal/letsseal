@@ -13,10 +13,7 @@ export default async function SealPage({ params }: { params: Promise<{ org: stri
 
   return (
     <div className="max-w-3xl">
-      <PageHeader
-        title="Seal PDFs"
-        description={`Seal invoices, statements and reports as ${org.name}. Each gets a public proof link.`}
-      />
+      <PageHeader title="Seal PDFs" />
       <BulkSealer slug={org.slug} />
     </div>
   );

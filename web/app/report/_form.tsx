@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/common/field";
 
 const CATEGORIES = [
@@ -57,7 +57,6 @@ export function ReportForm({ slug, orgName, proofHash }: { slug: string; orgName
       <Card>
         <CardHeader>
           <CardTitle>{orgName}</CardTitle>
-          <CardDescription>Reports go to our moderation team.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
           <Field label="What's wrong?">
@@ -76,7 +75,7 @@ export function ReportForm({ slug, orgName, proofHash }: { slug: string; orgName
               placeholder="What did you see? Who is being impersonated?"
             />
           </Field>
-          <Field label="Your email" htmlFor="email" optional hint="So we can follow up.">
+          <Field label="Your email" htmlFor="email" optional>
             <Input id="email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
           {error && (

@@ -38,7 +38,7 @@ export function EnterpriseToggle({ tenantId, enabled }: { tenantId: string; enab
       <div className="flex items-center justify-between gap-4">
         <div className="grid gap-1">
           <Label htmlFor="enterprise-toggle">Entities, people and roles</Label>
-          <p className="text-sm text-muted-foreground">Turning this off keeps your entities and data.</p>
+          {on && <p className="text-sm text-muted-foreground">Turning this off keeps your entities and data.</p>}
         </div>
         <Switch id="enterprise-toggle" checked={on} disabled={loading} onCheckedChange={toggle} />
       </div>

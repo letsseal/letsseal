@@ -403,7 +403,7 @@ export default function Builder({
                       </SelectContent>
                     </Select>
                   </FormField>
-                  <FormField hint={selectedField.required !== false ? "Must be filled before they can finish." : "They can leave it blank."}>
+                  <FormField>
                     <div className="flex items-center justify-between gap-2">
                       <Label htmlFor="field-required">Required</Label>
                       <Switch id="field-required" checked={selectedField.required !== false}
@@ -500,7 +500,7 @@ function SentView({ sent, slug, orgName, title }: { sent: SentSigner[]; slug: st
                     <Alert variant="warning">
                       <AlertTriangle />
                       <AlertTitle>Email not sent</AlertTitle>
-                      <AlertDescription>Share this link with them yourself. A shared link is weaker evidence of who signed than an email invite.</AlertDescription>
+                      <AlertDescription>Share this link with them yourself. It&apos;s weaker evidence than an email invite.</AlertDescription>
                     </Alert>
                     <div className="flex items-center gap-2">
                       <Input readOnly value={s.link!} aria-label="Signing link" className="h-8 font-mono text-xs" onFocus={(e) => e.target.select()} />

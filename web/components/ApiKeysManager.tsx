@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, KeyRound } from "lucide-react";
+import { Loader2, Plus, KeyRound, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -72,7 +72,7 @@ export default function ApiKeysManager({
     <SettingsCard
       id="api-keys"
       title="API keys"
-      description="Seal and verify from your own code. A key acts as this business, so keep it secret."
+      description="Seal and verify from your own code."
     >
       <div className="grid gap-4">
         <form onSubmit={create} className="flex gap-2">
@@ -120,23 +120,27 @@ export default function ApiKeysManager({
           </div>
         )}
 
-        <div className="grid gap-2">
-          <p className="text-sm text-muted-foreground">
+        <details className="group">
+          <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
+            Example request
+          </summary>
+          <p className="mt-3 text-sm text-muted-foreground">
             Send the key as a Bearer token to <code className="font-mono text-xs text-foreground">{appUrl}/api/v1</code>. Verifying needs no key.
           </p>
-          <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
+          <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
 {`curl -X POST ${appUrl}/api/v1/seal \\
   -H "Authorization: Bearer sk_live_…" \\
   -F file=@contract.pdf -o contract.sealed.pdf`}
           </pre>
-        </div>
+        </details>
       </div>
 
       <Dialog open={!!newSecret} onOpenChange={(o) => !o && setNewSecret(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Copy your API key</DialogTitle>
-            <DialogDescription>You won&apos;t see it again. If you lose it, revoke it and create a new one.</DialogDescription>
+            <DialogDescription>It acts as this business, so keep it secret. You won&apos;t see it again.</DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 rounded-md border bg-muted p-3">
             <code className="min-w-0 flex-1 font-mono text-xs break-all">{newSecret}</code>

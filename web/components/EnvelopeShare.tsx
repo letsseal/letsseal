@@ -162,7 +162,7 @@ export default function EnvelopeShare({ slug, envelope, signers, activity }: Pro
           <section>
             <h2 className="mb-3 text-base font-semibold tracking-tight">Recipients</h2>
             {rows.length === 0 ? (
-              <EmptyState icon={Users} title="No recipients yet" description="Add recipients and fields, then send." />
+              <EmptyState icon={Users} title="No recipients yet" />
             ) : (
             <ul className="divide-y rounded-lg border">
               {rows.map((s, i) => {
@@ -171,7 +171,6 @@ export default function EnvelopeShare({ slug, envelope, signers, activity }: Pro
                 const signed = s.status === "signed";
                 const declined = s.status === "declined";
                 const open = !signed && !declined;
-                const affiliation = [s.title, s.department].filter(Boolean).join(" · ");
                 return (
                   <li
                     key={s.token}
@@ -225,14 +224,10 @@ export default function EnvelopeShare({ slug, envelope, signers, activity }: Pro
                       </div>
                       <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
                         <span>{s.email || "Signs in person"}</span>
-                        {affiliation && <span className="hidden sm:inline">· {affiliation}</span>}
                         <span className={cn(signed && "text-success", declined && "text-destructive")}>
                           · {s.statusLabel ?? "Waiting"}
                         </span>
                         {s.accessCode && <span>· Code <span className="font-mono text-foreground">{s.accessCode}</span></span>}
-                        {s.remindersSent > 0 && open && (
-                          <span>· Reminded {s.remindersSent === 1 ? "once" : `${s.remindersSent} times`}</span>
-                        )}
                       </p>
                     </div>
                     {open && (
@@ -243,7 +238,7 @@ export default function EnvelopeShare({ slug, envelope, signers, activity }: Pro
                             variant="ghost"
                             disabled={saving === s.id}
                             onClick={() => toggleChasing(s.id, !chasing[s.id])}
-                            title={chasing[s.id] ? "Reminders on" : "Reminders off"}
+                            title={`Reminders ${chasing[s.id] ? "on" : "off"}${s.remindersSent > 0 ? ` · sent ${s.remindersSent === 1 ? "once" : `${s.remindersSent} times`}` : ""}`}
                             aria-label="Reminders"
                             aria-pressed={chasing[s.id]}
                             className={cn(chasing[s.id] && "text-foreground")}
@@ -320,7 +315,7 @@ export default function EnvelopeShare({ slug, envelope, signers, activity }: Pro
                         Block {envelope.btcBlock} <ExternalLink className="size-3.5" />
                       </a>
                     ) : (
-                      <span className="font-normal text-muted-foreground">Confirming, takes a few hours</span>
+                      <span className="font-normal text-muted-foreground">Confirming</span>
                     )}
                   </DetailRow>
                 )}

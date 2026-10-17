@@ -89,7 +89,7 @@ export function RevealDetails({ hash, hasTrail }: { hash: string; hasTrail: bool
             <>
               <SignerList signers={signers} />
               <p className="text-xs text-muted-foreground">
-                Attribution reflects control of the signing channel, recorded tamper-evidently. It is not identity verification.
+                Shows who controlled each signing link, not a verified legal identity.
               </p>
             </>
           )}
@@ -102,10 +102,7 @@ export function RevealDetails({ hash, hasTrail }: { hash: string; hasTrail: bool
     <Card size="sm">
       <CardHeader>
         <CardTitle>{hasTrail ? "Document and signer details are private" : "Document details are private"}</CardTitle>
-        <CardDescription>
-          The subject{hasTrail ? " and who signed" : ""} {hasTrail ? "aren’t" : "isn’t"} shown publicly. If you have
-          the document, upload it to confirm it matches and unlock the details.
-        </CardDescription>
+        <CardDescription>Upload the document to see them.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         <Dropzone

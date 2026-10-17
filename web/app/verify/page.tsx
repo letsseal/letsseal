@@ -100,7 +100,7 @@ export default function Verify() {
               <div className="space-y-2">
                 <h1 className="text-3xl font-semibold tracking-tight">Verify a document</h1>
                 <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                  Check that a Let&apos;s Seal document is authentic and unaltered. Free, public, and verifiable offline with standard tools.
+                  Check that a document is authentic and unaltered.
                 </p>
               </div>
             </div>
@@ -141,31 +141,28 @@ export default function Verify() {
         )}
 
         <section className="mt-16 space-y-6 border-t pt-10">
-          <h2 className="text-base font-semibold tracking-tight">How verification works</h2>
-          <div className="grid gap-6 sm:grid-cols-3">
-            <Pillar icon={ShieldCheck} title="Cryptographic seal">
-              A signature from a Let&apos;s Seal certificate proves the document is exactly what was sealed, and who sealed it.
-            </Pillar>
-            <Pillar icon={Anchor} title="Timestamp">
-              Recorded with OpenTimestamps on Bitcoin: permanent proof of when it existed, on a public ledger no one controls.
-            </Pillar>
-            <Pillar icon={Terminal} title="Check it yourself">
-              Download the <span className="font-mono text-xs">.ots</span> proof and run{" "}
-              <span className="font-mono text-xs">ots verify</span>. The proof carries everything a verifier needs; this portal is a convenience.
-            </Pillar>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Don&apos;t just trust the badge, verify the file. A copied seal on a fake document has no valid signature and fails here.{" "}
-            <a href="https://letsseal.org/how-it-works" className="inline-flex items-center gap-1 text-brand hover:underline">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-base font-semibold tracking-tight">How verification works</h2>
+            <a href="https://letsseal.org/how-it-works" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               Learn more <ArrowRight className="size-3.5" />
             </a>
-          </p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <Pillar icon={ShieldCheck} title="Seal">
+              Proves the document is exactly what was sealed, and by whom. A copied badge on a fake fails.
+            </Pillar>
+            <Pillar icon={Anchor} title="Timestamp">
+              Proves when it existed, on a public ledger no one controls.
+            </Pillar>
+            <Pillar icon={Terminal} title="Check it yourself">
+              Every proof can be checked offline with standard tools.
+            </Pillar>
+          </div>
         </section>
       </main>
 
       <footer className="border-t">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-sm text-muted-foreground">
-          <span>Let&apos;s Seal: free, open document authenticity.</span>
           <nav className="flex flex-wrap gap-4">
             <a href="https://letsseal.org" className="hover:text-foreground">About</a>
             <a href="https://letsseal.org/trust" className="hover:text-foreground">Root of trust</a>

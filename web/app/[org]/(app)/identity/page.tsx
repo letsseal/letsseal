@@ -27,7 +27,7 @@ export default async function IdentityPage({
     <div className="max-w-3xl">
       <PageHeader
         title="Identity seal"
-        description={`Seal a file as yourself, not just as ${org.name}, using an email a provider has verified.`}
+        description={`Seal a file under your own verified email, not just as ${org.name}.`}
       />
       {providers.length > 0 ? (
         <IdentitySeal slug={org.slug} providers={providers} initialError={error ?? null} />

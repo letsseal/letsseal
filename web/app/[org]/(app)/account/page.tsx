@@ -58,7 +58,10 @@ export default async function AccountPage({ params }: { params: Promise<{ org: s
               <span className="font-mono text-xs">{tenant.verifiedDomain}</span>
             </span>
           ) : (
-            "Not verified. Verify a domain in any entity's settings."
+            <span className="flex items-center gap-2">
+              <StatusBadge tone="neutral">Not verified</StatusBadge>
+              <Link href={`/${slug}/settings#issuer-identity`} className="underline underline-offset-4 hover:text-foreground">Verify a domain</Link>
+            </span>
           )
         }
       />

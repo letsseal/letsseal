@@ -4,18 +4,19 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CircleCheck, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dropzone } from "@/components/common/dropzone";
+import { InfoTip } from "@/components/common/info-tip";
 
 type Result = { sha: string; name: string; url: string; sealedName: string } | null;
 type StampMode = "badge" | "line" | "none";
 
-const STAMP_CHOICES: { id: StampMode; label: string; hint: string }[] = [
-  { id: "badge", label: "QR badge", hint: "QR code and short code in the corner of page one." },
-  { id: "line", label: "Footer line", hint: "One grey line at the foot of the last page." },
-  { id: "none", label: "None", hint: "Page untouched. Verification works the same." },
+const STAMP_CHOICES: { id: StampMode; label: string }[] = [
+  { id: "badge", label: "QR badge" },
+  { id: "line", label: "Footer line" },
+  { id: "none", label: "None" },
 ];
 
 export function QuickSeal({ slug }: { slug: string }) {
@@ -56,7 +57,6 @@ export function QuickSeal({ slug }: { slug: string }) {
     <Card size="sm" className="h-fit">
       <CardHeader>
         <CardTitle>Seal a PDF</CardTitle>
-        <CardDescription>Get a sealed copy and a public proof link.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {state === "done" && result ? (
@@ -68,9 +68,7 @@ export function QuickSeal({ slug }: { slug: string }) {
                 <p className="truncate text-muted-foreground">{result.name}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              The sealed copy is now the original. Use it in place of the file you uploaded.
-            </p>
+            <p className="text-sm text-muted-foreground">Use this copy in place of your original.</p>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm">
                 <a href={result.url} download={result.sealedName}><Download /> Download</a>
@@ -93,20 +91,27 @@ export function QuickSeal({ slug }: { slug: string }) {
               size="sm"
               onFiles={(f) => seal(f[0])}
             />
-            <div className="space-y-1.5">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                Mark on the page
+                <InfoTip label="About the page mark">
+                  <p><strong>QR badge</strong> adds a QR code and short code to the corner of page one.</p>
+                  <p><strong>Footer line</strong> adds one grey line at the foot of the last page.</p>
+                  <p><strong>None</strong> leaves the page untouched. The file verifies the same way.</p>
+                </InfoTip>
+              </div>
               <ToggleGroup
                 type="single"
                 value={stamp}
                 onValueChange={(v) => v && setStamp(v as StampMode)}
                 disabled={state === "busy"}
                 className="w-full"
-                aria-label="Stamp on the page"
+                aria-label="Mark on the page"
               >
                 {STAMP_CHOICES.map((c) => (
                   <ToggleGroupItem key={c.id} value={c.id} className="text-xs">{c.label}</ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <p className="text-xs text-muted-foreground">{STAMP_CHOICES.find((c) => c.id === stamp)?.hint}</p>
             </div>
           </>
         )}

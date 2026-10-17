@@ -63,7 +63,6 @@ export default async function AppDashboard() {
           <EmptyState
             icon={Building2}
             title="No businesses yet"
-            description="Create one to start sealing and sending documents."
             action={<NewBusinessDialog />}
           />
         ) : (

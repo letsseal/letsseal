@@ -15,8 +15,8 @@ import { Field } from "@/components/common/field";
 import { BRAND_SWATCHES, ColorSwatches } from "@/components/BrandingEditor";
 
 const STRUCTURES = [
-  { value: "single", label: "One business", hint: "A single company. You can add more later." },
-  { value: "multi", label: "A brand with several entities", hint: "Legal entities under one brand, sharing a verified domain and team roles." },
+  { value: "single", label: "One business", hint: "A single company." },
+  { value: "multi", label: "A brand with several entities", hint: "Several legal entities under one brand." },
 ] as const;
 
 export default function NewBusinessDialog({

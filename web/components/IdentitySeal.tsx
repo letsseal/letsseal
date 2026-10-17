@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { AlertCircle, FileCheck2 } from "lucide-react";
 import { ProviderIcon } from "@/components/brand/ProviderIcon";
+import { InfoTip } from "@/components/common/info-tip";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dropzone } from "@/components/common/dropzone";
 
@@ -47,20 +48,23 @@ export function IdentitySeal({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{picked ? "Prove your email to seal it" : "Choose a file"}</CardTitle>
-        <CardDescription>
-          {picked
-            ? "The provider vouches for your email. Let's Seal doesn't verify identity itself."
-            : "The file is hashed in your browser and never uploaded."}
-        </CardDescription>
-      </CardHeader>
+      {picked && (
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            Prove your email
+            <InfoTip label="About identity providers">
+              <p>The provider vouches for your email. Let&apos;s Seal doesn&apos;t check identity itself.</p>
+            </InfoTip>
+          </CardTitle>
+        </CardHeader>
+      )}
       <CardContent className="space-y-4">
         {!picked ? (
           <Dropzone
             busy={hashing}
             busyTitle="Hashing…"
             title="Drop any file, or click to choose"
+            hint="Hashed in your browser, never uploaded."
             onFiles={(f) => choose(f[0])}
           />
         ) : (

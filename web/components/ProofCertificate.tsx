@@ -4,12 +4,12 @@ import { EXPLORER_BLOCK } from "@/lib/bitcoin";
 import type { SigningTrail } from "@/lib/signing-audit";
 import { RevealDetails, SignerList } from "@/components/RevealDetails";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/common/copy-button";
 import { DetailList, DetailRow } from "@/components/common/detail-list";
 import { StatusBadge } from "@/components/common/status-badge";
+import { InfoTip } from "@/components/common/info-tip";
 
 export type ProofData = {
   sha256: string;
@@ -110,8 +110,7 @@ function CredentialCard({ c }: { c: NonNullable<ProofData["credential"]> }) {
             <AlertTitle>Revoked by the issuer{c.revokedAt ? ` on ${new Date(c.revokedAt).toLocaleDateString()}` : ""}</AlertTitle>
             <AlertDescription>
               <p>
-                {c.revokedReason ? `${c.revokedReason}. ` : ""}The seal still proves it was genuinely issued and unaltered;
-                the issuer has since withdrawn it.
+                {c.revokedReason ? `${c.revokedReason}. ` : ""}It was genuinely issued, and has since been withdrawn.
               </p>
             </AlertDescription>
           </Alert>
@@ -139,8 +138,7 @@ function SigningTrailCard({ trail }: { trail: SigningTrail }) {
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Signers and audit trail</CardTitle>
-        <CardDescription>How each party reached and signed the document, recorded in a tamper-evident log.</CardDescription>
+        <CardTitle>Signers</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {trail.sharedSession && (
@@ -172,21 +170,13 @@ function SigningTrailCard({ trail }: { trail: SigningTrail }) {
       </CardContent>
       <CardFooter>
         <p className="text-xs text-muted-foreground">
-          Attribution reflects control of the signing channel (a link sent to the signer&apos;s email, say), recorded
-          tamper-evidently. It shows who held the channel, not a verified legal identity.
+          Shows who controlled each signing link, not a verified legal identity.
         </p>
       </CardFooter>
     </Card>
   );
 }
 
-function IssuerBadge({ data }: { data: ProofData }) {
-  if (data.suspended) return <StatusBadge tone="destructive">Suspended</StatusBadge>;
-  if (!data.verification) return null;
-  return data.verification.verified
-    ? <Badge variant="success"><BadgeCheck />{data.verification.domain}</Badge>
-    : <StatusBadge tone="warning">Unverified</StatusBadge>;
-}
 
 function IssuerNotice({ data }: { data: ProofData }) {
   if (data.suspended) {
@@ -196,8 +186,8 @@ function IssuerNotice({ data }: { data: ProofData }) {
         <AlertTitle>Issuer suspended</AlertTitle>
         <AlertDescription>
           <p>
-            Let&apos;s Seal has suspended this issuer{data.suspendedReason ? <> ({data.suspendedReason})</> : null}. Don&apos;t
-            trust the issuer name on this document. The file is still intact and timestamped; only who issued it is in dispute.
+            Don&apos;t trust the issuer name{data.suspendedReason ? <> ({data.suspendedReason})</> : null}. The file is still
+            intact and timestamped; only who issued it is in dispute.
           </p>
         </AlertDescription>
       </Alert>
@@ -207,23 +197,22 @@ function IssuerNotice({ data }: { data: ProofData }) {
   return data.verification.verified ? (
     <Alert variant="success">
       <BadgeCheck />
-      <AlertTitle>Issuer verified</AlertTitle>
-      <AlertDescription>
-        <p>
-          Let&apos;s Seal confirmed this issuer controls <span className="font-medium text-foreground">{data.verification.domain}</span>
-          {data.verification.via ? <> ({viaLabel(data.verification.via)})</> : null}. The issuer&apos;s identity is that domain.
-        </p>
-      </AlertDescription>
+      <AlertTitle className="flex items-center gap-1.5">
+        Issuer verified as {data.verification.domain}
+        <InfoTip label="About issuer verification">
+          <p>
+            Let&apos;s Seal confirmed this issuer controls {data.verification.domain}
+            {data.verification.via ? <> ({viaLabel(data.verification.via)})</> : null}. The domain is the issuer&apos;s identity.
+          </p>
+        </InfoTip>
+      </AlertTitle>
     </Alert>
   ) : (
     <Alert variant="warning">
       <ShieldAlert />
-      <AlertTitle>Issuer identity not verified</AlertTitle>
+      <AlertTitle>Issuer not verified</AlertTitle>
       <AlertDescription>
-        <p>
-          The sealing account chose this name; Let&apos;s Seal hasn&apos;t confirmed who they are. The seal proves the file
-          is intact and timestamped, not who issued it.
-        </p>
+        <p>Anyone can choose this name. The seal proves the file is intact and timestamped, not who issued it.</p>
       </AlertDescription>
     </Alert>
   );
@@ -271,14 +260,14 @@ export function ProofCertificate({ data, variant = "document", gate, label, desc
   const confirmed = data.anchor?.state === "confirmed";
   const isTimestamp = variant === "timestamp";
 
-  const [title, explanation, color]: [string, React.ReactNode, string] = isTimestamp
+  const [title, explanation, color]: [string, React.ReactNode | null, string] = isTimestamp
     ? confirmed
       ? ["Timestamp confirmed", "Proof this file existed by the date below.", "var(--success)"]
-      : ["Timestamp pending", "Confirming the timestamp. This takes a few hours.", "var(--muted-foreground)"]
+      : ["Timestamp pending", "This takes a few hours.", "var(--muted-foreground)"]
     : onRecordOnly
-      ? ["Sealed and timestamped", description ?? "On record as sealed by the issuer and timestamped.", sealed ? "var(--brand)" : "var(--muted-foreground)"]
+      ? ["Sealed and timestamped", description ?? null, sealed ? "var(--brand)" : "var(--muted-foreground)"]
       : authentic
-        ? ["Authentic and unaltered", "This document carries a valid Let’s Seal seal and hasn’t been modified.", "var(--success)"]
+        ? ["Authentic and unaltered", null, "var(--success)"]
         : !sealed
           ? ["Not a sealed document", "No signature was found in this file.", "var(--muted-foreground)"]
           : !trusted
@@ -296,7 +285,7 @@ export function ProofCertificate({ data, variant = "document", gate, label, desc
         <div className="space-y-1.5">
           {label && <p className="text-sm text-muted-foreground">{label}</p>}
           <Heading className="text-3xl font-semibold tracking-tight">{title}</Heading>
-          <p className="text-sm text-muted-foreground">{explanation}</p>
+          {explanation && <p className="text-sm text-muted-foreground">{explanation}</p>}
         </div>
       </div>
 
@@ -317,7 +306,6 @@ export function ProofCertificate({ data, variant = "document", gate, label, desc
                 <DetailRow label="Issuer">
                   <span className="inline-flex flex-wrap items-center justify-end gap-2">
                     {issuerName}
-                    <IssuerBadge data={data} />
                   </span>
                 </DetailRow>
                 {data.onRecord && data.title && <DetailRow label="Document">{data.title}</DetailRow>}
@@ -342,8 +330,8 @@ export function ProofCertificate({ data, variant = "document", gate, label, desc
                 : confirmed
                   ? <StatusBadge tone="success">Confirmed</StatusBadge>
                   : (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="text-xs font-normal text-muted-foreground">Takes a few hours</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <InfoTip label="About confirming timestamps"><p>The timestamp is recorded on a public ledger. Confirmation takes a few hours.</p></InfoTip>
                       <StatusBadge tone="warning">Confirming</StatusBadge>
                     </span>
                   )}
@@ -375,9 +363,7 @@ export function ProofCertificate({ data, variant = "document", gate, label, desc
               {data.identity.provider && <DetailRow label="Verified by">{data.identity.provider}</DetailRow>}
             </DetailList>
             <p className="text-xs text-muted-foreground">
-              The signer proved control of this email to {data.identity.provider ?? "an identity provider"}
-              {data.identity.issuer ? <> (<span className="font-mono">{data.identity.issuer}</span>)</> : null} at seal time.
-              Let&apos;s Seal doesn&apos;t verify identity itself; this attributes the seal to that third party&apos;s verification.
+              Verified by {data.identity.provider ?? "an identity provider"} when sealed, not by Let&apos;s Seal.
             </p>
           </CardContent>
         </Card>

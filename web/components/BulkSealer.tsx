@@ -6,6 +6,7 @@ import { Loader2, ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { InfoTip } from "@/components/common/info-tip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dropzone } from "@/components/common/dropzone";
 import { CopyButton } from "@/components/common/copy-button";
@@ -111,7 +112,10 @@ export default function BulkSealer({ slug }: { slug: string }) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <Switch id="anchor" checked={anchor} onCheckedChange={setAnchor} disabled={running} />
-          <Label htmlFor="anchor" className="font-normal">Add an independent timestamp</Label>
+          <Label htmlFor="anchor" className="font-normal">Timestamp</Label>
+          <InfoTip label="About timestamps">
+            <p>Records when each file existed, independently of Let&apos;s Seal. It confirms within a few hours.</p>
+          </InfoTip>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {sealedCount > 0 && (
@@ -145,7 +149,6 @@ export default function BulkSealer({ slug }: { slug: string }) {
                       <p className="truncate font-medium">{it.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {fmtSize(it.size)}
-                        {it.status === "sealed" && it.sha256 && <span className="font-mono"> · {it.sha256.slice(0, 12)}…</span>}
                         {timestampPending && " · Timestamp pending"}
                         {it.error && <span className="text-destructive"> · {it.error}</span>}
                       </p>

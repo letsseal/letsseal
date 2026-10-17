@@ -7,6 +7,7 @@ import { type DocRow, type DocTone, relativeDate } from "@/lib/org-docs";
 
 const TONE: Record<DocTone, StatusTone> = { green: "success", amber: "warning", gray: "neutral", red: "destructive" };
 const KIND_ICON = { contract: FileText, seal: Stamp, credential: Award } as const;
+const KIND_LABEL = { contract: "Signing request", seal: "Sealed file", credential: "Credential" } as const;
 
 export function DocTable({ rows, empty }: { rows: DocRow[]; empty?: React.ReactNode }) {
   if (rows.length === 0) {
@@ -29,12 +30,12 @@ export function DocTable({ rows, empty }: { rows: DocRow[]; empty?: React.ReactN
             <TableRow key={r.id} className="relative">
               <TableCell className="max-w-0 w-full">
                 <div className="flex items-center gap-3">
-                  <Icon className="size-4 shrink-0 text-muted-foreground" />
+                  <Icon role="img" aria-label={KIND_LABEL[r.kind]} className="size-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     <Link href={r.href} className="block truncate font-medium after:absolute after:inset-0">
                       {r.title}
                     </Link>
-                    <p className="truncate text-xs text-muted-foreground">{r.meta}</p>
+                    {r.meta && <p className="truncate text-xs text-muted-foreground">{r.meta}</p>}
                   </div>
                 </div>
               </TableCell>

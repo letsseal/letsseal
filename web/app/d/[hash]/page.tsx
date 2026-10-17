@@ -9,6 +9,7 @@ import { getBlockInfo } from "@/lib/bitcoin";
 import { getSigningTrail } from "@/lib/signing-audit";
 import { getInclusionProof } from "@/lib/translog";
 import { TopBar } from "@/components/TopBar";
+import { InfoTip } from "@/components/common/info-tip";
 import { ProofCertificate, type ProofData } from "@/components/ProofCertificate";
 import { Button } from "@/components/ui/button";
 import { canonicalProofQuery, coIssuersFor, readSidecar } from "@/lib/proofs";
@@ -204,20 +205,10 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
 
   const kind = isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isIdentitySeal ? "Identity proof" : isAttestation ? "Attestation proof" : isBlobSeal || detached ? "File proof" : "Document proof";
   const description = isC2pa
-    ? "A permanent record that this file carries signed Content Credentials and is timestamped."
-    : isXmlSeal
-      ? "A permanent record that this XML document is signed and timestamped."
-      : isSmimeSeal
-        ? "A permanent record that this email message is signed and timestamped."
-        : isIdentitySeal
-          ? "A permanent record that this file was signed by a person whose email an identity provider verified, and is timestamped."
-          : isAttestation
-            ? "A permanent record of a signed attestation (an SBOM or provenance claim) about this file, timestamped."
-            : isBlobSeal
-              ? "A permanent record that this file is signed and timestamped."
-              : detached
-                ? "A permanent record that this file is sealed and timestamped."
-                : `A permanent record that this document is sealed and timestamped.${gate ? ` The ${hiddenParts} ${hiddenVerb} private until you upload the file.` : ""}`;
+    ? "The file carries signed Content Credentials."
+    : isAttestation
+      ? "A signed SBOM or provenance claim about this file."
+      : undefined;
 
   return (
     <div className="min-h-screen">
@@ -225,9 +216,14 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
       <main className="mx-auto max-w-2xl px-6 py-12">
         {viewerIsIssuer && (
           <div className="mb-10 space-y-3 rounded-lg border bg-muted px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              This is the <span className="font-medium text-foreground">public</span> proof. Anyone with the link sees the issuer, {isCredential ? "the credential details, " : ""}the fingerprint and the timestamp
-              {hiddenParts ? `; the ${hiddenParts} ${hiddenVerb} private unless they upload the file` : ""}.
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              You&apos;re viewing the public proof.
+              <InfoTip label="What visitors see">
+                <p>
+                  Anyone with the link sees the issuer, {isCredential ? "the credential details, " : ""}the fingerprint and the timestamp.
+                  {hiddenParts ? ` The ${hiddenParts} ${hiddenVerb} private unless they upload the file.` : ""}
+                </p>
+              </InfoTip>
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {orgSlug && (
