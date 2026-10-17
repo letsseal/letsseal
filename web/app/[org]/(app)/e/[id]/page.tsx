@@ -37,8 +37,8 @@ const ACTION_LABEL: Record<string, string> = {
   signed: "signed",
   declined: "declined to sign",
   sealed: "sealed the document",
-  anchored: "timestamped it on the blockchain",
-  anchor_confirmed: "confirmed the blockchain timestamp",
+  anchored: "requested a timestamp",
+  anchor_confirmed: "confirmed the timestamp",
   completed_notified: "sent completion notifications",
   verified: "verified the document",
 };
@@ -60,8 +60,8 @@ export default async function EnvelopePage({ params }: { params: Promise<{ org: 
 
   return (
     <EnvelopeShare
-      activity={activity}
       slug={slug}
+      activity={activity}
       envelope={{
         id: envelope.id,
         title: envelope.title,
@@ -74,7 +74,6 @@ export default async function EnvelopePage({ params }: { params: Promise<{ org: 
         message: envelope.message,
         sequential: envelope.sequential,
       }}
-      org={{ name: envelope.org.name, brandColor: envelope.org.brandColor }}
       signers={envelope.signers.map((s) => ({
         id: s.id,
         name: s.name,

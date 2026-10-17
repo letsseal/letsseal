@@ -2,100 +2,77 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Award, Stamp, BadgeCheck, Fingerprint, Code2, Settings, ChevronsUpDown, Building2 } from "lucide-react";
-import { SealMark } from "@/components/brand/SealMark";
+import { ArrowUpRight, ChevronsUpDown } from "lucide-react";
+import { Wordmark } from "@/components/brand/Wordmark";
+import UserMenu from "@/components/UserMenu";
+import { OrgAvatar } from "./OrgAvatar";
+import { buildNav, isActive, type NavItem } from "./nav";
+import { cn } from "@/lib/utils";
 
 export function Sidebar({
-  slug, orgName, brandColor, docCount, enterprise = false, accountName,
+  slug, orgName, brandColor, docCount, enterprise = false, accountName, identityEnabled = true, userName, userEmail,
 }: {
   slug: string; orgName: string; brandColor: string; docCount: number;
-  enterprise?: boolean; accountName?: string;
+  enterprise?: boolean; accountName?: string; identityEnabled?: boolean;
+  userName?: string | null; userEmail: string;
 }) {
   const pathname = usePathname();
-  const nav = [
-    { label: "Dashboard", href: `/${slug}`, icon: LayoutDashboard, exact: true },
-    { label: "Documents", href: `/${slug}/documents`, icon: FileText, badge: docCount || undefined },
-    { label: "Credentials", href: `/${slug}/credentials`, icon: Award },
-    { label: "Seal & anchor", href: `/${slug}/seal`, icon: Stamp },
-    { label: "Identity seal", href: `/${slug}/identity`, icon: Fingerprint },
-    { label: "Verify", href: `/verify`, icon: BadgeCheck },
-    ...(enterprise ? [{ label: "Account", href: `/${slug}/account`, icon: Building2 }] : []),
-  ];
-  const dev = [
-    { label: "API keys", href: `/${slug}/settings#api-keys`, icon: Code2 },
-    { label: "Settings", href: `/${slug}/settings`, icon: Settings },
-  ];
-  const active = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
+  const { main, secondary } = buildNav(slug, { enterprise, identityEnabled });
 
   return (
-    <aside className="hidden flex-col border-r bg-secondary/50 md:flex">
-      <div className="flex h-[68px] items-center gap-0.5 px-5">
-        <SealMark className="h-[1em] w-[1em]" />
-        <span className="text-[17px] font-bold tracking-[-0.05em]">LetsSeal</span>
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-sidebar md:flex">
+      <div className="flex h-14 items-center px-4">
+        <Wordmark href="/app" size="sm" />
       </div>
 
-      <nav className="flex-1 px-3 py-2">
-        {nav.map((n) => {
-          const Icon = n.icon;
-          const on = active(n.href, n.exact);
-          return (
-            <Link
-              key={n.label}
-              href={n.href}
-              className={`mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                on ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-[18px] w-[18px]" />
-              <span className="flex-1">{n.label}</span>
-              {n.badge != null && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>
-                  {n.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-
-        <div className="mb-1.5 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          Developers
-        </div>
-        {dev.map((n) => {
-          const Icon = n.icon;
-          const on = active(n.href);
-          return (
-            <Link
-              key={n.label}
-              href={n.href}
-              className={`mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                on ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-[18px] w-[18px]" />
-              <span>{n.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="p-3">
+      <div className="px-3">
         <Link
           href="/app"
-          className="flex items-center gap-2.5 rounded-xl border bg-card p-2.5 transition-colors hover:bg-secondary"
+          className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 shadow-xs transition-colors hover:bg-accent"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white" style={{ background: brandColor }}>
-            {orgName[0]}
-          </span>
+          <OrgAvatar name={orgName} color={brandColor} size="xs" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-semibold leading-tight">{orgName}</span>
-            <span className="block truncate text-[11px] text-muted-foreground">
-              {enterprise && accountName ? `${accountName} · switch` : "Switch account"}
-            </span>
+            <span className="block truncate text-sm font-medium">{orgName}</span>
+            {enterprise && accountName && <span className="block truncate text-xs text-muted-foreground">{accountName}</span>}
           </span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
         </Link>
       </div>
+
+      <nav className="flex-1 space-y-0.5 px-3 pt-4">
+        {main.map((n) => (
+          <NavLink key={n.href} item={n} active={isActive(pathname, n)} badge={n.label === "Documents" && docCount ? docCount : undefined} />
+        ))}
+      </nav>
+
+      <div className="space-y-0.5 border-t px-3 py-3">
+        {secondary.map((n) => (
+          <NavLink key={n.href} item={n} active={isActive(pathname, n)} />
+        ))}
+        <div className="pt-2">
+          <UserMenu name={userName} email={userEmail} variant="row" />
+        </div>
+      </div>
     </aside>
+  );
+}
+
+function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badge?: number }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      target={item.external ? "_blank" : undefined}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group flex h-8 items-center gap-2.5 rounded-md px-2 text-sm transition-colors",
+        active ? "bg-sidebar-accent font-medium text-foreground" : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="flex-1 truncate">{item.label}</span>
+      {badge != null && <span className="text-xs tabular-nums text-muted-foreground">{badge}</span>}
+      {item.external && <ArrowUpRight className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />}
+    </Link>
   );
 }

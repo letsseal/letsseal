@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, Download, X, Eye } from "lucide-react";
+import { Download, Eye, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import PdfCanvas from "@/components/PdfCanvas";
 
 export default function EnvelopeDocPreview({
@@ -45,80 +46,57 @@ export default function EnvelopeDocPreview({
     };
   }, [fileUrl]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   return (
     <>
-      <div className="w-full max-w-xl">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={`View ${title}`}
-          className="group relative block w-full overflow-hidden rounded-lg border bg-white transition-colors hover:border-primary/60 focus:outline-none focus:ring-2 focus:ring-ring/40"
-        >
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`View ${title}`}
+        className="group block w-full overflow-hidden rounded-lg border text-left transition-colors outline-none hover:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        <div className="relative bg-muted">
           {failed ? (
             <div className="flex h-56 items-center justify-center text-muted-foreground">
-              <FileText className="h-8 w-8" />
+              <FileText className="size-6" />
             </div>
           ) : (
             <canvas ref={canvasRef} className="block w-full" />
           )}
-          <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity group-hover:bg-black/30 group-hover:opacity-100">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/95 px-2.5 py-1 text-xs font-semibold text-stone-900 shadow">
-              <Eye className="h-3.5 w-3.5" /> View
+          <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs font-medium shadow-sm">
+              <Eye className="size-3.5" /> View
             </span>
           </span>
-        </button>
-        <div className="mt-2">
-          <div className="truncate text-sm font-medium">{title}</div>
-          {pages != null && (
-            <div className="text-xs text-muted-foreground">
-              {pages} page{pages === 1 ? "" : "s"}
-            </div>
-          )}
         </div>
-      </div>
+        <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+          {pages != null ? `${pages} page${pages === 1 ? "" : "s"}` : "PDF"}
+        </div>
+      </button>
 
-      {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4 sm:p-8"
-          onClick={() => setOpen(false)}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex h-[calc(100dvh-4rem)] flex-col gap-0 overflow-hidden rounded-lg p-0 sm:max-w-3xl"
         >
-          <div
-            className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-background shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="flex items-center gap-3 border-b px-4 py-3">
-              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</span>
-              <Button asChild size="sm" variant="outline" className="gap-1.5">
-                <a href={downloadUrl ?? fileUrl} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-3.5 w-3.5" /> Download
-                </a>
+          <header className="flex items-center gap-3 border-b px-4 py-3">
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+            <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</DialogTitle>
+            <Button asChild size="sm" variant="outline">
+              <a href={downloadUrl ?? fileUrl} target="_blank" rel="noopener noreferrer">
+                <Download /> Download
+              </a>
+            </Button>
+            <DialogClose asChild>
+              <Button size="icon-sm" variant="ghost" aria-label="Close">
+                <X />
               </Button>
-              <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setOpen(false)} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
-            </header>
-            <div className="min-h-0 flex-1 overflow-auto bg-muted/40 p-4">
-              <PdfCanvas fileUrl={fileUrl} fields={[]} mode="view" />
-            </div>
+            </DialogClose>
+          </header>
+          <div className="min-h-0 flex-1 overflow-auto bg-muted p-4">
+            <PdfCanvas fileUrl={fileUrl} fields={[]} mode="view" />
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

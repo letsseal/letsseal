@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, ExternalLink, Contact, Check, Clock, ShieldCheck, Download, Anchor, Eye, Ban, ListOrdered, History, BellRing, BellOff, GripVertical } from "lucide-react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Bell, BellOff, Contact, Download, ExternalLink, GripVertical, Lock, Pencil, ShieldCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { recipientColor, reorder } from "@/lib/signers";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/common/page-header";
+import { StatusBadge, type StatusTone } from "@/components/common/status-badge";
+import { DetailList, DetailRow } from "@/components/common/detail-list";
+import { CopyButton } from "@/components/common/copy-button";
+import { EmptyState } from "@/components/common/empty-state";
+import { recipientColor, reorder, roleMeta } from "@/lib/signers";
+import { cn } from "@/lib/utils";
 import EnvelopeDocPreview from "@/components/EnvelopeDocPreview";
 
 type Signer = {
@@ -39,30 +47,25 @@ type Props = {
     message: string | null;
     sequential: boolean;
   };
-  org: { name: string; brandColor: string };
   signers: Signer[];
   activity: { who: string; label: string; at: string }[];
 };
 
-const STATUS_UI: Record<string, { label: string; cls: string }> = {
-  draft: { label: "Draft", cls: "bg-stone-100 text-stone-600" },
-  sent: { label: "Awaiting signatures", cls: "bg-amber-100 text-amber-700" },
-  completed: { label: "Completed & sealed", cls: "bg-green-100 text-green-700" },
-  voided: { label: "Voided", cls: "bg-red-100 text-red-700" },
+const STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  draft: { label: "Draft", tone: "neutral" },
+  sent: { label: "Awaiting", tone: "warning" },
+  completed: { label: "Sealed", tone: "success" },
+  voided: { label: "Voided", tone: "destructive" },
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  in_person: "In person",
-  kiosk: "Kiosk",
-  cc: "Copied",
-  viewer: "Viewer",
-};
 
-export default function EnvelopeShare({ slug, envelope, org, signers, activity }: Props) {
+export default function EnvelopeShare({ slug, envelope, signers, activity }: Props) {
   const [chasing, setChasing] = useState<Record<string, boolean>>(
     () => Object.fromEntries(signers.map((s) => [s.id, s.remindersEnabled])),
   );
   const [saving, setSaving] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
   const toggleChasing = async (signerId: string, next: boolean) => {
     const previous = chasing[signerId];
@@ -117,231 +120,216 @@ export default function EnvelopeShare({ slug, envelope, org, signers, activity }
     }
   };
 
-  const copyLink = (token: string, msg: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/sign/${token}`);
-    toast.success(msg);
-  };
-  const copyId = () => {
-    navigator.clipboard.writeText(envelope.id);
-    toast.success("Envelope ID copied");
-  };
-
   const signedCount = signers.filter((s) => s.status === "signed").length;
-  const st = STATUS_UI[envelope.status] ?? STATUS_UI.draft;
+  const st = STATUS[envelope.status] ?? STATUS.draft;
   const fileUrl = envelope.completed ? `/api/file/${envelope.id}?variant=sealed` : `/api/file/${envelope.id}`;
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="flex flex-wrap items-start gap-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-semibold text-white"
-              style={{ background: org.brandColor }}>{org.name[0]}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">{envelope.title}</h1>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
-          </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {org.name} · {signedCount} of {signers.length} signed
-          </p>
-        </div>
-        {envelope.completed && (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <a href={`/d/${envelope.id}`} target="_blank"><ShieldCheck className="h-3.5 w-3.5" /> Public proof</a>
+    <>
+      <PageHeader
+        title={envelope.title}
+        description={
+          <span className="flex items-center gap-2">
+            <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+            {envelope.status !== "draft" && signers.length > 0 && `${signedCount} of ${signers.length} signed`}
+          </span>
+        }
+        actions={envelope.status === "draft" ? (
+          <Button asChild>
+            <Link href={`/${slug}/new?envelope=${envelope.id}`}><Pencil /> Continue editing</Link>
+          </Button>
+        ) : envelope.completed && (
+          <>
+            <Button asChild variant="outline">
+              <a href={`/d/${envelope.id}`} target="_blank"><ShieldCheck /> Proof</a>
             </Button>
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <a href={fileUrl} target="_blank"><Download className="h-3.5 w-3.5" /> PDF</a>
+            <Button asChild variant="outline">
+              <a href={fileUrl} target="_blank"><Download /> Download</a>
             </Button>
-          </div>
+          </>
         )}
-      </div>
+      />
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
         <div className="min-w-0 space-y-8">
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border bg-card p-4 sm:grid-cols-4">
-              <Meta label="Status" value={st.label} />
-              <Meta label="Created" value={envelope.createdLabel} />
-              <Meta label={envelope.completedLabel ? "Completed" : "Signing order"}
-                    value={envelope.completedLabel ?? (envelope.sequential ? "One at a time" : "Any order")} />
-              <Meta label="Progress" value={`${signedCount} of ${signers.length} signed`} />
-              <div className="col-span-2 border-t pt-3 sm:col-span-4">
-                <div className="text-xs text-muted-foreground">Envelope ID</div>
-                <button onClick={copyId} className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-[13px] hover:text-primary">
-                  {envelope.id} <Copy className="h-3.5 w-3.5" />
-                </button>
-              </div>
+          {envelope.message && (
+            <div className="rounded-lg border bg-muted p-4">
+              <p className="text-xs text-muted-foreground">Message to recipients</p>
+              <p className="mt-1 text-sm whitespace-pre-wrap">{envelope.message}</p>
             </div>
+          )}
 
-            {envelope.completed && envelope.anchorState !== "none" && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Anchor className="h-3.5 w-3.5" />
-                {envelope.anchorState === "confirmed"
-                  ? <>Timestamped on the blockchain, block <b>{envelope.btcBlock}</b> · <a href={`https://mempool.space/block/${envelope.btcBlock}`} target="_blank" className="text-blue-600 hover:underline">explorer</a></>
-                  : "Recording an independent timestamp, confirming (~a few hours)"}
-              </div>
-            )}
-
-            {envelope.message && (
-              <div className="rounded-xl border bg-muted/30 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Message to recipients</div>
-                <p className="mt-1.5 whitespace-pre-wrap text-sm text-stone-700">{envelope.message}</p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recipients ({signers.length})</h2>
-              {envelope.sequential && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <ListOrdered className="h-3.5 w-3.5" /> signs in order
-                </span>
-              )}
-            </div>
-            <div className="overflow-hidden rounded-xl border bg-card">
+          <section>
+            <h2 className="mb-3 text-base font-semibold tracking-tight">Recipients</h2>
+            {rows.length === 0 ? (
+              <EmptyState icon={Users} title="No recipients yet" description="Add recipients and fields, then send." />
+            ) : (
+            <ul className="divide-y rounded-lg border">
               {rows.map((s, i) => {
-                const c = recipientColor(i);
                 const path = `/sign/${s.token}`;
                 const inPerson = !s.email;
                 const signed = s.status === "signed";
                 const declined = s.status === "declined";
-                const viewed = s.status === "viewed";
-                const roleLabel = ROLE_LABEL[s.kind] ?? (s.role === "cc" ? "Copied" : s.role === "viewer" ? "Viewer" : "Signer");
+                const open = !signed && !declined;
+                const affiliation = [s.title, s.department].filter(Boolean).join(" · ");
                 return (
-                  <div key={s.token}
-                       onDragOver={(e) => { if (dragFrom !== null) { e.preventDefault(); setDragOver(i); } }}
-                       onDrop={(e) => {
-                         e.preventDefault();
-                         if (dragFrom !== null) moveRow(dragFrom, i);
-                         setDragFrom(null); setDragOver(null);
-                       }}
-                       className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 [&:not(:last-child)]:border-b ${
-                         dragOver === i && dragFrom !== null && dragFrom !== i ? "bg-secondary/60" : ""
-                       } ${dragFrom === i ? "opacity-50" : ""}`}>
+                  <li
+                    key={s.token}
+                    onDragOver={(e) => { if (dragFrom !== null) { e.preventDefault(); setDragOver(i); } }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragFrom !== null) moveRow(dragFrom, i);
+                      setDragFrom(null); setDragOver(null);
+                    }}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 transition-colors",
+                      dragOver === i && dragFrom !== null && dragFrom !== i && "bg-accent",
+                      dragFrom === i && "opacity-50",
+                    )}
+                  >
                     {reorderable && (
                       locked(s) ? (
-                        <span className="h-5 w-4 shrink-0" title="Already asked to sign, so their place in the order is fixed" />
+                        <span className="flex size-7 shrink-0 items-center justify-center text-muted-foreground/50"
+                              title="Already asked to sign, so their place in the order is fixed">
+                          <Lock className="size-3.5" />
+                        </span>
                       ) : (
-                        <button type="button"
-                                draggable
-                                onDragStart={() => { setDragFrom(i); setDragOver(i); }}
-                                onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "ArrowUp") { e.preventDefault(); moveRow(i, i - 1); }
-                                  if (e.key === "ArrowDown") { e.preventDefault(); moveRow(i, i + 1); }
-                                }}
-                                title={envelope.sequential ? "Drag to change the signing order, or use the arrow keys" : "Drag to reorder"}
-                                aria-label={`Reorder ${s.name}, position ${i + 1} of ${rows.length}`}
-                                className="shrink-0 cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing">
-                          <GripVertical className="h-3.5 w-3.5" />
-                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          draggable
+                          onDragStart={() => { setDragFrom(i); setDragOver(i); }}
+                          onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowUp") { e.preventDefault(); moveRow(i, i - 1); }
+                            if (e.key === "ArrowDown") { e.preventDefault(); moveRow(i, i + 1); }
+                          }}
+                          title={envelope.sequential ? "Drag to change the signing order, or use the arrow keys" : "Drag to reorder"}
+                          aria-label={`Reorder ${s.name}, position ${i + 1} of ${rows.length}`}
+                          className="cursor-grab active:cursor-grabbing"
+                        >
+                          <GripVertical />
+                        </Button>
                       )
                     )}
                     {envelope.sequential && (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-muted-foreground">{i + 1}</span>
-                    )}
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.solid }} />
-                    <span className="font-medium">{s.name}</span>
-                    <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">{roleLabel}</span>
-                    <span className="text-sm text-muted-foreground">{s.email || "no email, sign in person"}</span>
-                    {(s.title || s.department) && (
-                      <span className="hidden text-xs text-muted-foreground sm:inline">· {[s.title, s.department].filter(Boolean).join(" · ")}</span>
-                    )}
-                    {s.statusLabel && <span className="text-xs text-muted-foreground">· {s.statusLabel}</span>}
-                    {s.accessCode && <span className="text-xs text-muted-foreground">· code <b>{s.accessCode}</b></span>}
-                    {s.remindersSent > 0 && !signed && !declined && (
-                      <span className="text-xs text-muted-foreground">
-                        · chased {s.remindersSent === 1 ? "once" : `${s.remindersSent} times`}
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium tabular-nums text-muted-foreground">
+                        {i + 1}
                       </span>
                     )}
-                    <div className="ml-auto flex shrink-0 items-center gap-2">
-                      <Badge variant="secondary" className="gap-1 font-normal">
-                        {signed ? <><Check className="h-3 w-3 text-green-600" /> signed</>
-                          : declined ? <><Ban className="h-3 w-3 text-red-600" /> declined</>
-                          : viewed ? <><Eye className="h-3 w-3 text-blue-600" /> viewed</>
-                          : <><Clock className="h-3 w-3" /> pending</>}
-                      </Badge>
-                      {!signed && !declined && !inPerson && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          disabled={saving === s.id}
-                          onClick={() => toggleChasing(s.id, !chasing[s.id])}
-                          title={chasing[s.id]
-                            ? "Reminders on. Click to stop chasing this recipient."
-                            : "Reminders off. Click to chase this recipient."}
-                          aria-label={chasing[s.id] ? "Turn reminders off" : "Turn reminders on"}
-                          aria-pressed={chasing[s.id]}
-                        >
-                          {chasing[s.id]
-                            ? <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
-                            : <BellOff className="h-3.5 w-3.5 text-muted-foreground/40" />}
-                        </Button>
-                      )}
-                      {!signed && !declined && (
-                        inPerson ? (
+                    <span className="size-2 shrink-0 rounded-full" style={{ background: recipientColor(i).solid }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{s.name}</span>
+                        <Badge variant="outline">{roleMeta(s.role).label}</Badge>
+                      </div>
+                      <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
+                        <span>{s.email || "Signs in person"}</span>
+                        {affiliation && <span className="hidden sm:inline">· {affiliation}</span>}
+                        <span className={cn(signed && "text-success", declined && "text-destructive")}>
+                          · {s.statusLabel ?? "Waiting"}
+                        </span>
+                        {s.accessCode && <span>· Code <span className="font-mono text-foreground">{s.accessCode}</span></span>}
+                        {s.remindersSent > 0 && open && (
+                          <span>· Reminded {s.remindersSent === 1 ? "once" : `${s.remindersSent} times`}</span>
+                        )}
+                      </p>
+                    </div>
+                    {open && (
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {!inPerson && (
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            disabled={saving === s.id}
+                            onClick={() => toggleChasing(s.id, !chasing[s.id])}
+                            title={chasing[s.id] ? "Reminders on" : "Reminders off"}
+                            aria-label="Reminders"
+                            aria-pressed={chasing[s.id]}
+                            className={cn(chasing[s.id] && "text-foreground")}
+                          >
+                            {chasing[s.id] ? <Bell /> : <BellOff />}
+                          </Button>
+                        )}
+                        {inPerson ? (
                           <>
-                            <Button asChild size="sm" className="gap-1.5 text-white" style={{ background: c.solid }}>
-                              <a href={path}><Contact className="h-3.5 w-3.5" /> Hand device</a>
-                            </Button>
-                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => copyLink(s.token, "Link copied")} aria-label="Copy link">
-                              <Copy className="h-3.5 w-3.5" />
+                            <CopyButton value={`${origin}${path}`} toastMessage="Link copied" />
+                            <Button asChild size="sm" variant="outline">
+                              <a href={path}><Contact /> Hand device</a>
                             </Button>
                           </>
                         ) : (
                           <>
-                            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => copyLink(s.token, "Link copied, email it to them")}>
-                              <Copy className="h-3.5 w-3.5" /> Copy link
+                            <Button asChild size="icon-sm" variant="ghost" aria-label="Open signing page">
+                              <a href={path} target="_blank"><ExternalLink /></a>
                             </Button>
-                            <Button asChild size="icon" variant="outline" className="h-8 w-8" aria-label="Open signing page">
-                              <a href={path} target="_blank"><ExternalLink className="h-3.5 w-3.5" /></a>
-                            </Button>
+                            <CopyButton value={`${origin}${path}`} label="Copy link" toastMessage="Link copied, email it to them" />
                           </>
-                        )
-                      )}
-                    </div>
-                  </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
                 );
               })}
-            </div>
-          </div>
+            </ul>
+            )}
+          </section>
 
           {activity.length > 0 && (
-            <div>
-              <h2 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <History className="h-3.5 w-3.5" /> Activity
-              </h2>
-              <ol className="overflow-hidden rounded-xl border bg-card">
+            <section>
+              <h2 className="mb-3 text-base font-semibold tracking-tight">Activity</h2>
+              <ol className="ml-1 border-l">
                 {activity.map((a, i) => (
-                  <li key={i} className="flex items-start gap-3 px-4 py-2.5 [&:not(:last-child)]:border-b">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
-                    <div className="min-w-0 flex-1 text-sm">
+                  <li key={i} className="relative flex items-baseline justify-between gap-4 pb-4 pl-5 last:pb-0">
+                    <span className="absolute top-1.5 -left-1 size-2 rounded-full border bg-background" />
+                    <p className="min-w-0 text-sm">
                       <span className="font-medium">{a.who}</span> <span className="text-muted-foreground">{a.label}</span>
-                    </div>
-                    <div className="shrink-0 text-xs tabular-nums text-muted-foreground">{a.at}</div>
+                    </p>
+                    <time className="shrink-0 text-xs tabular-nums text-muted-foreground">{a.at}</time>
                   </li>
                 ))}
               </ol>
-            </div>
+            </section>
           )}
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            Document ID
+            <span className="truncate font-mono text-foreground">{envelope.id}</span>
+            <CopyButton value={envelope.id} variant="ghost" size="icon-xs" toastMessage="Document ID copied" />
+          </div>
         </div>
 
-        <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Document</h2>
+        <div className="space-y-6">
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DetailList>
+                <DetailRow label="Created">{envelope.createdLabel}</DetailRow>
+                {envelope.completedLabel ? (
+                  <DetailRow label="Completed">{envelope.completedLabel}</DetailRow>
+                ) : (
+                  <DetailRow label="Signing order">{envelope.sequential ? "One at a time" : "Any order"}</DetailRow>
+                )}
+                {envelope.completed && envelope.anchorState !== "none" && (
+                  <DetailRow label="Timestamp">
+                    {envelope.anchorState === "confirmed" ? (
+                      <a href={`https://mempool.space/block/${envelope.btcBlock}`} target="_blank"
+                         className="inline-flex items-center gap-1 text-brand hover:underline">
+                        Block {envelope.btcBlock} <ExternalLink className="size-3.5" />
+                      </a>
+                    ) : (
+                      <span className="font-normal text-muted-foreground">Confirming, takes a few hours</span>
+                    )}
+                  </DetailRow>
+                )}
+              </DetailList>
+            </CardContent>
+          </Card>
           <EnvelopeDocPreview fileUrl={fileUrl} title={envelope.title} />
         </div>
       </div>
-    </div>
-  );
-}
-
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-sm font-medium">{value}</div>
-    </div>
+    </>
   );
 }

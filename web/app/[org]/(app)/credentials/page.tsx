@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireUser, requireOrg } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import CredentialsManager from "@/components/CredentialsManager";
+import { PageHeader } from "@/components/common/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +32,12 @@ export default async function CredentialsPage({ params }: { params: Promise<{ or
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold tracking-tight">Credentials</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Issue branded, sealed certificates and credentials as <b>{org.name}</b>. Each one gets a permanent
-          link anyone can verify in seconds. This attests the document is genuine and
-          unaltered; it does not verify the recipient&apos;s identity.
-        </p>
-      </div>
-      <CredentialsManager slug={org.slug} initial={initial} appUrl={appUrl} />
-    </div>
+    <>
+      <PageHeader
+        title="Credentials"
+        description="A proof link shows a credential is genuine. It doesn't verify the recipient's identity."
+      />
+      <CredentialsManager slug={org.slug} orgName={org.name} initial={initial} appUrl={appUrl} />
+    </>
   );
 }

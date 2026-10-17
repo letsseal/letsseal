@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Loader2, MailCheck } from "lucide-react";
+import { CircleAlert, Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Wordmark } from "@/components/brand/Wordmark";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Field } from "@/components/common/field";
+import { CenteredPage } from "@/components/common/centered-page";
 import { ProviderIcon } from "@/components/brand/ProviderIcon";
 import { PasswordStrength } from "@/components/PasswordStrength";
 import { passwordProblem } from "@/lib/password";
@@ -18,13 +19,15 @@ export default function AuthForm({
 }: { mode: "signin" | "signup"; providers: { id: string; label: string }[] }) {
   const router = useRouter();
   const rawNext = useSearchParams().get("next");
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/app";
+  const safeNext = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+  const next = safeNext ?? "/app";
+  const withNext = (path: string) => (safeNext ? `${path}?next=${encodeURIComponent(safeNext)}` : path);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null); 
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
   const isSignup = mode === "signup";
 
@@ -41,11 +44,11 @@ export default function AuthForm({
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, name }),
         });
-        if (!res.ok) { setError((await res.json()).error ?? "Sign up failed"); setLoading(false); return; }
+        if (!res.ok) { setError((await res.json()).error ?? "Sign up failed."); setLoading(false); return; }
         setSentTo(email.trim());
         setLoading(false);
       } catch {
-        setError("Something went wrong.");
+        setError("Something went wrong. Try again.");
         setLoading(false);
       }
       return;
@@ -55,14 +58,14 @@ export default function AuthForm({
     try {
       const r = await signIn("credentials", { email, password, redirect: false });
       if (r?.error) {
-        setError("Invalid email or password — or your email isn't verified yet.");
+        setError("Incorrect email or password, or your email isn't verified yet.");
         setLoading(false);
         return;
       }
       router.push(next);
       router.refresh();
     } catch {
-      setError("Something went wrong.");
+      setError("Something went wrong. Try again.");
       setLoading(false);
     }
   }
@@ -81,114 +84,97 @@ export default function AuthForm({
 
   if (sentTo) {
     return (
-      <Shell>
-        <div className="bg-white border rounded-2xl p-6 shadow-sm text-center">
-          <MailCheck className="h-11 w-11 mx-auto text-green-600" />
-          <h1 className="text-lg font-semibold mt-4">Confirm your email</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            We sent a verification link to <b className="text-foreground">{sentTo}</b>. Click it to activate your
-            account, then sign in.
-          </p>
-          <Button asChild className="mt-6 w-full"><Link href="/signin">Go to sign in</Link></Button>
-          <button
-            onClick={() => requestVerification(sentTo)}
-            disabled={resent}
-            className="mt-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
-          >
-            {resent ? "Sent — check your inbox (and spam)." : "Didn't get it? Resend link"}
-          </button>
+      <CenteredPage
+        icon={MailCheck}
+        title="Check your email"
+        description={<>We sent a verification link to <span className="font-medium text-foreground">{sentTo}</span>.</>}
+      >
+        <div className="grid gap-2">
+          <Button asChild className="w-full"><Link href={withNext("/signin")}>Go to sign in</Link></Button>
+          <Button variant="ghost" className="w-full" onClick={() => requestVerification(sentTo)} disabled={resent}>
+            {resent ? "Link sent. Check your spam folder too." : "Resend link"}
+          </Button>
         </div>
-      </Shell>
+      </CenteredPage>
     );
   }
 
   return (
-    <Shell>
-      <div className="bg-white border rounded-2xl p-6 shadow-sm">
-        <h1 className="text-lg font-semibold">{isSignup ? "Create your account" : "Welcome back"}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isSignup ? "Free forever. Self-host or use ours." : "Sign in to your businesses."}
-        </p>
-
-        <form onSubmit={submit} className="mt-5 space-y-3">
-          {isSignup && (
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password" type="password" required value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isSignup ? "At least 10 characters" : "••••••••"}
-            />
-            {isSignup && <PasswordStrength password={password} />}
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {!isSignup && error && (
-            <button
-              type="button"
-              onClick={() => requestVerification(email)}
-              disabled={resent || !email.includes("@")}
-              className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
-            >
-              {resent ? "Verification link sent — check your inbox." : "Need to verify your email? Resend link"}
-            </button>
-          )}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {isSignup ? "Create account" : "Sign in"}
-          </Button>
-        </form>
-
-        {providers.length > 0 && (
-          <>
-            <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="h-px bg-border flex-1" /> or <span className="h-px bg-border flex-1" />
-            </div>
-            <div className="space-y-2">
-              {providers.map((p) => (
-                <Button
-                  key={p.id}
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => signIn(p.id, { redirectTo: next })}
-                >
-                  <ProviderIcon id={p.id} className="h-4 w-4 mr-2" />
-                  Continue with {p.label}
-                </Button>
-              ))}
-            </div>
-          </>
+    <CenteredPage title={isSignup ? "Create an account" : "Sign in"}>
+      <form onSubmit={submit} className="grid gap-4">
+        {isSignup && (
+          <Field label="Name" htmlFor="name">
+            <Input id="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
         )}
-      </div>
+        <Field label="Email" htmlFor="email">
+          <Input
+            id="email" type="email" required autoComplete="email" placeholder="you@example.com"
+            value={email} onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+        <Field label="Password" htmlFor="password">
+          <Input
+            id="password" type="password" required
+            autoComplete={isSignup ? "new-password" : "current-password"}
+            placeholder={isSignup ? "At least 10 characters" : undefined}
+            value={password} onChange={(e) => setPassword(e.target.value)}
+          />
+          {isSignup && <PasswordStrength password={password} />}
+        </Field>
 
-      <p className="text-center text-sm text-muted-foreground mt-4">
-        {isSignup ? (
-          <>Already have an account? <Link href="/signin" className="text-foreground font-medium hover:underline">Sign in</Link></>
-        ) : (
-          <>New here? <Link href="/signup" className="text-foreground font-medium hover:underline">Create an account</Link></>
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>
+              <p>{error}</p>
+              {!isSignup && (
+                resent ? (
+                  <p>Verification link sent. Check your inbox.</p>
+                ) : (
+                  <Button
+                    type="button" variant="link" className="h-auto p-0 text-current"
+                    onClick={() => requestVerification(email)}
+                    disabled={!email.includes("@")}
+                  >
+                    Resend verification link
+                  </Button>
+                )
+              )}
+            </AlertDescription>
+          </Alert>
         )}
+
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
+          {isSignup ? "Create account" : "Sign in"}
+        </Button>
+      </form>
+
+      {providers.length > 0 && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="grid gap-2">
+            {providers.map((p) => (
+              <Button key={p.id} variant="outline" className="w-full" onClick={() => signIn(p.id, { redirectTo: next })}>
+                <ProviderIcon id={p.id} className="size-4" />
+                Continue with {p.label}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <p className="mt-8 text-center text-sm text-muted-foreground">
+        {isSignup ? "Already have an account? " : "Don't have an account? "}
+        <Link href={withNext(isSignup ? "/signin" : "/signup")} className="font-medium text-foreground hover:underline underline-offset-4">
+          {isSignup ? "Sign in" : "Sign up"}
+        </Link>
       </p>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center px-6 bg-secondary">
-      <div className="w-full max-w-sm">
-        <div className="flex justify-center mb-8">
-          <Wordmark href="/" size="lg" />
-        </div>
-        {children}
-      </div>
-    </div>
+    </CenteredPage>
   );
 }

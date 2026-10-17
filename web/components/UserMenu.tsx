@@ -1,35 +1,53 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { LogOut, User as UserIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
+import { LogOut, Monitor, Moon, Sun } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
-export default function UserMenu({ name, email }: { name?: string | null; email: string }) {
+export default function UserMenu({
+  name, email, variant = "avatar",
+}: { name?: string | null; email: string; variant?: "avatar" | "row" }) {
+  const { theme, setTheme } = useTheme();
   const initial = (name || email)[0]?.toUpperCase() ?? "?";
+  const avatar = (
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-secondary text-xs font-medium">
+      {initial}
+    </span>
+  );
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="shrink-0 rounded-full">
-          <span className="flex h-8 w-8 shrink-0 aspect-square items-center justify-center rounded-full bg-primary text-sm font-medium text-white">
-            {initial}
-          </span>
-        </Button>
+      <DropdownMenuTrigger
+        className={cn(
+          "outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+          variant === "row"
+            ? "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent"
+            : "rounded-full",
+        )}
+        aria-label="Account menu"
+      >
+        {avatar}
+        {variant === "row" && <span className="min-w-0 flex-1 truncate">{name || email}</span>}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="flex items-center gap-2 font-normal">
-          <UserIcon className="h-4 w-4 text-muted-foreground" />
-          <div className="min-w-0">
-            {name && <div className="truncate font-medium">{name}</div>}
-            <div className="truncate text-xs text-muted-foreground">{email}</div>
-          </div>
+      <DropdownMenuContent align={variant === "row" ? "start" : "end"} side={variant === "row" ? "top" : "bottom"} className="w-60">
+        <DropdownMenuLabel className="font-normal">
+          {name && <div className="truncate text-sm font-medium text-foreground">{name}</div>}
+          <div className="truncate text-xs text-muted-foreground">{email}</div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme ?? "light"} onValueChange={setTheme}>
+          <DropdownMenuRadioItem value="light"><Sun /> Light</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark"><Moon /> Dark</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system"><Monitor /> System</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => signOut({ redirectTo: "/signin" })}>
-          <LogOut className="h-4 w-4" /> Sign out
+          <LogOut /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

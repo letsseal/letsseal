@@ -5,7 +5,7 @@ import Builder from "@/components/Builder";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewEnvelope({
+export default async function NewDocumentPage({
   params,
   searchParams,
 }: {
