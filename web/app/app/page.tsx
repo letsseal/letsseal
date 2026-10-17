@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Building2, FileText } from "lucide-react";
+import { Building2, ChevronRight, ShieldCheck } from "lucide-react";
 import { requireUser, getUserOrgs } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { TopBar } from "@/components/TopBar";
 import UserMenu from "@/components/UserMenu";
 import NewBusinessDialog from "@/components/NewBusinessDialog";
+import { OrgAvatar } from "@/components/app-shell/OrgAvatar";
+import { PageHeader } from "@/components/common/page-header";
+import { EmptyState } from "@/components/common/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -13,85 +16,69 @@ export default async function AppDashboard() {
   const orgs = await getUserOrgs(user.id);
 
   type Org = (typeof orgs)[number];
-  const byTenant = new Map<string, { name: string; enterprise: boolean; orgs: Org[] }>();
+  const byTenant = new Map<string, { name: string; orgs: Org[] }>();
   for (const o of orgs) {
     const key = o.tenant?.id ?? o.id;
-    const g = byTenant.get(key) ?? { name: o.tenant?.name ?? o.name, enterprise: o.tenant?.enterprise ?? false, orgs: [] };
+    const g = byTenant.get(key) ?? { name: o.tenant?.name ?? o.name, orgs: [] };
     g.orgs.push(o);
     byTenant.set(key, g);
   }
-  const brands = [...byTenant.values()].filter((g) => g.orgs.length > 1);
-  const singles = [...byTenant.values()].filter((g) => g.orgs.length === 1).flatMap((g) => g.orgs);
+  const groups = [...byTenant.entries()];
+  const brands = groups.filter(([, g]) => g.orgs.length > 1);
+  const singles = groups.filter(([, g]) => g.orgs.length === 1).flatMap(([, g]) => g.orgs);
 
-  const OrgCard = ({ o }: { o: Org }) => (
-    <Link href={`/${o.slug}`}
-          className="group relative flex flex-col justify-between rounded-2xl border bg-card p-5 transition hover:border-foreground/20 hover:shadow-sm">
-      <div className="flex items-start justify-between">
-        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl text-lg font-semibold text-white"
-              style={{ background: o.brandColor }}>
-          {o.logoUrl ? <img src={o.logoUrl} alt="" className="h-full w-full object-cover" /> : o.name[0]}
-        </span>
-        <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
-      </div>
-      <div className="mt-6">
-        <div className="font-medium leading-tight">{o.name}</div>
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <FileText className="h-3.5 w-3.5" />
-          {o._count.envelopes} envelope{o._count.envelopes === 1 ? "" : "s"}
-        </div>
-      </div>
-    </Link>
+  const grid = (list: Org[]) => (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {list.map((o) => (
+        <Link
+          key={o.id}
+          href={`/${o.slug}`}
+          className="group flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+        >
+          <OrgAvatar name={o.name} color={o.brandColor} logoUrl={o.logoUrl} size="md" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{o.name}</span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        </Link>
+      ))}
+    </div>
   );
 
   return (
     <div className="min-h-screen">
-      <TopBar right={<UserMenu name={user.name} email={user.email} />} />
-
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Your businesses</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Each business has its own branding and cryptographic signing certificate.
-            </p>
+      <TopBar
+        right={
+          <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/verify"><ShieldCheck /> Verify</Link>
+            </Button>
+            <UserMenu name={user.name} email={user.email} />
           </div>
-          <NewBusinessDialog />
-        </div>
+        }
+      />
+
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <PageHeader title="Businesses" actions={orgs.length > 0 && <NewBusinessDialog />} />
 
         {orgs.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-dashed bg-card p-16 text-center">
-            <Building2 className="mx-auto h-10 w-10 text-muted-foreground/50" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              No businesses yet. Create one to get its own branding and signing certificate.
-            </p>
-            <div className="mt-5 flex justify-center"><NewBusinessDialog /></div>
-          </div>
+          <EmptyState
+            icon={Building2}
+            title="No businesses yet"
+            action={<NewBusinessDialog />}
+          />
         ) : (
-          <div className="mt-8 space-y-8">
-            {brands.map((b) => (
-              <section key={b.name}>
-                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  <Building2 className="h-3.5 w-3.5" /> {b.name}
-                  <span className="font-normal normal-case">· {b.orgs.length} entities</span>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {b.orgs.map((o) => <OrgCard key={o.id} o={o} />)}
-                </div>
+          <div className="grid gap-8">
+            {brands.map(([key, b]) => (
+              <section key={key} className="grid gap-3">
+                <h2 className="flex items-baseline gap-2 text-base font-semibold tracking-tight">
+                  {b.name}
+                  <span className="text-sm font-normal text-muted-foreground">{b.orgs.length} entities</span>
+                </h2>
+                {grid(b.orgs)}
               </section>
             ))}
-            {singles.length > 0 && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {singles.map((o) => <OrgCard key={o.id} o={o} />)}
-              </div>
-            )}
+            {singles.length > 0 && grid(singles)}
           </div>
         )}
-
-        <div className="mt-12 border-t pt-6">
-          <Button asChild variant="outline" className="gap-2">
-            <Link href="/verify"><ShieldCheck className="h-4 w-4" /> Public verification portal</Link>
-          </Button>
-        </div>
       </main>
     </div>
   );

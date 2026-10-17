@@ -40,7 +40,7 @@ const SITE_LD = {
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${serif.variable} flex min-h-screen flex-col bg-stone-50 text-stone-900`}>
+    <div className={`light ${serif.variable} flex min-h-screen flex-col bg-stone-50 text-stone-900`}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(SITE_LD) }} />
       <SiteNav />
       <main className="flex-1">{children}</main>

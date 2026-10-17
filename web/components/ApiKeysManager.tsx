@@ -2,34 +2,22 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Copy, Check, Plus, KeyRound, Trash2 } from "lucide-react";
+import { Loader2, Plus, KeyRound, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { CopyButton } from "@/components/common/copy-button";
+import { EmptyState } from "@/components/common/empty-state";
+import { SettingsCard } from "@/components/common/settings-card";
 
 type KeyRow = {
   id: string; name: string; prefix: string; lastFour: string; scopes: string;
   createdAt: string; lastUsedAt: string | null; revokedAt: string | null;
 };
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      type="button" variant="outline" size="sm" className="gap-1.5 shrink-0"
-      onClick={async () => {
-        await navigator.clipboard.writeText(value);
-        setCopied(true); setTimeout(() => setCopied(false), 1500);
-      }}
-    >
-      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? "Copied" : "Copy"}
-    </Button>
-  );
-}
 
 export default function ApiKeysManager({
   slug, initialKeys, appUrl,
@@ -38,13 +26,16 @@ export default function ApiKeysManager({
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<KeyRow | null>(null);
+  const [revokeBusy, setRevokeBusy] = useState(false);
 
   async function refresh() {
     const res = await fetch(`/api/orgs/${slug}/keys`);
     if (res.ok) setKeys((await res.json()).keys);
   }
 
-  async function create() {
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
     setCreating(true);
     try {
       const res = await fetch(`/api/orgs/${slug}/keys`, {
@@ -53,7 +44,7 @@ export default function ApiKeysManager({
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Could not create key"); return; }
-      setNewSecret(data.secret); 
+      setNewSecret(data.secret);
       setName("");
       await refresh();
     } finally {
@@ -61,99 +52,121 @@ export default function ApiKeysManager({
     }
   }
 
-  async function revoke(id: string) {
-    if (!confirm("Revoke this key? Any integration using it stops working immediately.")) return;
-    const res = await fetch(`/api/orgs/${slug}/keys/${id}`, { method: "DELETE" });
-    if (!res.ok) { toast.error("Could not revoke"); return; }
-    toast.success("Key revoked");
-    await refresh();
+  async function revoke() {
+    if (!revoking) return;
+    setRevokeBusy(true);
+    try {
+      const res = await fetch(`/api/orgs/${slug}/keys/${revoking.id}`, { method: "DELETE" });
+      if (!res.ok) { toast.error("Could not revoke key"); return; }
+      toast.success("Key revoked");
+      setRevoking(null);
+      await refresh();
+    } finally {
+      setRevokeBusy(false);
+    }
   }
 
   const active = keys.filter((k) => !k.revokedAt);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex-1 min-w-[220px]">
-          <label className="mb-1.5 block text-sm font-medium">New key label</label>
-          <Input
-            placeholder="e.g. CI pipeline, invoicing worker"
-            value={name} onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && create()}
-          />
-        </div>
-        <Button onClick={create} disabled={creating} className="gap-1.5">
-          {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Create key
-        </Button>
-      </div>
+    <SettingsCard
+      id="api-keys"
+      title="API keys"
+      description="Seal and verify from your own code."
+    >
+      <div className="grid gap-4">
+        <form onSubmit={create} className="flex gap-2">
+          <Input aria-label="Key name" placeholder="Key name, e.g. Invoicing worker" value={name} onChange={(e) => setName(e.target.value)} />
+          <Button type="submit" variant="outline" disabled={creating}>
+            {creating ? <Loader2 className="animate-spin" /> : <Plus />}
+            Create key
+          </Button>
+        </form>
 
-      {active.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          <KeyRound className="mx-auto mb-2 h-6 w-6 opacity-40" />
-          No API keys yet. Create one to seal, verify, and anchor from your own code.
-        </div>
-      ) : (
-        <div className="divide-y rounded-lg border">
-          {active.map((k) => (
-            <div key={k.id} className="flex items-center justify-between gap-4 p-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{k.name}</span>
-                  {k.scopes.split(",").map((s) => (
-                    <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
-                  ))}
-                </div>
-                <div className="mt-0.5 font-mono text-xs text-muted-foreground">
-                  {k.prefix}…{k.lastFour}
-                  <span className="ml-2 font-sans">
-                    {k.lastUsedAt ? `last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : "never used"}
-                  </span>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-destructive" onClick={() => revoke(k.id)}>
-                <Trash2 className="h-4 w-4" /> Revoke
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
+        {active.length === 0 ? (
+          <EmptyState icon={KeyRound} title="No API keys yet" className="py-8" />
+        ) : (
+          <div className="overflow-hidden rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Name</TableHead>
+                  <TableHead className="hidden sm:table-cell">Scopes</TableHead>
+                  <TableHead>Key</TableHead>
+                  <TableHead className="hidden sm:table-cell">Last used</TableHead>
+                  <TableHead><span className="sr-only">Actions</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {active.map((k) => (
+                  <TableRow key={k.id}>
+                    <TableCell className="font-medium">{k.name}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {k.scopes.split(",").map((s) => <Badge key={s} variant="outline">{s}</Badge>)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">{k.prefix}…{k.lastFour}</TableCell>
+                    <TableCell className="hidden text-xs whitespace-nowrap text-muted-foreground sm:table-cell">
+                      {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "Never"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setRevoking(k)}>Revoke</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
-      <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-        <p className="font-medium">Using your key</p>
-        <p className="mt-1 text-muted-foreground">
-          Point any Let&apos;s Seal SDK or a plain HTTP call at
-          <code className="mx-1 rounded bg-muted px-1 py-0.5 font-mono text-xs">{appUrl}/api/v1</code>
-          with an <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Authorization: Bearer</code> header.
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded bg-background p-3 font-mono text-xs leading-relaxed">
+        <details className="group">
+          <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
+            Example request
+          </summary>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Send the key as a Bearer token to <code className="font-mono text-xs text-foreground">{appUrl}/api/v1</code>. Verifying needs no key.
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
 {`curl -X POST ${appUrl}/api/v1/seal \\
   -H "Authorization: Bearer sk_live_…" \\
-  -F file=@contract.pdf -o contract.sealed.pdf
-# → sealed PDF + a permanent proof URL in the X-Letsseal-Proof-Url header`}
-        </pre>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Verification is public and needs no key: <code className="rounded bg-muted px-1 py-0.5 font-mono">POST /api/v1/verify</code>.
-        </p>
+  -F file=@contract.pdf -o contract.sealed.pdf`}
+          </pre>
+        </details>
       </div>
 
       <Dialog open={!!newSecret} onOpenChange={(o) => !o && setNewSecret(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Copy your API key now</DialogTitle>
-            <DialogDescription>
-              This is the only time we&apos;ll show it. We store only a hash — if you lose it, revoke and make a new one.
-            </DialogDescription>
+            <DialogTitle>Copy your API key</DialogTitle>
+            <DialogDescription>It acts as this business, so keep it secret. You won&apos;t see it again.</DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3">
-            <code className="min-w-0 flex-1 break-all font-mono text-xs">{newSecret}</code>
-            {newSecret && <CopyButton value={newSecret} />}
+          <div className="flex items-center gap-2 rounded-md border bg-muted p-3">
+            <code className="min-w-0 flex-1 font-mono text-xs break-all">{newSecret}</code>
+            {newSecret && <CopyButton value={newSecret} toastMessage="Key copied" />}
           </div>
           <DialogFooter>
             <Button onClick={() => setNewSecret(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      <Dialog open={!!revoking} onOpenChange={(o) => !o && setRevoking(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revoke {revoking?.name}?</DialogTitle>
+            <DialogDescription>Anything using this key stops working immediately.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button variant="destructive" onClick={revoke} disabled={revokeBusy}>
+              {revokeBusy && <Loader2 className="animate-spin" />}
+              Revoke
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </SettingsCard>
   );
 }

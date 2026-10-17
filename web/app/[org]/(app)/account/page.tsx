@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, Users, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser, requireOrg } from "@/lib/auth-helpers";
 import { isTenantAdmin } from "@/lib/rbac";
 import NewBusinessDialog from "@/components/NewBusinessDialog";
 import { AccountPeople } from "@/components/AccountPeople";
+import { OrgAvatar } from "@/components/app-shell/OrgAvatar";
+import { PageHeader } from "@/components/common/page-header";
+import { StatusBadge } from "@/components/common/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +24,7 @@ export default async function AccountPage({ params }: { params: Promise<{ org: s
     include: {
       organizations: {
         orderBy: { name: "asc" },
-        select: { id: true, slug: true, name: true, _count: { select: { memberships: true } } },
+        select: { id: true, slug: true, name: true, brandColor: true, logoUrl: true, _count: { select: { memberships: true } } },
       },
       memberships: {
         orderBy: { createdAt: "asc" },
@@ -44,73 +48,79 @@ export default async function AccountPage({ params }: { params: Promise<{ org: s
   const entities = tenant.organizations.map((o) => ({ id: o.id, name: o.name }));
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <header className="mb-8">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Building2 className="h-4 w-4" /> Account
-        </div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{tenant.name}</h1>
-        {tenant.verifiedDomain ? (
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600">
-            <ShieldCheck className="h-3.5 w-3.5" /> Verified brand · {tenant.verifiedDomain}
-          </div>
-        ) : (
-          <div className="mt-2 text-xs text-muted-foreground">Brand not yet verified · verify a domain in any entity&rsquo;s Settings.</div>
-        )}
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your brand and the legal entities under it. Each entity signs with its own
-          certificate; they share this account and its verified identity.
-        </p>
-      </header>
+    <div className="max-w-3xl">
+      <PageHeader
+        title={tenant.name}
+        description={
+          tenant.verifiedDomain ? (
+            <span className="flex items-center gap-2">
+              <StatusBadge tone="success">Verified</StatusBadge>
+              <span className="font-mono text-xs">{tenant.verifiedDomain}</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <StatusBadge tone="neutral">Not verified</StatusBadge>
+              <Link href={`/${slug}/settings#issuer-identity`} className="underline underline-offset-4 hover:text-foreground">Verify a domain</Link>
+            </span>
+          )
+        }
+      />
 
-      <section className="mb-8">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Building2 className="h-4 w-4 text-muted-foreground" /> Entities
-          <span className="text-xs font-normal text-muted-foreground">({tenant.organizations.length})</span>
-          {canManage && (
-            <div className="ml-auto">
+      <div className="grid gap-8">
+        <section className="grid gap-3">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+              Entities <Badge variant="secondary">{tenant.organizations.length}</Badge>
+            </h2>
+            {canManage && (
               <NewBusinessDialog
                 tenantId={tenant.id}
                 triggerLabel="Add entity"
+                triggerVariant="outline"
+                triggerSize="sm"
                 title={`Add an entity to ${tenant.name}`}
-                description="Another legal entity under this brand (e.g. a UK Ltd or a GmbH). It gets its own signing certificate but shares this account and its verified identity."
+                description="Another legal entity under this brand, e.g. a UK Ltd or a GmbH."
               />
-            </div>
-          )}
-        </div>
-        <div className="divide-y rounded-xl border bg-card">
-          {tenant.organizations.map((o) => (
-            <Link key={o.slug} href={`/${o.slug}`} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-secondary/50">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{o.name}</div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {tenant.verifiedDomain ? (
-                    <><ShieldCheck className="h-3 w-3 text-emerald-600" /> {tenant.verifiedDomain}</>
-                  ) : (
-                    <span>unverified</span>
-                  )}
-                  <span>· {o._count.memberships} member{o._count.memberships === 1 ? "" : "s"}</span>
-                </div>
-              </div>
-              <span className="shrink-0 text-xs text-muted-foreground">/{o.slug}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+            )}
+          </div>
+          <div className="overflow-hidden rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Name</TableHead>
+                  <TableHead className="text-right">Members</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tenant.organizations.map((o) => (
+                  <TableRow key={o.slug} className="relative">
+                    <TableCell className="w-full max-w-0">
+                      <div className="flex items-center gap-3">
+                        <OrgAvatar name={o.name} color={o.brandColor} logoUrl={o.logoUrl} />
+                        <Link href={`/${o.slug}`} className="truncate font-medium after:absolute after:inset-0">{o.name}</Link>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground tabular-nums">{o._count.memberships}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
 
-      <section>
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Users className="h-4 w-4 text-muted-foreground" /> People
-          <span className="text-xs font-normal text-muted-foreground">({members.length})</span>
-        </div>
-        <AccountPeople
-          tenantId={tenant.id}
-          members={members}
-          initialInvites={pendingInvites}
-          entities={entities}
-          canManage={canManage}
-        />
-      </section>
+        <section className="grid gap-3">
+          <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            People <Badge variant="secondary">{members.length}</Badge>
+          </h2>
+          <AccountPeople
+            tenantId={tenant.id}
+            members={members}
+            initialInvites={pendingInvites}
+            entities={entities}
+            canManage={canManage}
+          />
+        </section>
+      </div>
     </div>
   );
 }

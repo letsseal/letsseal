@@ -9,6 +9,7 @@ import { getBlockInfo } from "@/lib/bitcoin";
 import { getSigningTrail } from "@/lib/signing-audit";
 import { getInclusionProof } from "@/lib/translog";
 import { TopBar } from "@/components/TopBar";
+import { InfoTip } from "@/components/common/info-tip";
 import { ProofCertificate, type ProofData } from "@/components/ProofCertificate";
 import { Button } from "@/components/ui/button";
 import { canonicalProofQuery, coIssuersFor, readSidecar } from "@/lib/proofs";
@@ -148,6 +149,8 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
   const gate = !viewerIsIssuer && ((gateContent && !!rawTitle) || hasTrail)
     ? { hash: sha256, hasTrail }
     : null;
+  const hiddenParts = [!isCredential && rawTitle ? "subject" : null, hasTrail ? "signer details" : null].filter(Boolean).join(" and ");
+  const hiddenVerb = hiddenParts === "subject" ? "stays" : "stay";
 
   const data: ProofData = {
     sha256,
@@ -200,55 +203,47 @@ export default async function ProofPage({ params }: { params: Promise<{ hash: st
     } : null,
   };
 
+  const kind = isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isIdentitySeal ? "Identity proof" : isAttestation ? "Attestation proof" : isBlobSeal || detached ? "File proof" : "Document proof";
+  const description = isC2pa
+    ? "The file carries signed Content Credentials."
+    : isAttestation
+      ? "A signed SBOM or provenance claim about this file."
+      : undefined;
+
   return (
     <div className="min-h-screen">
       <TopBar href="/" />
-      <main className="mx-auto max-w-3xl px-6 py-12">
+      <main className="mx-auto max-w-2xl px-6 py-12">
         {viewerIsIssuer && (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-2.5 text-sm">
-            <span className="text-muted-foreground">This is the <b>public</b> proof — anyone with the link sees only the hash &amp; timestamp.</span>
-            <div className="ml-auto flex items-center gap-2">
+          <div className="mb-10 space-y-3 rounded-lg border bg-muted px-4 py-3">
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              You&apos;re viewing the public proof.
+              <InfoTip label="What visitors see">
+                <p>
+                  Anyone with the link sees the issuer, {isCredential ? "the credential details, " : ""}the fingerprint and the timestamp.
+                  {hiddenParts ? ` The ${hiddenParts} ${hiddenVerb} private unless they upload the file.` : ""}
+                </p>
+              </InfoTip>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
               {orgSlug && (
-                <Button asChild variant="ghost" size="sm" className="gap-1.5">
-                  <Link href={`/${orgSlug}/documents`}><ArrowLeft className="h-3.5 w-3.5" /> Back to documents</Link>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/${orgSlug}/documents`}><ArrowLeft /> Back to documents</Link>
                 </Button>
               )}
-              <Button asChild variant="outline" size="sm" className="gap-1.5"
+              <Button asChild variant="outline" size="sm"
                       title="Every proof, the pinned root and the commands to check them, in one file">
-                <a href={`/api/d/${sha256}/evidence`}><FileArchive className="h-3.5 w-3.5" /> Evidence bundle</a>
+                <a href={`/api/d/${sha256}/evidence`}><FileArchive /> Evidence bundle</a>
               </Button>
               {docOnFile && (
-                <Button asChild size="sm" className="gap-1.5">
-                  <a href={`/api/documents/${sha256}`} target="_blank"><Download className="h-3.5 w-3.5" /> Download sealed copy</a>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`/api/documents/${sha256}`} target="_blank"><Download /> Download sealed copy</a>
                 </Button>
               )}
             </div>
           </div>
         )}
-        <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public proof of authenticity</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {isC2pa ? "Media proof" : isXmlSeal ? "XML proof" : isSmimeSeal ? "Email proof" : isIdentitySeal ? "Identity proof" : isAttestation ? "Attestation proof" : isBlobSeal ? "Artifact proof" : detached ? "File proof" : "Document proof"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {isC2pa
-              ? "A permanent record that this file carries signed Content Credentials (C2PA) and is timestamped. Download the signed file and verify it in any C2PA-aware tool."
-              : isXmlSeal
-                ? "A permanent record that this XML document carries an embedded XML-DSig signature and is timestamped. Download the signed XML and verify it with any XML Signature tool."
-                : isSmimeSeal
-                  ? "A permanent record that this email message carries an S/MIME signature and is timestamped. Download the signed message and verify it with any S/MIME tool (openssl smime -verify)."
-                  : isIdentitySeal
-                    ? "A permanent record that this artifact was signed under a third-party-verified identity and is timestamped. The signer's email was verified by their identity provider (Google/GitHub/…), not by Let's Seal. Download the cosign signature set or drop the artifact to verify."
-                    : isAttestation
-                    ? "A permanent record of a signed attestation about this artifact — an SBOM or provenance claim bound to its digest and timestamped. Download the cosign bundle and verify it with cosign verify-blob-attestation, or drop the artifact to confirm it's the attestation's subject."
-                    : isBlobSeal
-                    ? "A permanent record that this artifact is signed and timestamped. Download the cosign signature set and verify it with sealbot, openssl, or stock cosign verify-blob."
-                    : detached
-                      ? "A permanent record that this file is sealed and timestamped. Download the .sig and confirm it hasn't been altered by uploading the file."
-                      : "A permanent record that this document is sealed and timestamped. The subject and signer details stay private — unlock them by uploading the file."}
-          </p>
-        </div>
-        <ProofCertificate data={data} gate={gate} />
+        <ProofCertificate data={data} gate={gate} label={kind} description={description} headingLevel={1} />
       </main>
     </div>
   );
@@ -283,15 +278,8 @@ async function TimestampProof({
   return (
     <div className="min-h-screen">
       <TopBar href="/" />
-      <main className="mx-auto max-w-3xl px-6 py-12">
-        <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public timestamp proof</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Independent timestamp</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A file&apos;s fingerprint anchored to a decentralised public ledger. Anyone can open this straight from the link — the fingerprint alone is enough.
-          </p>
-        </div>
-        <ProofCertificate data={data} variant="timestamp" />
+      <main className="mx-auto max-w-2xl px-6 py-12">
+        <ProofCertificate data={data} variant="timestamp" label="Timestamp proof" headingLevel={1} />
       </main>
     </div>
   );
@@ -301,14 +289,14 @@ function NotAProof({ reason, sha }: { reason: string; sha?: string }) {
   return (
     <div className="min-h-screen">
       <TopBar href="/" />
-      <main className="mx-auto max-w-2xl px-6 py-16 text-center">
-        <ShieldX className="mx-auto h-12 w-12 text-muted-foreground/40" />
-        <h1 className="mt-4 text-2xl font-semibold tracking-tight">No proof found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{reason}</p>
-        {sha && <code className="mt-3 block break-all font-mono text-xs text-muted-foreground/70">{sha}</code>}
-        <div className="mt-6">
-          <Button asChild variant="outline"><Link href="/verify">Verify a file instead</Link></Button>
-        </div>
+      <main className="mx-auto flex max-w-2xl flex-col items-center px-6 py-24 text-center">
+        <span className="flex size-10 items-center justify-center rounded-md border bg-background text-muted-foreground shadow-xs">
+          <ShieldX className="size-5" />
+        </span>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">No proof found</h1>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">{reason}</p>
+        {sha && <code className="mt-4 max-w-full rounded-md bg-muted px-3 py-2 font-mono text-xs break-all text-muted-foreground">{sha}</code>}
+        <Button asChild variant="outline" className="mt-6"><Link href="/verify">Verify a file instead</Link></Button>
       </main>
     </div>
   );

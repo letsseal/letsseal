@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { CircleAlert, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function AcceptInvite({ token }: { token: string }) {
   const router = useRouter();
@@ -15,21 +16,26 @@ export function AcceptInvite({ token }: { token: string }) {
     try {
       const res = await fetch(`/api/invites/${token}/accept`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Could not accept"); setLoading(false); return; }
+      if (!res.ok) { setError(data.error ?? "Could not accept the invitation."); setLoading(false); return; }
       router.push(data.orgSlug ? `/${data.orgSlug}` : "/app");
       router.refresh();
     } catch {
-      setError("Something went wrong."); setLoading(false);
+      setError("Something went wrong. Try again."); setLoading(false);
     }
   }
 
   return (
-    <div>
+    <div className="grid gap-4">
+      {error && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <Button onClick={accept} disabled={loading} className="w-full">
-        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {loading && <Loader2 className="animate-spin" />}
         Accept invitation
       </Button>
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </div>
   );
 }

@@ -2,43 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Plus, BadgeCheck } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Wordmark } from "@/components/brand/Wordmark";
 import UserMenu from "@/components/UserMenu";
+import { buildNav, isActive } from "./nav";
+import { cn } from "@/lib/utils";
 
-const TITLES: Record<string, string> = {
-  documents: "Documents",
-  credentials: "Credentials",
-  seal: "Seal & anchor",
-  settings: "Settings",
-  e: "Document",
-};
-
-export function AppHeader({ slug, userName, userEmail }: { slug: string; userName?: string | null; userEmail: string }) {
+/** Top bar for small screens, where the sidebar is hidden. */
+export function AppHeader({
+  slug, userName, userEmail, enterprise = false, identityEnabled = true,
+}: { slug: string; userName?: string | null; userEmail: string; enterprise?: boolean; identityEnabled?: boolean }) {
   const pathname = usePathname();
-  const seg = pathname.split("/")[2];
-  const title = TITLES[seg] ?? "Dashboard";
+  const { main, secondary } = buildNav(slug, { enterprise, identityEnabled });
 
   return (
-    <header className="flex h-[68px] items-center gap-4 border-b px-8">
-      <h1 className="text-[15px] font-semibold">{title}</h1>
-
-      <div className="relative mx-2 hidden max-w-md flex-1 lg:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="search"
-          placeholder="Search documents, credentials…"
-          className="h-9 w-full rounded-lg border bg-card pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40"
-        />
-      </div>
-
-      <div className="ml-auto flex items-center gap-2.5">
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
-          <Link href="/verify"><BadgeCheck className="h-4 w-4" /> <span className="hidden sm:inline">Verify a document</span></Link>
-        </Button>
-        <Button asChild size="sm" className="gap-1.5">
-          <Link href={`/${slug}/new`}><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New document</span></Link>
-        </Button>
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur md:hidden">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label="Menu"><Menu /></Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {main.map((n) => (
+            <DropdownMenuItem key={n.href} asChild className={cn(isActive(pathname, n) && "font-medium")}>
+              <Link href={n.href}><n.icon /> {n.label}</Link>
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          {secondary.map((n) => (
+            <DropdownMenuItem key={n.href} asChild>
+              <Link href={n.href}><n.icon /> {n.label}</Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Wordmark href="/app" size="sm" />
+      <div className="ml-auto">
         <UserMenu name={userName} email={userEmail} />
       </div>
     </header>

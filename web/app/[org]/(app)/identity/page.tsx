@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
+import { Fingerprint } from "lucide-react";
 import { requireUser, requireOrg } from "@/lib/auth-helpers";
 import { enabledFlowProviders } from "@/lib/oidc-flow";
 import { IdentitySeal } from "@/components/IdentitySeal";
+import { PageHeader } from "@/components/common/page-header";
+import { EmptyState } from "@/components/common/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -21,30 +24,19 @@ export default async function IdentityPage({
   const providers = enabledFlowProviders();
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold tracking-tight">Seal under a verified identity</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Sign an artifact as <b>you</b> — a person whose email a third party (Google, GitHub) has
-          verified — not just as {org.name}. The seal binds that verified email into a short-lived
-          certificate and records who vouched for it. Let&apos;s Seal never verifies identity itself.
-          The result verifies with stock <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">cosign verify-blob</code>.
-        </p>
-      </div>
-
+    <div className="max-w-3xl">
+      <PageHeader
+        title="Identity seal"
+        description={`Seal a file under your own verified email, not just as ${org.name}.`}
+      />
       {providers.length > 0 ? (
         <IdentitySeal slug={org.slug} providers={providers} initialError={error ?? null} />
       ) : (
-        <div className="rounded-2xl border border-dashed bg-card p-6 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">No identity providers are configured yet.</p>
-          <p className="mt-1">
-            An operator enables this by adding an OAuth client&apos;s credentials
-            (<code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">AUTH_GOOGLE_ID</code>/
-            <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">_SECRET</code>, and the matching
-            <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">OIDC_GOOGLE_CLIENT_ID</code> on the signing service),
-            plus the redirect URI <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">/api/identity/callback</code>.
-          </p>
-        </div>
+        <EmptyState
+          icon={Fingerprint}
+          title="Identity sealing isn't available on this server"
+          description="An administrator needs to configure an identity provider such as Google or GitHub."
+        />
       )}
     </div>
   );
