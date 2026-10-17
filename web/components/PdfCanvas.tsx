@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { PenLine, Type, Calendar, CheckSquare, Baseline, X } from "lucide-react";
 import { recipientColor, FIELD_TYPES, type RecipientColor } from "@/lib/signers";
+import { cn } from "@/lib/utils";
 
 export type FieldBox = {
   id?: string;
@@ -128,7 +129,7 @@ export default function PdfCanvas(props: Props) {
           await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
         }
       } catch (e) {
-        if (!cancelled) setError(String(e));
+        if (!cancelled) { console.error(e); setError(String(e)); }
       }
     })();
     return () => { cancelled = true; };
@@ -190,7 +191,7 @@ export default function PdfCanvas(props: Props) {
     props.onPlace?.(page, x, y);
   }
 
-  if (error) return <div className="text-destructive text-sm p-4">PDF render error: {error}</div>;
+  if (error) return <p className="p-4 text-sm text-destructive">Couldn&apos;t display this PDF. Reload the page to try again.</p>;
   const pages = numPages || 1;
   const armedColor = props.armedType ? recipientColor(props.armedSignerIndex ?? 0) : null;
   const [gw, gh] = props.armedType ? sizeFor(props.armedType) : [0, 0];
@@ -204,12 +205,13 @@ export default function PdfCanvas(props: Props) {
           onMouseMove={(e) => pageMouseMove(e, p)}
           onMouseLeave={() => setGhost(null)}
           onClick={(e) => pageClick(e, p)}
-          className={`relative w-full bg-white rounded-md ring-1 ring-black/10 shadow-sm overflow-hidden ${
-            mode === "build" && props.armedType ? "cursor-crosshair" : ""
-          }`}
+          className={cn(
+            "light relative w-full overflow-hidden rounded-md border bg-background text-foreground",
+            mode === "build" && props.armedType && "cursor-crosshair"
+          )}
         >
           {props.docId && p === 0 && (
-            <div className="pointer-events-none absolute top-2 left-3 z-10 text-[9px] font-mono tracking-tight text-neutral-400 select-none">
+            <div className="pointer-events-none absolute top-2 left-3 z-10 font-mono text-xs text-muted-foreground select-none">
               Let&apos;s Seal Envelope ID: {props.docId.toUpperCase()}
             </div>
           )}
@@ -221,12 +223,10 @@ export default function PdfCanvas(props: Props) {
           {guides?.page === p && (
             <>
               {guides.v.map((gx, i) => (
-                <div key={`v${i}`} className="pointer-events-none absolute top-0 bottom-0 z-20"
-                     style={{ left: `${gx * 100}%`, width: 1, background: "#ec4899" }} />
+                <div key={`v${i}`} className="pointer-events-none absolute inset-y-0 z-20 w-px bg-brand" style={{ left: `${gx * 100}%` }} />
               ))}
               {guides.h.map((gy, i) => (
-                <div key={`h${i}`} className="pointer-events-none absolute left-0 right-0 z-20"
-                     style={{ top: `${gy * 100}%`, height: 1, background: "#ec4899" }} />
+                <div key={`h${i}`} className="pointer-events-none absolute inset-x-0 z-20 h-px bg-brand" style={{ top: `${gy * 100}%` }} />
               ))}
             </>
           )}
@@ -264,14 +264,14 @@ function FieldGhost({ cx, cy, w, h, type, color }: { cx: number; cy: number; w: 
   const Icon = FIELD_ICON[type] ?? PenLine;
   return (
     <div
-      className="pointer-events-none absolute rounded border-2 border-dashed flex items-center justify-center gap-1 text-[11px] font-medium"
+      className="pointer-events-none absolute flex items-center justify-center gap-1 rounded-md border-2 border-dashed text-xs font-medium"
       style={{
         left: `${(cx - w / 2) * 100}%`, top: `${(cy - h / 2) * 100}%`,
         width: `${w * 100}%`, height: `${h * 100}%`,
         borderColor: color.border, background: color.fillActive, color: color.text,
       }}
     >
-      <Icon className="h-3 w-3" /> {FIELD_LABEL[type]}
+      <Icon className="size-3" /> {FIELD_LABEL[type]}
     </div>
   );
 }
@@ -297,19 +297,19 @@ function FieldTab({
         borderColor: color.border,
         borderWidth: 1.5,
         borderStyle: filled ? "solid" : "dashed",
-        background: filled ? "rgba(255,255,255,0.96)" : selected || (mode === "sign" && mine) ? color.fillActive : color.fill,
+        background: filled ? undefined : selected || (mode === "sign" && mine) ? color.fillActive : color.fill,
         boxShadow: selected ? `0 0 0 2px ${color.solid}` : (mode === "sign" && mine && !filled) ? `0 0 0 3px ${color.fill}` : undefined,
         opacity: mode === "sign" && !mine ? 0.4 : 1,
         cursor: mode === "build" ? "move" : mine ? "pointer" : "default",
       }}
-      className="absolute rounded flex items-center justify-center select-none transition-colors"
+      className={cn("absolute flex items-center justify-center rounded-md transition-colors select-none", filled && "bg-background/95")}
     >
       {showArrow && (
         <div
           className="absolute top-1/2 -translate-y-1/2 z-10 flex items-center pointer-events-none animate-pulse"
           style={arrowLeft ? { right: "100%", marginRight: 6, flexDirection: "row" } : { left: "100%", marginLeft: 6, flexDirection: "row-reverse" }}
         >
-          <span className="whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold text-white shadow-md"
+          <span className="rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap text-primary-foreground"
                 style={{ background: color.solid }}>
             Sign here
           </span>
@@ -321,36 +321,37 @@ function FieldTab({
         </div>
       )}
       {!filled && f.h > 0.03 && (
-        <span className="absolute top-0 left-0 flex items-center justify-center rounded-br"
-              style={{ background: color.solid, width: 15, height: 15 }}>
-          <Icon className="h-2.5 w-2.5 text-white" />
+        <span className="absolute top-0 left-0 flex size-4 items-center justify-center rounded-tl-sm rounded-br-md text-primary-foreground"
+              style={{ background: color.solid }}>
+          <Icon className="size-2.5" />
         </span>
       )}
       {filled && f.type === "signature" ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={f.value!} alt="signature" className="max-h-full max-w-full object-contain" />
       ) : filled ? (
-        <span className="px-1 text-xs truncate" style={{ color: "#111827" }}>{f.value}</span>
+        <span className="truncate px-1 text-xs text-foreground">{f.value}</span>
       ) : (
-        <span className="flex items-center gap-1 pl-3.5 pr-1 text-[10px] font-medium truncate" style={{ color: color.text }}>
+        <span className="flex items-center gap-1 truncate pr-1 pl-4.5 text-xs font-medium" style={{ color: color.text }}>
           <span className="truncate">{f.label || FIELD_LABEL[f.type]}</span>
-          {f.required === false && <span className="shrink-0 font-normal opacity-70">optional</span>}
+          {f.required === false && <span className="shrink-0 font-normal opacity-70">Optional</span>}
         </span>
       )}
 
       {mode === "build" && selected && (
         <>
           <button
+            type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-neutral-800 text-white flex items-center justify-center shadow"
+            className="absolute -top-2.5 -right-2.5 flex size-5 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             aria-label="Delete field"
           >
-            <X className="h-2.5 w-2.5" />
+            <X className="size-3" />
           </button>
           <span
             onPointerDown={onStartResize}
-            className="absolute -bottom-1 -right-1 h-3 w-3 rounded-sm border border-white cursor-nwse-resize"
+            className="absolute -right-1.5 -bottom-1.5 size-3 cursor-nwse-resize rounded-sm border-2 border-background"
             style={{ background: color.solid }}
           />
         </>

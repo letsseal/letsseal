@@ -5,25 +5,33 @@ import { useRouter } from "next/navigation";
 import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogTrigger, DialogClose,
 } from "@/components/ui/dialog";
+import { Field } from "@/components/common/field";
+import { BRAND_SWATCHES, ColorSwatches } from "@/components/BrandingEditor";
 
-const SWATCHES = ["#111827", "#2563eb", "#059669", "#db2777", "#ea580c", "#7c3aed"];
+const STRUCTURES = [
+  { value: "single", label: "One business", hint: "A single company." },
+  { value: "multi", label: "A brand with several entities", hint: "Several legal entities under one brand." },
+] as const;
 
 export default function NewBusinessDialog({
   tenantId, triggerLabel = "New business", title = "Create a business",
-  description = "Each business gets its own branding and cryptographic signing certificate.",
+  description = "Each business has its own branding and signing certificate.",
+  triggerVariant = "default", triggerSize = "default",
 }: {
   tenantId?: string; triggerLabel?: string; title?: string; description?: string;
+  triggerVariant?: "default" | "outline"; triggerSize?: "default" | "sm";
 } = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [brandColor, setBrandColor] = useState(SWATCHES[0]);
-  const [multiEntity, setMultiEntity] = useState(false); 
+  const [brandColor, setBrandColor] = useState(BRAND_SWATCHES[0].hex);
+  const [multiEntity, setMultiEntity] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +51,7 @@ export default function NewBusinessDialog({
       router.push(`/${data.slug}`);
       router.refresh();
     } catch {
-      setError("Something went wrong.");
+      setError("Something went wrong. Try again.");
       setLoading(false);
     }
   }
@@ -51,57 +59,50 @@ export default function NewBusinessDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2"><Plus className="h-4 w-4" /> {triggerLabel}</Button>
+        <Button variant={triggerVariant} size={triggerSize}><Plus /> {triggerLabel}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <form onSubmit={create} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="biz-name">Business name</Label>
-            <Input id="biz-name" autoFocus value={name} onChange={(e) => setName(e.target.value)}
-                   placeholder="Acme Legal LLC" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Brand colour</Label>
-            <div className="flex gap-2">
-              {SWATCHES.map((c) => (
-                <button key={c} type="button" onClick={() => setBrandColor(c)}
-                        aria-label={c}
-                        className={`h-8 w-8 rounded-full ring-offset-2 transition ${brandColor === c ? "ring-2 ring-foreground" : ""}`}
-                        style={{ background: c }} />
-              ))}
-            </div>
-          </div>
+        <form onSubmit={create} className="grid gap-4">
+          <Field label={tenantId ? "Entity name" : "Business name"} htmlFor="new-biz-name">
+            <Input id="new-biz-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Ltd" />
+          </Field>
+          <Field label="Brand colour">
+            <ColorSwatches value={brandColor} onChange={setBrandColor} />
+          </Field>
 
           {!tenantId && (
-            <div className="space-y-1.5">
-              <Label>What are you setting up?</Label>
-              <div className="grid gap-2">
-                <button type="button" onClick={() => setMultiEntity(false)}
-                        className={`rounded-lg border p-3 text-left transition ${!multiEntity ? "border-foreground/40 bg-secondary/60" : "hover:bg-secondary/40"}`}>
-                  <div className="text-sm font-medium">One business</div>
-                  <div className="text-xs text-muted-foreground">A single company. You can add more separate businesses later.</div>
-                </button>
-                <button type="button" onClick={() => setMultiEntity(true)}
-                        className={`rounded-lg border p-3 text-left transition ${multiEntity ? "border-foreground/40 bg-secondary/60" : "hover:bg-secondary/40"}`}>
-                  <div className="text-sm font-medium">A brand with several entities</div>
-                  <div className="text-xs text-muted-foreground">
-                    One brand that runs multiple legal companies (e.g. a UK Ltd and a GmbH) sharing one verified
-                    domain. Turns on the account &amp; team tools. You can also enable this later in Settings.
-                  </div>
-                </button>
-              </div>
-            </div>
+            <Field label="Structure">
+              <RadioGroup
+                aria-label="Structure"
+                value={multiEntity ? "multi" : "single"}
+                onValueChange={(v) => setMultiEntity(v === "multi")}
+              >
+                {STRUCTURES.map((s) => (
+                  <label
+                    key={s.value}
+                    htmlFor={`structure-${s.value}`}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-muted has-data-[state=checked]:border-foreground/40 has-data-[state=checked]:bg-muted"
+                  >
+                    <RadioGroupItem id={`structure-${s.value}`} value={s.value} className="mt-0.5" />
+                    <span className="grid gap-1">
+                      <span className="text-sm font-medium">{s.label}</span>
+                      <span className="text-sm text-muted-foreground">{s.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </RadioGroup>
+            </Field>
           )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button type="submit" disabled={loading || name.trim().length < 2}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Create business
+              {loading && <Loader2 className="animate-spin" />}
+              {tenantId ? "Add entity" : "Create business"}
             </Button>
           </DialogFooter>
         </form>

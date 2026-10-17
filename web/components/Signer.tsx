@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import SignaturePad from "signature_pad";
-import {
-  Check, ChevronRight, Loader2, ShieldCheck, Download, PenLine, Anchor, Upload,
-} from "lucide-react";
+import { Check, ChevronRight, Download, KeyRound, Link2Off, Loader2, PenLine, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Dropzone } from "@/components/common/dropzone";
+import { OrgAvatar } from "@/components/app-shell/OrgAvatar";
+import { cn } from "@/lib/utils";
 import PdfCanvas, { FieldBox } from "./PdfCanvas";
 import { recipientColor, blockingFields } from "@/lib/signers";
 
@@ -19,6 +21,7 @@ const SIGNATURE_FONTS = [
   { name: "Caveat", css: "var(--font-sig-3), cursive" },
   { name: "Sacramento", css: "var(--font-sig-4), cursive" },
 ];
+const INK = "#1f2937";
 
 type ApiField = FieldBox & { mine: boolean; signerId: string | null; signerName: string | null };
 type Data = {
@@ -35,17 +38,18 @@ export default function Signer({ token }: { token: string }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [accessCode, setAccessCode] = useState("");
   const [editing, setEditing] = useState<FieldBox | null>(null);
+  const [editingText, setEditingText] = useState<FieldBox | null>(null);
   const [done, setDone] = useState<null | { completed: boolean; sha256?: string; certCN?: string; anchorState?: string }>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [adopted, setAdopted] = useState<string | null>(null); 
-  const [needsCode, setNeedsCode] = useState(false); 
+  const [adopted, setAdopted] = useState<string | null>(null);
+  const [needsCode, setNeedsCode] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
 
   async function load(code?: string) {
     const qs = code ? `?code=${encodeURIComponent(code)}` : "";
     const res = await fetch(`/api/sign/${token}${qs}`);
-    if (!res.ok) { setError("This signing link is invalid or has expired."); return false; }
+    if (!res.ok) { setError("This signing link is invalid or has expired. Ask the sender for a new one."); return false; }
     const body = await res.json();
     if (body.needsAccessCode) { setNeedsCode(true); setData(null); return false; }
     setNeedsCode(false);
@@ -71,39 +75,32 @@ export default function Signer({ token }: { token: string }) {
     return map;
   }, [data]);
 
-  if (error) return <Centered><p className="text-muted-foreground">{error}</p></Centered>;
+  if (error) return <StateScreen icon={Link2Off} title="This link doesn't work" description={error} />;
   if (needsCode) return (
-    <Centered>
-      <div className="w-full max-w-sm text-center">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-          <ShieldCheck className="h-7 w-7 text-primary" />
-        </span>
-        <h1 className="mt-5 text-xl font-semibold">Enter your access code</h1>
-        <p className="mt-2 text-sm text-muted-foreground">This document is protected. Enter the access code the sender gave you to view and sign it.</p>
-        <form className="mt-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); void unlock(); }}>
-          <Input autoFocus placeholder="Access code" value={accessCode}
-                 onChange={(e) => setAccessCode(e.target.value)} className="h-11" />
-          <Button type="submit" disabled={unlocking} className="h-11 gap-2">
-            {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Unlock"}
-          </Button>
-        </form>
-      </div>
-    </Centered>
+    <StateScreen icon={KeyRound} title="Enter your access code" description="The sender gave you a code to open this document.">
+      <form className="mt-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); void unlock(); }}>
+        <Input autoFocus aria-label="Access code" placeholder="Access code" value={accessCode}
+               onChange={(e) => setAccessCode(e.target.value)} />
+        <Button type="submit" disabled={unlocking}>
+          {unlocking && <Loader2 className="animate-spin" />} Unlock
+        </Button>
+      </form>
+    </StateScreen>
   );
-  if (!data) return <Centered><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></Centered>;
+  if (!data) return <Centered><Loader2 className="size-5 animate-spin text-muted-foreground" /></Centered>;
   if (data.signer.status === "signed" && !done)
-    return <Centered><p className="text-muted-foreground">You have already signed this document. Thank you.</p></Centered>;
+    return <StateScreen icon={Check} tone="success" title="Already signed" description="You have already signed this document." />;
 
   const myIdx = signerIndex.get(data.signer.id) ?? 0;
-  const myColor = recipientColor(myIdx);
   const myFields = data.envelope.fields
     .filter((f) => f.mine)
     .sort((a, b) => a.page - b.page || a.y - b.y);
   const mustFill = myFields.filter((f) => f.required !== false);
   const blocking = blockingFields(myFields, values);
   const filledCount = mustFill.length - blocking.length;
-  const nextField = blocking[0]; 
+  const nextField = blocking[0];
   const allDone = blocking.length === 0;
+  const brand = data.envelope.org.brandColor;
 
   const previewFields: FieldBox[] = data.envelope.fields.map((f) => ({
     ...f, value: f.mine ? values[f.id!] ?? null : f.value ?? null,
@@ -115,13 +112,9 @@ export default function Signer({ token }: { token: string }) {
   function activate(f: FieldBox) {
     if (f.type === "checkbox") return fill(f, values[f.id!] ? "" : "X");
     if (f.type === "date") return fill(f, new Date().toISOString().slice(0, 10));
-    if (f.type === "text") {
-      const v = window.prompt(f.label ? `${f.label}:` : "Enter text:", values[f.id!] ?? "");
-      if (v !== null) fill(f, v);
-      return;
-    }
+    if (f.type === "text") return setEditingText(f);
     if (f.type === "signature" || f.type === "initials") {
-      if (adopted) return fill(f, adopted); 
+      if (adopted) return fill(f, adopted);
       return setEditing(f);
     }
   }
@@ -134,7 +127,7 @@ export default function Signer({ token }: { token: string }) {
   }
 
   async function submit() {
-    if (!allDone) { toast.error("Please complete all required fields first."); return; }
+    if (!allDone) { toast.error("Complete all required fields first."); return; }
     if (data!.signer.hasAccessCode && !accessCode) { toast.error("Enter your access code to finish."); return; }
     setSubmitting(true);
     const res = await fetch(`/api/sign/${token}`, {
@@ -143,74 +136,103 @@ export default function Signer({ token }: { token: string }) {
     });
     setSubmitting(false);
     const body = await res.json();
-    if (!res.ok) { toast.error(body.error ?? "Submission failed"); return; }
+    if (!res.ok) { toast.error(body.error ?? "Could not submit your signature. Try again."); return; }
     setDone(body);
   }
 
   if (done) return <DoneView done={done} envelopeId={data.envelope.id} token={token} />;
 
   return (
-    <div className="min-h-screen bg-secondary">
-      <header className="sticky top-0 z-20 bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <span className="h-8 w-8 rounded-md flex items-center justify-center text-white text-sm font-semibold shrink-0"
-                style={{ background: data.envelope.org.brandColor }}>
-            {data.envelope.org.name[0]}
-          </span>
-          <div className="min-w-0">
-            <div className="font-medium truncate">{data.envelope.title}</div>
-            <div className="text-xs text-muted-foreground truncate">{data.envelope.org.name} · signing as {data.signer.name}</div>
+    <div className="min-h-screen bg-muted">
+      <header className="sticky top-0 z-20 border-b bg-background">
+        <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
+          <OrgAvatar name={data.envelope.org.name} color={brand} size="md" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{data.envelope.title}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {data.envelope.org.name} · Signing as {data.signer.name}
+            </p>
           </div>
-          <div className="flex-1" />
-          <Badge variant="secondary" className="font-normal hidden sm:flex">{filledCount} / {mustFill.length} done</Badge>
+          <Badge variant="secondary" className="hidden tabular-nums sm:inline-flex" aria-label={`${filledCount} of ${mustFill.length} required fields done`}>
+            {filledCount}/{mustFill.length}
+          </Badge>
           {data.signer.hasAccessCode && (
-            <Input placeholder="Access code" value={accessCode} onChange={(e) => setAccessCode(e.target.value)}
-                   className="h-9 w-32 hidden sm:block" />
+            <Input aria-label="Access code" placeholder="Access code" value={accessCode}
+                   onChange={(e) => setAccessCode(e.target.value)} className="hidden w-32 sm:block" />
           )}
           <Button onClick={submit} disabled={submitting || !allDone}
-                  className="gap-2 text-white" style={{ background: allDone ? data.envelope.org.brandColor : undefined }}>
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            {submitting ? "Sealing…" : "Finish & sign"}
+                  className="text-brand-foreground hover:opacity-90" style={{ background: brand }}>
+            {submitting ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+            {submitting ? "Signing…" : "Finish & sign"}
           </Button>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 sm:p-8">
+      <main className="mx-auto max-w-4xl p-4 pb-24 sm:p-8 sm:pb-24">
         <PdfCanvas fileUrl={`/api/file/${data.envelope.id}?token=${token}${accessCode ? `&code=${encodeURIComponent(accessCode)}` : ""}`} fields={previewFields}
                    mode="sign" docId={data.envelope.id} activeSignerIndex={myIdx} pointerFieldId={nextField?.id ?? undefined}
                    onFieldClick={activate} />
       </main>
 
-      {!allDone && (
-        <button onClick={goToNext}
-                className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30 flex items-center gap-2 rounded-full px-5 py-3 text-white font-medium shadow-lg animate-in fade-in slide-in-from-bottom-2"
-                style={{ background: myColor.solid }}>
-          {filledCount === 0 ? "Start signing" : "Next field"}
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      )}
-      {allDone && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-30 flex items-center gap-2 rounded-full bg-green-600 px-5 py-3 text-white font-medium shadow-lg">
-          <Check className="h-4 w-4" /> All required fields complete, press Finish
-        </div>
-      )}
+      <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2">
+        {allDone ? (
+          <div className="rounded-full border border-success/25 bg-background shadow-sm">
+            <div className="surface-success flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium">
+              <Check className="size-4" /> All required fields complete
+            </div>
+          </div>
+        ) : (
+          <Button size="lg" onClick={goToNext} className="rounded-full shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            {filledCount === 0 ? "Start signing" : "Next field"} <ChevronRight />
+          </Button>
+        )}
+      </div>
 
       {editing && (
         <SignatureDialog
           name={data.signer.name}
-          color={myColor.solid}
           isInitials={editing.type === "initials"}
           onClose={() => setEditing(null)}
           onAdopt={(dataUrl) => { setAdopted(dataUrl); fill(editing, dataUrl); setEditing(null); }}
+        />
+      )}
+      {editingText && (
+        <TextFieldDialog
+          label={editingText.label || "Text"}
+          initial={values[editingText.id!] ?? ""}
+          onClose={() => setEditingText(null)}
+          onSave={(v) => { fill(editingText, v); setEditingText(null); }}
         />
       )}
     </div>
   );
 }
 
+function TextFieldDialog({
+  label, initial, onSave, onClose,
+}: { label: string; initial: string; onSave: (v: string) => void; onClose: () => void }) {
+  const [value, setValue] = useState(initial);
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); onSave(value); }}>
+          <DialogHeader>
+            <DialogTitle>{label}</DialogTitle>
+          </DialogHeader>
+          <Input autoFocus aria-label={label} value={value} onChange={(e) => setValue(e.target.value)} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit">Save</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SignatureDialog({
-  name, color, isInitials, onAdopt, onClose,
-}: { name: string; color: string; isInitials: boolean; onAdopt: (d: string) => void; onClose: () => void }) {
+  name, isInitials, onAdopt, onClose,
+}: { name: string; isInitials: boolean; onAdopt: (d: string) => void; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const padRef = useRef<SignaturePad | null>(null);
   const previewRef = useRef<HTMLSpanElement>(null);
@@ -221,7 +243,7 @@ function SignatureDialog({
   const FONT = SIGNATURE_FONTS[fontIdx].css;
 
   async function ingestImage(file: File) {
-    if (!file.type.startsWith("image/")) { toast.error("Please choose an image file (PNG or JPG)."); return; }
+    if (!file.type.startsWith("image/")) { toast.error("Choose a PNG or JPG image."); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error("Image is too large (max 5MB)."); return; }
     const url = await new Promise<string>((res, rej) => {
       const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file);
@@ -236,26 +258,23 @@ function SignatureDialog({
     let pad: SignaturePad | null = null;
     const raf = requestAnimationFrame(() => {
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      const cssW = canvas.getBoundingClientRect().width || 448;
-      const cssH = 170;
-      canvas.width = Math.round(cssW * ratio);
-      canvas.height = Math.round(cssH * ratio);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round((rect.width || 448) * ratio);
+      canvas.height = Math.round((rect.height || 176) * ratio);
       canvas.getContext("2d")?.scale(ratio, ratio);
-      pad = new SignaturePad(canvas, { penColor: "#1f2937", minWidth: 1, maxWidth: 2.5 });
+      pad = new SignaturePad(canvas, { penColor: INK, minWidth: 1, maxWidth: 2.5 });
       padRef.current = pad;
     });
     return () => { cancelAnimationFrame(raf); pad?.off(); padRef.current = null; };
   }, [tab]);
 
   async function typedToDataUrl(): Promise<string> {
-    const fam = previewRef.current
-      ? getComputedStyle(previewRef.current).fontFamily
-      : FONT;
+    const fam = previewRef.current ? getComputedStyle(previewRef.current).fontFamily : FONT;
     try { await (document as any).fonts?.load?.(`72px ${fam}`); } catch {}
     const c = document.createElement("canvas");
     c.width = 700; c.height = 200;
     const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#1f2937";
+    ctx.fillStyle = INK;
     ctx.font = `72px ${fam}`;
     ctx.textBaseline = "middle";
     ctx.fillText(typed || name, 20, 110);
@@ -265,7 +284,7 @@ function SignatureDialog({
   async function adopt() {
     if (tab === "draw") {
       const pad = padRef.current;
-      if (!pad || pad.isEmpty()) { toast.error("Please draw your signature first."); return; }
+      if (!pad || pad.isEmpty()) { toast.error("Draw your signature first."); return; }
       onAdopt(pad.toDataURL("image/png"));
     } else if (tab === "upload") {
       if (!uploaded) { toast.error("Upload an image of your signature first."); return; }
@@ -278,74 +297,79 @@ function SignatureDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg bg-white" style={{ background: "#fff" }}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isInitials ? "Add your initials" : "Adopt your signature"}</DialogTitle>
         </DialogHeader>
-        <div className="mx-auto w-full" style={{ maxWidth: 448 }}>
-          <div className="flex rounded-lg border bg-secondary p-0.5 mb-3">
-            {(["draw", "type", "upload"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
-                      className={`flex-1 py-1.5 text-sm rounded-md capitalize transition ${tab === t ? "bg-white shadow-sm font-medium" : "text-muted-foreground"}`}>
-                {t}
-              </button>
-            ))}
+        <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setTab(v)} className="w-full" aria-label="Signature method">
+          <ToggleGroupItem value="draw">Draw</ToggleGroupItem>
+          <ToggleGroupItem value="type">Type</ToggleGroupItem>
+          <ToggleGroupItem value="upload">Upload</ToggleGroupItem>
+        </ToggleGroup>
+
+        {tab === "draw" && (
+          <div className="light relative h-44 overflow-hidden rounded-lg border bg-background">
+            <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" aria-label="Signature pad" />
+            <div className="pointer-events-none absolute right-6 bottom-8 left-6 border-b border-dashed border-input" />
+            <Button variant="ghost" size="xs" className="absolute top-2 right-2" onClick={() => padRef.current?.clear()}>
+              Clear
+            </Button>
           </div>
-          {tab === "upload" ? (
-            <div>
-              {uploaded ? (
-                <div className="relative border rounded-lg bg-white h-[170px] flex items-center justify-center overflow-hidden p-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={uploaded} alt="signature" className="max-h-full max-w-full object-contain" />
-                  <button onClick={() => setUploaded(null)}
-                          className="absolute top-2 right-3 text-xs text-muted-foreground hover:text-foreground">Replace</button>
-                </div>
-              ) : (
-                <label className="border-2 border-dashed rounded-lg h-[170px] flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-input transition bg-white">
-                  <input type="file" accept="image/png,image/jpeg" className="hidden"
-                         onChange={(e) => e.target.files?.[0] && ingestImage(e.target.files[0])} />
-                  <Upload className="h-6 w-6 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Upload a signature image (PNG or JPG)</span>
-                  <span className="text-xs text-muted-foreground">A transparent PNG works best</span>
-                </label>
-              )}
+        )}
+
+        {tab === "type" && (
+          <div className="grid gap-3">
+            <Input aria-label="Your name" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type your full name" />
+            <div className="light flex h-28 items-center justify-center overflow-hidden rounded-lg border bg-background px-4">
+              <span ref={previewRef} className="truncate text-4xl leading-normal text-foreground" style={{ fontFamily: FONT }}>
+                {typed || name}
+              </span>
             </div>
-          ) : tab === "draw" ? (
-            <div className="relative">
-              <canvas ref={canvasRef} style={{ width: "100%", height: 170 }}
-                      className="border rounded-lg touch-none bg-white" />
-              <button onClick={() => padRef.current?.clear()}
-                      className="absolute top-2 right-3 text-xs text-muted-foreground hover:text-muted-foreground">Clear</button>
-              <div className="absolute bottom-6 left-6 right-6 border-b border-dashed border-input pointer-events-none" />
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Signature style">
+              {SIGNATURE_FONTS.map((f, i) => (
+                <button
+                  key={f.name}
+                  type="button"
+                  role="radio"
+                  aria-checked={fontIdx === i}
+                  aria-label={f.name}
+                  onClick={() => setFontIdx(i)}
+                  className={cn(
+                    "flex h-11 items-center justify-center overflow-hidden rounded-md border px-2 transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60",
+                    fontIdx === i && "border-foreground ring-1 ring-foreground",
+                  )}
+                >
+                  <span className="truncate text-xl" style={{ fontFamily: f.css }}>{typed || name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab === "upload" && (
+          uploaded ? (
+            <div className="light relative flex h-44 items-center justify-center overflow-hidden rounded-lg border bg-background p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={uploaded} alt="Your signature" className="max-h-full max-w-full object-contain" />
+              <Button variant="ghost" size="xs" className="absolute top-2 right-2" onClick={() => setUploaded(null)}>
+                Replace
+              </Button>
             </div>
           ) : (
-            <div>
-              <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type your full name" className="mb-3" />
-              <div className="h-[110px] border rounded-lg flex items-center justify-center bg-white overflow-hidden px-4 mb-3">
-                <span ref={previewRef} style={{ fontFamily: FONT, fontSize: 46, color: "#1f2937", lineHeight: 1 }}>
-                  {typed || name}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {SIGNATURE_FONTS.map((f, i) => (
-                  <button key={f.name} onClick={() => setFontIdx(i)}
-                          className={`h-11 rounded-md border flex items-center justify-center overflow-hidden px-2 transition ${fontIdx === i ? "ring-2 border-transparent" : "hover:bg-secondary"}`}
-                          style={fontIdx === i ? { ["--tw-ring-color" as any]: color } : {}}>
-                    <span style={{ fontFamily: f.css, fontSize: 22, color: "#1f2937" }} className="truncate">
-                      {typed || name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            <Dropzone
+              accept="image/png,image/jpeg"
+              onFiles={(files) => files[0] && ingestImage(files[0])}
+              title="Upload an image of your signature"
+              hint="PNG or JPG"
+              className="h-44"
+            />
+          )
+        )}
+
         <p className="text-xs text-muted-foreground">By adopting, you agree this is your legal signature for this document.</p>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={adopt} className="gap-2 text-white" style={{ background: color }}>
-            <PenLine className="h-4 w-4" /> Adopt & sign
-          </Button>
+          <Button onClick={adopt}><PenLine /> Adopt and sign</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -353,58 +377,58 @@ function SignatureDialog({
 }
 
 function DoneView({ done, envelopeId, token }: { done: { completed: boolean; sha256?: string; certCN?: string; anchorState?: string }; envelopeId: string; token: string }) {
+  const meta = done.completed
+    ? [
+        done.certCN && `Sealed by ${done.certCN}`,
+        done.anchorState && done.anchorState !== "none" && (done.anchorState === "confirmed" ? "Timestamp recorded" : "Confirming timestamp"),
+      ].filter(Boolean).join(" · ")
+    : "";
+  return (
+    <StateScreen
+      icon={Check}
+      tone="success"
+      title="You've signed"
+      description={done.completed
+        ? "Everyone has signed and the document is sealed."
+        : "Your signature is recorded. Everyone gets the sealed copy once the other signers finish."}
+    >
+      {done.completed && (
+        <div className="mt-6 grid justify-items-center gap-3">
+          <Button asChild>
+            <a href={`/api/file/${envelopeId}?variant=sealed&token=${token}`} target="_blank"><Download /> Download sealed PDF</a>
+          </Button>
+          {meta && <p className="text-xs text-muted-foreground">{meta}</p>}
+        </div>
+      )}
+
+      <div className="mt-10 rounded-lg border bg-background p-4 text-left">
+        <p className="text-sm font-medium">Seal your own documents</p>
+        <div className="mt-3 flex items-center gap-2">
+          <Button asChild size="sm" variant="outline"><a href="/signup">Create a free account</a></Button>
+          <Button asChild size="sm" variant="ghost"><a href="/verify">Verify a document</a></Button>
+        </div>
+      </div>
+    </StateScreen>
+  );
+}
+
+function StateScreen({
+  icon: Icon, tone, title, description, children,
+}: { icon: React.ElementType; tone?: "success"; title: string; description: string; children?: React.ReactNode }) {
   return (
     <Centered>
-      <div className="text-center max-w-md">
-        <span className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-          <Check className="h-8 w-8 text-green-600" />
+      <div className="w-full max-w-sm text-center">
+        <span className="mx-auto flex size-10 items-center justify-center rounded-md border bg-background shadow-xs">
+          <Icon className={cn("size-5", tone === "success" ? "text-success" : "text-muted-foreground")} />
         </span>
-        <h1 className="text-2xl font-semibold mt-5">You've signed</h1>
-        {done.completed ? (
-          <>
-            <p className="text-muted-foreground mt-2">All parties have signed. The document has been cryptographically sealed.</p>
-            <div className="mt-4 inline-flex items-center gap-2 text-xs text-muted-foreground bg-secondary rounded-full px-3 py-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
-              Sealed by {done.certCN} · {done.sha256?.slice(0, 20)}…
-            </div>
-            {done.anchorState && done.anchorState !== "none" && (
-              <div className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground bg-secondary rounded-full px-3 py-1.5">
-                <Anchor className="h-3.5 w-3.5 text-muted-foreground" />
-                {done.anchorState === "confirmed" ? "Independent timestamp recorded" : "Recording an independent timestamp — confirming"}
-              </div>
-            )}
-            <div className="mt-6">
-              <Button asChild className="gap-2">
-                <a href={`/api/file/${envelopeId}?variant=sealed&token=${token}`} target="_blank"><Download className="h-4 w-4" /> Download sealed PDF</a>
-              </Button>
-            </div>
-          </>
-        ) : (
-          <p className="text-muted-foreground mt-2">Your signature is recorded. We're waiting on the other signers, then everyone gets the sealed copy.</p>
-        )}
-
-        <div className="mt-8 rounded-xl border bg-white p-5 text-left">
-          <div className="flex items-start gap-3">
-            <span className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-            </span>
-            <div className="min-w-0">
-              <div className="font-medium text-sm">Seal your own documents — free, forever</div>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Create a free account to send documents for signing and prove any file is genuine. Anyone can always verify it, free.
-              </p>
-              <div className="flex items-center gap-3 mt-3">
-                <Button asChild size="sm"><a href="/signup">Create a free account</a></Button>
-                <Button asChild size="sm" variant="ghost"><a href="/verify">Verify a document</a></Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <h1 className="mt-5 text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        {children}
       </div>
     </Centered>
   );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen flex items-center justify-center px-6 bg-secondary">{children}</div>;
+  return <div className="flex min-h-screen items-center justify-center bg-muted px-6 py-12">{children}</div>;
 }

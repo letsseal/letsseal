@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { CircleCheck, CircleX } from "lucide-react";
 import { peekChallenge } from "@/lib/domain-verify";
+import { CenteredPage } from "@/components/common/centered-page";
 import { ConfirmDomain } from "./_confirm";
 
 export const dynamic = "force-dynamic";
@@ -9,25 +11,28 @@ export default async function VerifyDomainPage({ params }: { params: Promise<{ t
   const { token } = await params;
   const ch = await peekChallenge(token);
 
-  return (
-    <main className="mx-auto flex min-h-[70vh] max-w-lg flex-col justify-center px-6 py-16">
-      <div className="rounded-2xl border bg-card p-8 shadow-sm">
-        <h1 className="text-xl font-semibold tracking-tight">Domain verification</h1>
-        {!ch || ch.status === "invalid" ? (
-          <p className="mt-3 text-sm text-muted-foreground">This verification link isn&apos;t valid. Start a new one from your organisation&apos;s settings.</p>
-        ) : ch.status === "expired" ? (
-          <p className="mt-3 text-sm text-muted-foreground">This link has expired. Start a new verification from your organisation&apos;s settings.</p>
-        ) : ch.status === "verified" ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
-            <div className="text-lg font-semibold text-emerald-800">Already verified ✓</div>
-            <p className="mt-1.5 text-sm text-emerald-700"><b>{ch.org}</b> is verified as controlling <b>{ch.domain}</b>.</p>
-          </div>
-        ) : (
-          <div className="mt-4">
-            <ConfirmDomain token={token} domain={ch.domain} org={ch.org} />
-          </div>
-        )}
-      </div>
-    </main>
-  );
+  if (!ch || ch.status === "invalid" || ch.status === "expired") {
+    return (
+      <CenteredPage
+        className="max-w-md"
+        icon={CircleX}
+        title={ch?.status === "expired" ? "Link expired" : "Link invalid"}
+        description="Start a new verification from your business settings."
+      />
+    );
+  }
+
+  if (ch.status === "verified") {
+    return (
+      <CenteredPage
+        className="max-w-md"
+        icon={CircleCheck}
+        iconClassName="text-success"
+        title="Domain verified"
+        description={<><span className="font-medium text-foreground">{ch.org}</span> is verified as controlling <span className="font-medium text-foreground">{ch.domain}</span>.</>}
+      />
+    );
+  }
+
+  return <ConfirmDomain token={token} domain={ch.domain} org={ch.org} />;
 }

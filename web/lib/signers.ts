@@ -23,10 +23,10 @@ export function recipientColor(index: number): RecipientColor {
 }
 
 export const RECIPIENT_ROLES = [
-  { id: "signer",    label: "Needs to Sign",     signs: true,  fields: true,  hint: "Signs the document" },
-  { id: "in_person", label: "In-Person Signer",  signs: true,  fields: true,  hint: "Signs on your device" },
-  { id: "cc",        label: "Receives a Copy",   signs: false, fields: false, hint: "Emailed the finished copy" },
-  { id: "viewer",    label: "Needs to View",     signs: false, fields: false, hint: "Gets a copy to review" },
+  { id: "signer",    label: "Needs to sign",     signs: true,  fields: true,  hint: "Signs the document" },
+  { id: "in_person", label: "In-person signer",  signs: true,  fields: true,  hint: "Signs on your device" },
+  { id: "cc",        label: "Receives a copy",   signs: false, fields: false, hint: "Emailed the finished copy" },
+  { id: "viewer",    label: "Needs to view",     signs: false, fields: false, hint: "Gets a copy to review" },
 ] as const;
 
 export type RoleId = (typeof RECIPIENT_ROLES)[number]["id"];

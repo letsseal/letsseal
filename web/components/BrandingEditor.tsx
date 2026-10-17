@@ -2,35 +2,58 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Upload, X, Check } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/common/field";
+import { SettingsCard } from "@/components/common/settings-card";
+import { OrgAvatar } from "@/components/app-shell/OrgAvatar";
+import { cn } from "@/lib/utils";
 
-type Org = {
-  slug: string; name: string; brandColor: string; accentColor: string;
-  logoUrl: string | null; fromEmail: string | null;
-};
+type Org = { slug: string; name: string; brandColor: string; logoUrl: string | null; fromEmail: string | null };
 
-const SWATCHES = ["#111827", "#2563eb", "#059669", "#db2777", "#ea580c", "#7c3aed", "#0f766e", "#9e2b22"];
+export const BRAND_SWATCHES = [
+  { name: "Black", hex: "#111827" },
+  { name: "Blue", hex: "#2563eb" },
+  { name: "Green", hex: "#059669" },
+  { name: "Pink", hex: "#db2777" },
+  { name: "Orange", hex: "#ea580c" },
+  { name: "Violet", hex: "#7c3aed" },
+  { name: "Teal", hex: "#0f766e" },
+  { name: "Red", hex: "#9e2b22" },
+];
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+/** Brand colour swatches, with an optional custom colour picker. */
+export function ColorSwatches({
+  value, onChange, custom = false, label = "Brand colour",
+}: { value: string; onChange: (hex: string) => void; custom?: boolean; label?: string }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex flex-wrap items-center gap-2">
-        {SWATCHES.map((c) => (
-          <button key={c} type="button" aria-label={c} onClick={() => onChange(c)}
-                  className={`h-7 w-7 rounded-full ring-offset-2 transition ${value.toLowerCase() === c ? "ring-2 ring-foreground" : ""}`}
-                  style={{ background: c }} />
-        ))}
-        <label className="flex h-7 items-center gap-1.5 rounded-full border px-2 text-xs text-muted-foreground cursor-pointer">
-          <span className="h-4 w-4 rounded-full border" style={{ background: value }} />
-          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" />
+    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-2">
+      {BRAND_SWATCHES.map((s) => {
+        const on = value.toLowerCase() === s.hex;
+        return (
+          <button
+            key={s.hex}
+            type="button"
+            aria-label={s.name}
+            aria-pressed={on}
+            onClick={() => onChange(s.hex)}
+            className={cn(
+              "size-6 rounded-full outline-none ring-offset-2 ring-offset-background transition-shadow focus-visible:ring-2 focus-visible:ring-ring/60",
+              on && "ring-2 ring-foreground focus-visible:ring-foreground"
+            )}
+            style={{ background: s.hex }}
+          />
+        );
+      })}
+      {custom && (
+        <label className="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border bg-background px-2 font-mono text-xs text-muted-foreground shadow-xs hover:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring/60">
+          <span className="size-3.5 rounded-full border" style={{ background: value }} />
+          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" aria-label="Custom colour" />
           {value}
         </label>
-      </div>
+      )}
     </div>
   );
 }
@@ -39,13 +62,12 @@ export default function BrandingEditor({ org }: { org: Org }) {
   const router = useRouter();
   const [name, setName] = useState(org.name);
   const [brandColor, setBrandColor] = useState(org.brandColor);
-  const [accentColor, setAccentColor] = useState(org.accentColor);
   const [logoUrl, setLogoUrl] = useState<string | null>(org.logoUrl);
   const [fromEmail, setFromEmail] = useState(org.fromEmail ?? "");
   const [saving, setSaving] = useState(false);
 
   const dirty =
-    name !== org.name || brandColor !== org.brandColor || accentColor !== org.accentColor ||
+    name !== org.name || brandColor !== org.brandColor ||
     logoUrl !== org.logoUrl || fromEmail !== (org.fromEmail ?? "");
 
   async function pickLogo(file: File) {
@@ -68,11 +90,11 @@ export default function BrandingEditor({ org }: { org: Org }) {
     try {
       const res = await fetch(`/api/orgs/${org.slug}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, brandColor, accentColor, logoUrl, fromEmail }),
+        body: JSON.stringify({ name, brandColor, logoUrl, fromEmail }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Could not save"); return; }
-      toast.success("Branding saved");
+      toast.success("Saved");
       router.refresh();
     } finally {
       setSaving(false);
@@ -80,78 +102,64 @@ export default function BrandingEditor({ org }: { org: Org }) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="biz-name">Business name</Label>
-          <Input id="biz-name" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
+    <SettingsCard
+      title="Business"
+      footerHint={dirty ? "Unsaved changes" : null}
+      footer={
+        <Button size="sm" onClick={save} disabled={!dirty || saving}>
+          {saving && <Loader2 className="animate-spin" />}
+          Save
+        </Button>
+      }
+    >
+      <div className="grid gap-6 sm:grid-cols-[1fr_14rem]">
+        <div className="grid gap-4">
+          <Field label="Name" htmlFor="biz-name">
+            <Input id="biz-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
 
-        <div className="space-y-2">
-          <Label>Logo</Label>
-          <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl text-2xl font-semibold text-white"
-                  style={{ background: brandColor }}>
-              {logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : name[0]?.toUpperCase()}
-            </span>
-            <div className="flex gap-2">
-              <Button asChild variant="outline" size="sm" className="gap-1.5 cursor-pointer">
+          <Field label="Logo">
+            <div className="flex items-center gap-3">
+              <OrgAvatar name={name || "?"} color={brandColor} logoUrl={logoUrl} size="lg" />
+              <Button asChild variant="outline" size="sm" className="cursor-pointer">
                 <label>
-                  <Upload className="h-3.5 w-3.5" /> Upload
-                  <input type="file" accept="image/*" className="hidden"
+                  <Upload /> Upload
+                  <input type="file" accept="image/*" className="sr-only"
                          onChange={(e) => e.target.files?.[0] && pickLogo(e.target.files[0])} />
                 </label>
               </Button>
               {logoUrl && (
-                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setLogoUrl(null)}>
-                  <X className="h-3.5 w-3.5" /> Remove
-                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setLogoUrl(null)}>Remove</Button>
               )}
             </div>
-          </div>
-          <p className="text-xs text-muted-foreground">Square works best. Auto-resized to 256px.</p>
+          </Field>
+
+          <Field label="Brand colour">
+            <ColorSwatches value={brandColor} onChange={setBrandColor} custom />
+          </Field>
+
+          <Field label="Reply-to email" htmlFor="from-email" optional>
+            <Input id="from-email" type="email" placeholder="sign@yourbusiness.com"
+                   value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} />
+          </Field>
         </div>
 
-        <ColorField label="Brand colour" value={brandColor} onChange={setBrandColor} />
-        <ColorField label="Accent colour" value={accentColor} onChange={setAccentColor} />
-
-        <div className="space-y-2">
-          <Label htmlFor="from-email">From-email <span className="text-muted-foreground font-normal">(optional)</span></Label>
-          <Input id="from-email" type="email" placeholder="sign@yourbusiness.com"
-                 value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} />
-        </div>
-
-        <div className="flex items-center gap-3 border-t pt-5">
-          <Button onClick={save} disabled={!dirty || saving} className="gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Save changes
-          </Button>
-          {dirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
-        </div>
-      </div>
-
-      <div className="lg:sticky lg:top-20 h-fit">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
-        <div className="overflow-hidden rounded-2xl border bg-card">
-          <div className="h-2" style={{ background: brandColor }} />
-          <div className="p-5">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg text-lg font-semibold text-white"
-                    style={{ background: brandColor }}>
-                {logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-cover" /> : name[0]?.toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <div className="truncate font-medium">{name || "Business name"}</div>
-                <div className="text-xs text-muted-foreground">Signing portal</div>
-              </div>
+        <div className="grid h-fit gap-2">
+          <p className="text-xs text-muted-foreground">Preview</p>
+          <div aria-hidden className="grid gap-4 rounded-lg border bg-background p-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <OrgAvatar name={name || "?"} color={brandColor} logoUrl={logoUrl} size="md" />
+              <span className="truncate text-sm font-medium">{name || "Business name"}</span>
             </div>
-            <Button className="mt-4 w-full text-white" style={{ background: brandColor }}>Sign document</Button>
-            <button className="mt-2 w-full rounded-md py-1.5 text-sm font-medium" style={{ color: accentColor }}>
-              Secondary action
-            </button>
+            <span
+              className="flex h-9 items-center justify-center rounded-md text-sm font-medium text-white"
+              style={{ background: brandColor }}
+            >
+              Sign document
+            </span>
           </div>
         </div>
       </div>
-    </div>
+    </SettingsCard>
   );
 }

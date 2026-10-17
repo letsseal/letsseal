@@ -2,9 +2,15 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, FileUp, Copy, ExternalLink, Download, Check, X, ShieldCheck, Clock } from "lucide-react";
+import { Loader2, ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { InfoTip } from "@/components/common/info-tip";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dropzone } from "@/components/common/dropzone";
+import { CopyButton } from "@/components/common/copy-button";
+import { StatusBadge, type StatusTone } from "@/components/common/status-badge";
 
 type Status = "queued" | "sealing" | "sealed" | "error";
 type Item = {
@@ -14,18 +20,23 @@ type Item = {
 
 const CONCURRENCY = 3;
 const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1e6 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1e6).toFixed(1)} MB`);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const STATUS: Record<Status, { tone: StatusTone; label: string }> = {
+  queued: { tone: "neutral", label: "Queued" },
+  sealing: { tone: "warning", label: "Sealing" },
+  sealed: { tone: "success", label: "Sealed" },
+  error: { tone: "destructive", label: "Failed" },
+};
 
 export default function BulkSealer({ slug }: { slug: string }) {
   const [items, setItems] = useState<Item[]>([]);
   const [anchor, setAnchor] = useState(true);
   const [running, setRunning] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  function addFiles(files: FileList | null) {
-    if (!files) return;
-    const pdfs = [...files].filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+  function addFiles(files: File[]) {
+    const pdfs = files.filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
     const skipped = files.length - pdfs.length;
-    if (skipped) toast.error(`${skipped} non-PDF file(s) skipped`);
+    if (skipped) toast.error(`Skipped ${plural(skipped, "file")} that ${skipped === 1 ? "isn't a PDF" : "aren't PDFs"}`);
     setItems((prev) => [...prev, ...pdfs.map((f) => ({ file: f, name: f.name, size: f.size, status: "queued" as Status }))]);
   }
 
@@ -39,7 +50,7 @@ export default function BulkSealer({ slug }: { slug: string }) {
       const res = await fetch(`/api/orgs/${slug}/seal`, { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
+        throw new Error(err.error ?? `Sealing failed (${res.status})`);
       }
       const blob = await res.blob();
       const update: Partial<Item> = {
@@ -72,7 +83,7 @@ export default function BulkSealer({ slug }: { slug: string }) {
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queued.length) }, worker));
     setRunning(false);
     const done = itemsRef.current.filter((x) => x.status === "sealed").length;
-    toast.success(`Sealed ${done} document(s)`);
+    toast.success(`Sealed ${plural(done, "document")}`);
   }
 
   function downloadManifest() {
@@ -87,85 +98,88 @@ export default function BulkSealer({ slug }: { slug: string }) {
   }
 
   const sealedCount = items.filter((i) => i.status === "sealed").length;
+  const pending = items.filter((i) => i.status === "queued" || i.status === "error").length;
 
   return (
-    <div className="space-y-5">
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
-        onClick={() => inputRef.current?.click()}
-        className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 text-center transition-colors hover:border-brand/50 hover:bg-muted/30"
-      >
-        <FileUp className="mb-2 h-7 w-7 text-muted-foreground" />
-        <p className="text-sm font-medium">Drop PDFs here, or click to choose</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Invoices, statements, reports — anything you already generate. Sealed as this business.</p>
-        <input ref={inputRef} type="file" accept="application/pdf" multiple hidden onChange={(e) => addFiles(e.target.files)} />
-      </div>
+    <div className="space-y-6">
+      <Dropzone
+        multiple
+        accept="application/pdf,.pdf"
+        title="Drop PDFs, or click to choose"
+        onFiles={addFiles}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={anchor} onChange={(e) => setAnchor(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
-          Anchor to a public ledger (permanent proof of date)
-        </label>
+        <div className="flex items-center gap-2">
+          <Switch id="anchor" checked={anchor} onCheckedChange={setAnchor} disabled={running} />
+          <Label htmlFor="anchor" className="font-normal">Timestamp</Label>
+          <InfoTip label="About timestamps">
+            <p>Records when each file existed, independently of Let&apos;s Seal. It confirms within a few hours.</p>
+          </InfoTip>
+        </div>
         <div className="ml-auto flex items-center gap-2">
           {sealedCount > 0 && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={downloadManifest}>
-              <Download className="h-4 w-4" /> Manifest (CSV)
+            <Button variant="outline" onClick={downloadManifest}>
+              <Download /> Download CSV
             </Button>
           )}
-          <Button onClick={sealAll} disabled={running || items.length === 0} className="gap-1.5">
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            Seal {items.filter((i) => i.status === "queued" || i.status === "error").length || ""} document{items.length === 1 ? "" : "s"}
+          <Button onClick={sealAll} disabled={running || pending === 0}>
+            {running && <Loader2 className="animate-spin" />}
+            {pending > 0 ? `Seal ${plural(pending, "document")}` : "Seal documents"}
           </Button>
         </div>
       </div>
 
       {items.length > 0 && (
-        <div className="divide-y rounded-lg border">
-          {items.map((it, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium">{it.name}</span>
-                  <StatusBadge it={it} />
-                </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {fmtSize(it.size)}
-                  {it.error && <span className="text-red-600"> · {it.error}</span>}
-                  {it.status === "sealed" && it.sha256 && <span className="font-mono"> · {it.sha256.slice(0, 12)}…</span>}
-                </div>
-              </div>
-              {it.status === "sealed" && (
-                <div className="flex shrink-0 items-center gap-1">
-                  {it.proofUrl && (
-                    <>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" title="Copy proof link"
-                              onClick={() => { navigator.clipboard.writeText(it.proofUrl!); toast.success("Proof link copied"); }}>
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Open proof"><a href={it.proofUrl} target="_blank"><ExternalLink className="h-3.5 w-3.5" /></a></Button>
-                    </>
-                  )}
-                  <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Download sealed PDF">
-                    <a href={it.blobUrl} download={it.name.replace(/\.pdf$/i, "") + ".sealed.pdf"}><Download className="h-3.5 w-3.5" /></a>
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>File</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((it, i) => {
+                const timestampPending = it.status === "sealed" && it.anchorState && it.anchorState !== "none" && it.anchorState !== "confirmed";
+                return (
+                  <TableRow key={i}>
+                    <TableCell className="max-w-0 w-full">
+                      <p className="truncate font-medium">{it.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {fmtSize(it.size)}
+                        {timestampPending && " · Timestamp pending"}
+                        {it.error && <span className="text-destructive"> · {it.error}</span>}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={STATUS[it.status].tone}>{STATUS[it.status].label}</StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      {it.status === "sealed" && (
+                        <div className="flex justify-end gap-1">
+                          {it.proofUrl && (
+                            <>
+                              <CopyButton value={it.proofUrl} variant="ghost" ariaLabel="Copy proof link" toastMessage="Proof link copied" />
+                              <Button asChild size="icon-sm" variant="ghost">
+                                <a href={it.proofUrl} target="_blank" rel="noreferrer" aria-label="Open proof"><ExternalLink /></a>
+                              </Button>
+                            </>
+                          )}
+                          <Button asChild size="icon-sm" variant="ghost">
+                            <a href={it.blobUrl} download={it.name.replace(/\.pdf$/i, "") + ".sealed.pdf"} aria-label="Download sealed PDF"><Download /></a>
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
-  );
-}
-
-function StatusBadge({ it }: { it: Item }) {
-  if (it.status === "queued") return <Badge variant="secondary" className="text-[10px]">Queued</Badge>;
-  if (it.status === "sealing") return <Badge variant="secondary" className="gap-1 text-[10px]"><Loader2 className="h-2.5 w-2.5 animate-spin" />Sealing</Badge>;
-  if (it.status === "error") return <Badge variant="destructive" className="gap-1 text-[10px]"><X className="h-2.5 w-2.5" />Failed</Badge>;
-  return (
-    <Badge variant="secondary" className="gap-1 text-[10px] text-emerald-700">
-      <Check className="h-2.5 w-2.5" />Sealed{it.anchorState && it.anchorState !== "none" ? (it.anchorState === "confirmed" ? "" : " · anchoring") : ""}
-    </Badge>
   );
 }

@@ -1,7 +1,12 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileText, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser, requireOrg } from "@/lib/auth-helpers";
 import { DocTable } from "@/components/app-shell/DocTable";
+import { PageHeader } from "@/components/common/page-header";
+import { EmptyState } from "@/components/common/empty-state";
+import { Button } from "@/components/ui/button";
 import { buildDocRows } from "@/lib/org-docs";
 
 export const dynamic = "force-dynamic";
@@ -21,16 +26,22 @@ export default async function DocumentsPage({ params }: { params: Promise<{ org:
   if (!org) notFound();
 
   const rows = buildDocRows(org);
+  const newDoc = (
+    <Button asChild>
+      <Link href={`/${slug}/new`}><Plus /> New document</Link>
+    </Button>
+  );
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <h2 className="text-2xl font-semibold tracking-tight">Documents</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Everything this business has sealed, issued, or sent to sign — {rows.length} total.
-      </p>
-      <div className="mt-6 overflow-hidden rounded-2xl border bg-card">
-        <DocTable rows={rows} emptyText="No documents yet. Seal a document, issue a credential, or send one to sign." />
-      </div>
-    </div>
+    <>
+      <PageHeader title="Documents" actions={rows.length > 0 && newDoc} />
+      {rows.length === 0 ? (
+        <EmptyState icon={FileText} title="No documents yet" action={newDoc} />
+      ) : (
+        <div className="overflow-hidden rounded-lg border">
+          <DocTable rows={rows} />
+        </div>
+      )}
+    </>
   );
 }
